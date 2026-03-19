@@ -1,0 +1,782 @@
+/* TeacherStudents.css - Clean Professional Version with Staff Dashboard Card */
+
+.teacher-students {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+  background: #ffffff;
+  min-height: 100vh;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* ========================================
+   Staff Dashboard Card - New Addition
+   ======================================== */
+
+.teacher-dashboard-card {
+  background: linear-gradient(135deg, #4361ee 0%, #3a56d4 100%);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 28px;
+  box-shadow: 0 8px 20px -5px rgba(67, 97, 238, 0.25);
+  color: white;
+  transition: all 0.3s ease;
+}
+
+.teacher-dashboard-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 25px -5px rgba(67, 97, 238, 0.3);
+}
+
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.dashboard-icon {
+  font-size: 22px;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.dashboard-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+  color: white;
+  letter-spacing: 0.3px;
+}
+
+.dashboard-content {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+
+.teacher-avatar-large {
+  width: 85px;
+  height: 85px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 38px;
+  font-weight: 600;
+  color: white;
+  border: 3px solid rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(4px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.teacher-details {
+  flex: 1;
+}
+
+.teacher-name {
+  font-size: 26px;
+  font-weight: 600;
+  margin: 0 0 15px 0;
+  color: white;
+  letter-spacing: 0.3px;
+}
+
+.teacher-info-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.info-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.info-icon {
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.8);
+  width: 18px;
+}
+
+.info-label {
+  min-width: 95px;
+  font-weight: 500;
+  opacity: 0.8;
+  font-size: 13px;
+}
+
+.info-value {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+/* ========================================
+   Header Styles
+   ======================================== */
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #edf2f7;
+}
+
+.page-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 24px;
+  font-weight: 500;
+  color: #1e293b;
+  margin: 0 0 4px 0;
+}
+
+.page-title svg {
+  color: #4a5568;
+}
+
+.page-description {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.teacher-badge {
+  background: #f1f5f9;
+  color: #334155;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  margin-left: 8px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.btn-export {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 400;
+  color: #4a5568;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-export:hover {
+  background: #f8fafc;
+  border-color: #cbd5e0;
+}
+
+.btn-refresh {
+  width: 36px;
+  height: 36px;
+  border: 1px solid #e2e8f0;
+  background: white;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4a5568;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-refresh:hover {
+  background: #f8fafc;
+  border-color: #cbd5e0;
+}
+
+/* ========================================
+   Stats Cards - Minimal Design
+   ======================================== */
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.stat-card {
+  background: #ffffff;
+  border: 1px solid #edf2f7;
+  border-radius: 4px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: all 0.2s ease;
+}
+
+.stat-card:hover {
+  border-color: #cbd5e0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+}
+
+.stat-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4a5568;
+  background: #f8fafc;
+  border-radius: 4px;
+}
+
+.stat-content {
+  flex: 1;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 2px;
+  display: block;
+}
+
+.stat-value {
+  font-size: 22px;
+  font-weight: 400;
+  color: #1e293b;
+  line-height: 1.2;
+}
+
+/* ========================================
+   Filters Section
+   ======================================== */
+
+.filters-section {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  align-items: center;
+}
+
+.search-box {
+  position: relative;
+  flex: 1;
+}
+
+.search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+.search-input {
+  width: 100%;
+  padding: 8px 10px 8px 32px;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  font-size: 13px;
+  background: white;
+  transition: all 0.2s;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #4361ee;
+  box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.1);
+}
+
+.filter-group {
+  position: relative;
+  min-width: 160px;
+}
+
+.filter-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  font-size: 14px;
+  pointer-events: none;
+}
+
+.filter-select {
+  width: 100%;
+  padding: 8px 10px 8px 30px;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  font-size: 13px;
+  background: white;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 12px;
+  transition: all 0.2s;
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: #4361ee;
+  box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.1);
+}
+
+/* ========================================
+   Table Styles - Clean and Aligned
+   ======================================== */
+
+.table-container {
+  background: white;
+  border: 1px solid #edf2f7;
+  border-radius: 4px;
+  overflow: auto;
+  margin-bottom: 20px;
+}
+
+.students-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.students-table th {
+  background: #f8fafc;
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 500;
+  color: #4a5568;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.students-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #edf2f7;
+  color: #334155;
+  vertical-align: middle;
+}
+
+.students-table tbody tr:hover {
+  background: #fafbfc;
+}
+
+/* Student Info */
+.student-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.student-avatar {
+  width: 32px;
+  height: 32px;
+  background: #edf2f7;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4a5568;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.student-name {
+  font-weight: 500;
+  color: #1e293b;
+  margin-bottom: 2px;
+  font-size: 13px;
+}
+
+.student-email {
+  font-size: 11px;
+  color: #64748b;
+}
+
+/* Roll Number */
+.roll-no {
+  font-family: monospace;
+  color: #4a5568;
+  background: #f8fafc;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  display: inline-block;
+}
+
+/* Course Badge */
+.course-badge {
+  background: #f8fafc;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #4a5568;
+  display: inline-block;
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Semester Badge */
+.semester-badge {
+  background: #f8fafc;
+  color: #4a5568;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  display: inline-block;
+}
+
+/* Attendance */
+.attendance-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 100px;
+}
+
+.attendance-bar {
+  flex: 1;
+  height: 4px;
+  background: #edf2f7;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.attendance-fill {
+  height: 100%;
+  background: #4a5568;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.attendance-value {
+  min-width: 35px;
+  font-size: 11px;
+  color: #4a5568;
+  text-align: right;
+}
+
+/* Contact Actions */
+.contact-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.contact-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #edf2f7;
+  background: white;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.contact-btn:hover {
+  background: #f8fafc;
+  border-color: #cbd5e0;
+  color: #334155;
+  transform: translateY(-1px);
+}
+
+/* Action Buttons */
+.action-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.action-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #edf2f7;
+  background: white;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.action-btn:hover {
+  background: #f8fafc;
+  border-color: #cbd5e0;
+  color: #334155;
+  transform: translateY(-1px);
+}
+
+/* ========================================
+   Empty State
+   ======================================== */
+
+.empty-state {
+  text-align: center;
+  padding: 60px 20px !important;
+  color: #94a3b8;
+}
+
+.empty-state svg {
+  margin-bottom: 16px;
+  color: #cbd5e0;
+}
+
+.empty-state h3 {
+  font-size: 16px;
+  font-weight: 500;
+  color: #475569;
+  margin: 0 0 8px 0;
+}
+
+.empty-state p {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0;
+}
+
+.empty-hint {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 8px !important;
+  font-style: italic;
+}
+
+/* ========================================
+   Loading State
+   ======================================== */
+
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 400px;
+}
+
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 2px solid #edf2f7;
+  border-top-color: #4361ee;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-container p {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0;
+}
+
+/* ========================================
+   Pagination
+   ======================================== */
+
+.pagination {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.pagination-info {
+  font-size: 12px;
+  color: #64748b;
+  background: #f8fafc;
+  padding: 6px 12px;
+  border-radius: 4px;
+}
+
+/* ========================================
+   Responsive Design
+   ======================================== */
+
+@media (max-width: 1200px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 1024px) {
+  .students-table {
+    min-width: 900px;
+  }
+  
+  .table-container {
+    overflow-x: auto;
+  }
+  
+  .teacher-name {
+    font-size: 22px;
+  }
+  
+  .teacher-avatar-large {
+    width: 70px;
+    height: 70px;
+    font-size: 32px;
+  }
+}
+
+@media (max-width: 768px) {
+  .teacher-students {
+    padding: 16px;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .filters-section {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .search-box,
+  .filter-group {
+    width: 100%;
+  }
+
+  .attendance-cell {
+    min-width: 80px;
+  }
+
+  .contact-actions,
+  .action-buttons {
+    flex-wrap: wrap;
+  }
+  
+  /* Staff Dashboard Card Responsive */
+  .dashboard-content {
+    flex-direction: column;
+    text-align: center;
+    gap: 15px;
+  }
+  
+  .teacher-info-grid {
+    align-items: center;
+  }
+  
+  .info-item {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .info-label {
+    text-align: right;
+  }
+  
+  .teacher-name {
+    font-size: 20px;
+    text-align: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .teacher-dashboard-card {
+    padding: 16px;
+  }
+  
+  .info-item {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 8px;
+  }
+  
+  .info-label {
+    min-width: 80px;
+  }
+  
+  .student-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .student-avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+  }
+
+  .course-badge {
+    max-width: 100px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .empty-state {
+    padding: 40px 16px !important;
+  }
+  
+  .teacher-avatar-large {
+    width: 60px;
+    height: 60px;
+    font-size: 28px;
+  }
+  
+  .teacher-name {
+    font-size: 18px;
+  }
+}
+
+/* Print Styles */
+@media print {
+  .teacher-dashboard-card,
+  .header-actions,
+  .filters-section,
+  .contact-actions,
+  .action-buttons {
+    display: none !important;
+  }
+  
+  .students-table {
+    border: 1px solid #000;
+  }
+  
+  .students-table th {
+    background: #f0f0f0;
+    color: #000;
+  }
+}

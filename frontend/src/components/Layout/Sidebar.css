@@ -1,0 +1,145 @@
+/* Sidebar.css - Single Dark Blue Theme */
+
+.admin-sidebar {
+  width: 260px;
+  background-color: #0f172a; /* Single dark blue - main background */
+  border-right: 1px solid #1e293b; /* Slightly lighter border for definition */
+  height: 100vh;
+  position: fixed;
+  left: 0;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.2);
+}
+
+/* Header - Admin Portal */
+.sidebar-header {
+  padding: 32px 24px 16px 24px;
+  border-bottom: 1px solid #1e293b;
+}
+
+.sidebar-header h1 {
+  font-size: 20px;
+  font-weight: 500;
+  color: #ffffff;
+  margin: 0;
+  letter-spacing: -0.3px;
+}
+
+/* User Info - Admin User / Administrator */
+.user-info {
+  padding: 16px 24px;
+  border-bottom: 1px solid #1e293b;
+}
+
+.user-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+.user-role {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+/* Navigation */
+.sidebar-nav {
+  flex: 1;
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  color: #cbd5e1;
+  text-decoration: none;
+  font-size: 14px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  gap: 12px;
+}
+
+/* Hover - slightly lighter version of the same dark blue */
+.nav-item:hover {
+  background-color: #1e293b; /* Lighter shade of the same dark blue */
+  color: #ffffff;
+}
+
+/* Active - same as hover, just slightly different for indication */
+.nav-item.active {
+  background-color: #1e293b; /* Same as hover */
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.nav-icon {
+  width: 18px;
+  color: #94a3b8;
+}
+
+.nav-item:hover .nav-icon,
+.nav-item.active .nav-icon {
+  color: #ffffff;
+}
+
+/* Footer */
+.sidebar-footer {
+  padding: 20px 16px 24px 16px;
+  border-top: 1px solid #1e293b;
+}
+
+.logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: none;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+  color: #cbd5e1;
+  font-size: 14px;
+  cursor: pointer;
+  width: 100%;
+  transition: all 0.2s;
+}
+
+.logout-btn:hover {
+  background-color: #1e293b; /* Same hover color */
+  color: #ffffff;
+  border-color: #334155;
+}
+
+.logout-btn svg {
+  color: #94a3b8;
+}
+
+.logout-btn:hover svg {
+  color: #ffffff;
+}
+
+/* Scrollbar */
+.sidebar-nav::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar-nav::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}

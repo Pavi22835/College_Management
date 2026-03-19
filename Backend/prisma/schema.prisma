@@ -1,0 +1,213 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int       @id @default(autoincrement())
+  email     String    @unique
+  password  String
+  name      String
+  role      Role      @default(STUDENT)
+  isActive  Boolean   @default(true)
+  lastLogin DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  admin     Admin?
+  student   Student?
+  staff     Staff?
+}
+
+model Student {
+  id                 Int          @id @default(autoincrement())
+  userId             Int          @unique
+  rollNo             String       @unique
+  email              String       @unique
+  name               String
+  age                Int?
+  gender             String?
+  course             String?
+  semester           Int?
+  batch              String?
+  phone              String?
+  address            String?
+  dateOfBirth        DateTime?
+  guardianPhone      String?
+  deletedAt          DateTime?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  admissionType      String?
+  admissionYear      String?
+  enrollmentNo       String?      @unique
+  fatherName         String?
+  motherName         String?
+  previousCollege    String?
+  previousPercentage Float?
+  section            String?
+  teacherId          Int?
+  attendances        Attendance[]
+  enrollments        Enrollment[]
+  teacher            Staff?       @relation(fields: [teacherId], references: [id])
+  user               User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([email])
+  @@index([rollNo])
+  @@index([teacherId])
+  @@index([course])
+}
+
+model Staff {
+  id          Int       @id @default(autoincrement())
+  userId      Int       @unique
+  employeeId  String    @unique
+  department  String
+  designation String
+  phone       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  email       String    @unique
+  name        String
+  courses     Course[]
+  students    Student[]
+  department_rel Department? @relation("DepartmentHOD")
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([email])
+  @@index([department])
+}
+
+model Admin {
+  id         Int      @id @default(autoincrement())
+  userId     Int      @unique
+  employeeId String   @unique
+  department String?
+  phone      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  email      String   @unique
+  name       String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Department {
+  id           Int       @id @default(autoincrement())
+  code         String    @unique
+  name         String    @unique
+  hodId        Int?      @unique  // One staff member can be HOD of only one department
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+  hod          Staff?    @relation("DepartmentHOD", fields: [hodId], references: [id])
+
+  @@index([code])
+  @@index([hodId])
+}
+
+model Course {
+  id          Int          @id @default(autoincrement())
+  code        String       @unique
+  name        String
+  description String?
+  credits     Int?
+  department  String
+  semester    Int?
+  teacherId   Int?
+  status      String       @default("ACTIVE")
+  schedule    String?      // Added schedule field
+  room        String?      // Added room field
+  deletedAt   DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  attendances Attendance[]
+  teacher     Staff?       @relation(fields: [teacherId], references: [id])
+  enrollments Enrollment[]
+
+  @@index([department])
+  @@index([teacherId])
+}
+
+model Enrollment {
+  id             Int      @id @default(autoincrement())
+  studentId      Int
+  courseId       Int
+  enrollmentDate DateTime @default(now())
+  status         String   @default("ACTIVE")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  course         Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  student        Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, courseId])
+  @@index([studentId])
+  @@index([courseId])
+}
+
+model Attendance {
+  id        Int              @id @default(autoincrement())
+  studentId Int
+  courseId  Int
+  date      DateTime
+  status    AttendanceStatus @default(PRESENT)
+  remarks   String?
+  markedAt  DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  course    Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  student   Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, courseId, date])
+  @@index([date])
+  @@index([studentId])
+  @@index([courseId])
+}
+
+enum Role {
+  ADMIN
+  STAFF
+  STUDENT
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+}
+
+model Trash {
+  id            Int       @id @default(autoincrement())
+  entity        String    // 'User', 'Student', 'Teacher', 'Course', etc.
+  entityId      Int
+  data          Json      // Stores the deleted record data
+  deletedBy     Int
+  deletedAt     DateTime  @default(now())
+  expiresAt     DateTime  // 30 days from deletion
+  restoredAt    DateTime?
+  restoredBy    Int?
+  createdAt     DateTime  @default(now())
+
+  @@index([entity])
+  @@index([entityId])
+  @@index([deletedAt])
+  @@index([expiresAt])
+}
+
+model Log {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  action    String    // e.g., 'CREATE', 'UPDATE', 'DELETE', 'LOGIN', etc.
+  entity    String    // e.g., 'Student', 'Teacher', 'Course'
+  entityId  Int
+  details   String
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([entity])
+  @@index([createdAt])
+}

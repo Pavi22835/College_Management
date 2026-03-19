@@ -1,0 +1,248 @@
+.teacher-attendance {
+  padding: 32px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.attendance-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 32px;
+  background: white;
+  padding: 24px;
+  border-radius: 20px;
+  border: 1px solid #f1f5f9;
+}
+
+.control-group {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.control-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.control-item label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.control-item select,
+.date-input input {
+  padding: 12px 16px;
+  border: 2px solid #e2e8f0;
+  border-radius: 14px;
+  font-size: 15px;
+  min-width: 250px;
+  background: white;
+  transition: all 0.2s ease;
+}
+
+.control-item select:focus,
+.date-input input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+}
+
+.date-input {
+  position: relative;
+}
+
+.input-icon {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  z-index: 1;
+}
+
+.date-input input {
+  padding-left: 42px;
+}
+
+.filter-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.filter-btn:hover {
+  background: white;
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+
+.attendance-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  background: white;
+  padding: 20px;
+  border-radius: 16px;
+  border: 1px solid #f1f5f9;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+
+.stat-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.stat-percentage {
+  font-size: 14px;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.attendance-table-container {
+  background: white;
+  border-radius: 20px;
+  border: 1px solid #f1f5f9;
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+
+.attendance-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.attendance-table th {
+  background: #f8fafc;
+  padding: 18px 16px;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.attendance-table td {
+  padding: 16px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 30px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid;
+}
+
+.status-badge svg {
+  font-size: 14px;
+}
+
+.status-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.status-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 30px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: white;
+}
+
+.status-btn.present:hover,
+.status-btn.present.active {
+  background: #10b981;
+  border-color: #10b981;
+  color: white;
+}
+
+.status-btn.absent:hover,
+.status-btn.absent.active {
+  background: #ef4444;
+  border-color: #ef4444;
+  color: white;
+}
+
+.status-btn.late:hover,
+.status-btn.late.active {
+  background: #f59e0b;
+  border-color: #f59e0b;
+  color: white;
+}
+
+.attendance-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.save-attendance-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 32px;
+  background: #3b82f6;
+  border: none;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+}
+
+.save-attendance-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
+}
+
+.last-saved {
+  font-size: 14px;
+  color: #64748b;
+}
