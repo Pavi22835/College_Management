@@ -14,9 +14,11 @@ import {
   EyeOff,
   Download,
   FileSpreadsheet,
-  FileText
+  FileText,
+  CheckCircle,
+  XCircle
 } from 'lucide-react';
-import { userApi } from '../../api/adminApi';
+import { userApi, staffApi, studentApi } from '../../api/adminApi';
 import Spinner from '../../components/common/Spinner';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -46,7 +48,47 @@ const UserManagement = () => {
     try {
       setLoading(true);
       const data = await userApi.getAll(roleFilter, statusFilter);
-      setUsers(Array.isArray(data) ? data : []);
+      const usersData = Array.isArray(data) ? data : [];
+      
+      // Enhance user data with role-specific information
+      const enhancedUsers = await Promise.all(usersData.map(async (user) => {
+        if (user.role === 'TEACHER') {
+          try {
+            const staffData = await staffApi.getAll();
+            const staffList = Array.isArray(staffData) ? staffData : (staffData?.data || []);
+            const staffInfo = staffList.find(s => s.userId === user.id || s.email === user.email);
+            if (staffInfo) {
+              return {
+                ...user,
+                department: staffInfo.department,
+                designation: staffInfo.designation,
+                employeeId: staffInfo.employeeId
+              };
+            }
+          } catch (err) {
+            console.error('Error fetching staff details:', err);
+          }
+        } else if (user.role === 'STUDENT') {
+          try {
+            const studentsData = await studentApi.getAll();
+            const studentsList = Array.isArray(studentsData) ? studentsData : (studentsData?.data || []);
+            const studentInfo = studentsList.find(s => s.userId === user.id || s.email === user.email);
+            if (studentInfo) {
+              return {
+                ...user,
+                course: studentInfo.course,
+                semester: studentInfo.semester,
+                rollNo: studentInfo.rollNo
+              };
+            }
+          } catch (err) {
+            console.error('Error fetching student details:', err);
+          }
+        }
+        return user;
+      }));
+      
+      setUsers(enhancedUsers);
     } catch (error) {
       console.error('Error fetching users:', error);
     } finally {
@@ -74,6 +116,7 @@ const UserManagement = () => {
       }
     } catch (error) {
       console.error('Error activating user:', error);
+      alert('Failed to activate user');
     }
   };
 
@@ -88,6 +131,7 @@ const UserManagement = () => {
       }
     } catch (error) {
       console.error('Error deactivating user:', error);
+      alert('Failed to deactivate user');
     }
   };
 
@@ -121,11 +165,27 @@ const UserManagement = () => {
         'Name': user.name || '',
         'Role': user.role || '',
         'Status': user.isActive ? 'ACTIVE' : 'INACTIVE',
+        'Department': user.department || '—',
+        'Designation': user.designation || '—',
+        'Course': user.course || '—',
         'Last Login': user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'Never'
       }));
 
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(exportData);
+      
+      ws['!cols'] = [
+        { wch: 5 },   // ID
+        { wch: 25 },  // Email
+        { wch: 20 },  // Name
+        { wch: 12 },  // Role
+        { wch: 10 },  // Status
+        { wch: 18 },  // Department
+        { wch: 18 },  // Designation
+        { wch: 15 },  // Course
+        { wch: 12 }   // Last Login
+      ];
+      
       XLSX.utils.book_append_sheet(wb, ws, 'Users');
       XLSX.writeFile(wb, `users_${new Date().toISOString().split('T')[0]}.xlsx`);
       
@@ -141,21 +201,19 @@ const UserManagement = () => {
     try {
       const doc = new jsPDF();
       
-      // Add title
       doc.setFontSize(18);
       doc.text('Users List', 14, 22);
       doc.setFontSize(11);
       doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 30);
       doc.text(`Total Users: ${users.length}`, 14, 36);
 
-      // Prepare table data
       const tableColumn = [
         'ID', 
         'Name', 
         'Email', 
         'Role', 
         'Status', 
-        'Last Login'
+        'Department'
       ];
       
       const tableRows = users.map(user => [
@@ -164,16 +222,15 @@ const UserManagement = () => {
         user.email || '',
         user.role || '',
         user.isActive ? 'ACTIVE' : 'INACTIVE',
-        user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'Never'
+        user.department || user.course || '—'
       ]);
 
-      // Add table
       doc.autoTable({
         head: [tableColumn],
         body: tableRows,
         startY: 45,
         styles: { fontSize: 8 },
-        headStyles: { fillColor: [0, 0, 0] }
+        headStyles: { fillColor: [79, 70, 229] }
       });
 
       doc.save(`users_${new Date().toISOString().split('T')[0]}.pdf`);
@@ -192,47 +249,64 @@ const UserManagement = () => {
     <div className="user-management">
       {/* Header */}
       <div className="um-header">
-        <h1>
-          User Management
-        </h1>
+        <h1>User Management</h1>
+        <p className="um-description">Manage system users and their access permissions</p>
       </div>
 
-      {/* Stats Cards - Clean & Simple */}
+      {/* Success Message */}
+      {successMessage && (
+        <div className="um-success-message">
+          <CheckCircle size={16} />
+          <span>{successMessage}</span>
+        </div>
+      )}
+
+      {/* Stats Cards */}
       {stats && (
         <div className="um-stats-grid">
           <div className="um-stat-card">
             <div className="stat-icon blue"><UsersIcon size={24} /></div>
             <div className="stat-content">
               <span className="stat-label">Total Users</span>
-              <span className="stat-value">{stats.total || 13}</span>
+              <span className="stat-value">{stats.total || users.length}</span>
             </div>
           </div>
           <div className="um-stat-card">
-            <div className="stat-icon green"><BookOpen size={24} /></div>
+            <div className="stat-icon green"><GraduationCap size={24} /></div>
             <div className="stat-content">
-              <span className="stat-label">Enrolled Courses</span>
-              <span className="stat-value">{stats.byRole?.students || 7}</span>
+              <span className="stat-label">Students</span>
+              <span className="stat-value">{stats.byRole?.students || users.filter(u => u.role === 'STUDENT').length}</span>
             </div>
           </div>
           <div className="um-stat-card">
             <div className="stat-icon purple"><UserCheck size={24} /></div>
             <div className="stat-content">
-              <span className="stat-label">Active Users</span>
-              <span className="stat-value">{stats.active || 7}</span>
+              <span className="stat-label">Teachers</span>
+              <span className="stat-value">{stats.byRole?.teachers || users.filter(u => u.role === 'TEACHER').length}</span>
             </div>
           </div>
           <div className="um-stat-card">
-            <div className="stat-icon gray"><UserCog size={24} /></div>
+            <div className="stat-icon orange"><UserCog size={24} /></div>
+            <div className="stat-content">
+              <span className="stat-label">Admins</span>
+              <span className="stat-value">{stats.byRole?.admins || users.filter(u => u.role === 'ADMIN').length}</span>
+            </div>
+          </div>
+          <div className="um-stat-card">
+            <div className="stat-icon success"><CheckCircle size={24} /></div>
+            <div className="stat-content">
+              <span className="stat-label">Active Users</span>
+              <span className="stat-value">{stats.active || users.filter(u => u.isActive).length}</span>
+            </div>
+          </div>
+          <div className="um-stat-card">
+            <div className="stat-icon danger"><XCircle size={24} /></div>
             <div className="stat-content">
               <span className="stat-label">Inactive Users</span>
-              <span className="stat-value">{stats.inactive || 5}</span>
+              <span className="stat-value">{stats.inactive || users.filter(u => !u.isActive).length}</span>
             </div>
           </div>
         </div>
-      )}
-
-      {successMessage && (
-        <div className="um-success-message">{successMessage}</div>
       )}
 
       {/* Filters and Export */}
@@ -304,11 +378,12 @@ const UserManagement = () => {
               <th>EMAIL</th>
               <th>NAME</th>
               <th>ROLE</th>
+              <th>DEPARTMENT</th>
               <th>STATUS</th>
               <th>LAST LOGIN</th>
               <th>ACTIONS</th>
-            </tr>
-          </thead>
+              </tr>
+            </thead>
           <tbody>
             {users.length > 0 ? (
               users.map((user) => (
@@ -317,9 +392,12 @@ const UserManagement = () => {
                   <td>{user.email}</td>
                   <td>{user.name}</td>
                   <td>
-                    <span className={`um-role-badge um-role-${user.role.toLowerCase()}`}>
+                    <span className={`um-role-badge um-role-${user.role?.toLowerCase()}`}>
                       {user.role}
                     </span>
+                  </td>
+                  <td>
+                    {user.department || user.course || '—'}
                   </td>
                   <td>
                     <span className={`um-status-badge um-status-${user.isActive ? 'active' : 'inactive'}`}>
@@ -358,7 +436,7 @@ const UserManagement = () => {
               ))
             ) : (
               <tr>
-                <td colSpan="7" className="um-text-center">No users found</td>
+                <td colSpan="8" className="um-text-center">No users found</td>
               </tr>
             )}
           </tbody>
@@ -378,6 +456,7 @@ const UserManagement = () => {
             <div className="um-modal-body">
               <p><strong>User:</strong> {selectedUser.name}</p>
               <p><strong>Email:</strong> {selectedUser.email}</p>
+              <p><strong>Role:</strong> {selectedUser.role}</p>
               
               {resetError && <div className="um-error-message">{resetError}</div>}
               

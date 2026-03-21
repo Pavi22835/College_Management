@@ -2179,11 +2179,11 @@ export const getDepartmentById = async (req, res) => {
 };
 
 /* -----------------------------------------
-CREATE DEPARTMENT
+CREATE DEPARTMENT - FIXED VERSION (BUDGET REMOVED)
 ------------------------------------------*/
 export const createDepartment = async (req, res) => {
   try {
-    const { code, name, description, budget, hodId, phone, email, location } = req.body;
+    const { code, name, description, hodId, phone, email, location } = req.body;
 
     if (!code || !name) {
       return res.status(400).json({ 
@@ -2227,7 +2227,7 @@ export const createDepartment = async (req, res) => {
           code: code.toUpperCase(),
           name,
           description,
-          budget: budget ? parseFloat(budget) : null,
+          // budget field removed - not in schema
           hodId: hodId ? parseInt(hodId) : null,
           phone,
           email,
@@ -2282,12 +2282,12 @@ export const createDepartment = async (req, res) => {
 };
 
 /* -----------------------------------------
-UPDATE DEPARTMENT
+UPDATE DEPARTMENT - FIXED VERSION (BUDGET REMOVED)
 ------------------------------------------*/
 export const updateDepartment = async (req, res) => {
   try {
     const { id } = req.params;
-    const { code, name, description, budget, hodId, phone, email, location } = req.body;
+    const { code, name, description, hodId, phone, email, location } = req.body;
 
     const department = await prisma.department.findUnique({
       where: { id: parseInt(id) }
@@ -2339,7 +2339,7 @@ export const updateDepartment = async (req, res) => {
           code: code ? code.toUpperCase() : undefined,
           name,
           description,
-          budget: budget !== undefined ? (budget ? parseFloat(budget) : null) : undefined,
+          // budget field removed - not in schema
           hodId: hodId !== undefined ? (hodId ? parseInt(hodId) : null) : undefined,
           phone,
           email,

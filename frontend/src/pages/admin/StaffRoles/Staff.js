@@ -25,10 +25,11 @@ import {
   UploadCloud,
   MapPin,
   Filter,
-  ChevronDown
+  ChevronDown,
+  CheckCircle,
+  XCircle
 } from 'lucide-react';
-// Import from the correct API file
-import { staffApi } from '../../api/adminApi';
+import { staffApi, userApi } from '../../../api/adminApi';
 import * as XLSX from 'xlsx';
 import './AdminStaff.css';
 
@@ -39,6 +40,7 @@ const AdminStaff = () => {
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState('');
   const [selectedStaff, setSelectedStaff] = useState(null);
@@ -48,10 +50,12 @@ const AdminStaff = () => {
   const [importPreview, setImportPreview] = useState([]);
   const [showImportPreview, setShowImportPreview] = useState(false);
   const [importError, setImportError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [stats, setStats] = useState({
     totalStaff: 0,
     totalDepartments: 0,
-    activeStaff: 0
+    activeStaff: 0,
+    inactiveStaff: 0
   });
 
   const fileInputRef = useRef(null);
@@ -71,7 +75,7 @@ const AdminStaff = () => {
     fetchStaff();
   }, []);
 
-  // Filter staff based on search term and department
+  // Filter staff based on search term, department, and status
   useEffect(() => {
     let filtered = staff;
 
@@ -94,15 +98,24 @@ const AdminStaff = () => {
       );
     }
 
+    // Apply status filter - check user.isActive (default to true if not set)
+    if (statusFilter !== 'all') {
+      const isActive = statusFilter === 'active';
+      filtered = filtered.filter(member => {
+        // If user object doesn't exist or isActive is undefined, treat as active
+        const active = member.user?.isActive !== false;
+        return active === isActive;
+      });
+    }
+
     setFilteredStaff(filtered);
-  }, [searchTerm, departmentFilter, staff]);
+  }, [searchTerm, departmentFilter, statusFilter, staff]);
 
   const fetchStaff = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      // Use the correct API method
       const response = await staffApi.getAll();
       
       let staffData = [];
@@ -119,19 +132,91 @@ const AdminStaff = () => {
       // Sort staff by ID in ascending order
       const sortedStaff = [...staffData].sort((a, b) => (a.id || 0) - (b.id || 0));
       
-      setStaff(sortedStaff);
-      setFilteredStaff(sortedStaff);
+      // Ensure each staff has user.isActive defaulting to true if not set
+      const normalizedStaff = sortedStaff.map(member => ({
+        ...member,
+        user: {
+          ...member.user,
+          isActive: member.user?.isActive !== false // Default to true if not explicitly false
+        }
+      }));
+      
+      setStaff(normalizedStaff);
+      setFilteredStaff(normalizedStaff);
 
-      const uniqueDepts = [...new Set(staffData.map(t => t.department).filter(Boolean))];
+      const uniqueDepts = [...new Set(normalizedStaff.map(t => t.department).filter(Boolean))];
+      // Count active staff (user.isActive is not false)
+      const activeStaff = normalizedStaff.filter(t => t.user?.isActive !== false).length;
+      const inactiveStaff = normalizedStaff.filter(t => t.user?.isActive === false).length;
+      
       setStats({
-        totalStaff: staffData.length,
+        totalStaff: normalizedStaff.length,
         totalDepartments: uniqueDepts.length,
-        activeStaff: staffData.filter(t => t.user?.isActive !== false).length
+        activeStaff: activeStaff,
+        inactiveStaff: inactiveStaff
       });
 
     } catch (err) {
       console.error('Error fetching staff:', err);
       setError('Failed to load staff');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Toggle staff active status (sync with user management)
+  const handleToggleStatus = async (member) => {
+    try {
+      // Check current status - default to active if not set
+      const currentStatus = member.user?.isActive !== false;
+      const newStatus = !currentStatus;
+      
+      if (newStatus) {
+        await userApi.activate(member.userId || member.id);
+        setSuccessMessage(`${member.name} activated successfully`);
+      } else {
+        await userApi.deactivate(member.userId || member.id);
+        setSuccessMessage(`${member.name} deactivated successfully`);
+      }
+      
+      setTimeout(() => setSuccessMessage(''), 3000);
+      fetchStaff(); // Refresh the list
+      
+    } catch (err) {
+      console.error('Error toggling staff status:', err);
+      alert('Failed to update staff status');
+    }
+  };
+
+  // Activate all inactive staff members
+  const activateAllStaff = async () => {
+    const inactiveStaff = staff.filter(s => s.user?.isActive === false);
+    if (inactiveStaff.length === 0) {
+      alert('All staff members are already active!');
+      return;
+    }
+    
+    if (!window.confirm(`This will activate ${inactiveStaff.length} inactive staff members. Continue?`)) return;
+    
+    try {
+      setLoading(true);
+      
+      let activated = 0;
+      for (const member of inactiveStaff) {
+        try {
+          await userApi.activate(member.userId || member.id);
+          activated++;
+        } catch (err) {
+          console.error(`Failed to activate ${member.name}:`, err);
+        }
+      }
+      
+      setSuccessMessage(`Activated ${activated} staff members successfully!`);
+      setTimeout(() => setSuccessMessage(''), 3000);
+      fetchStaff();
+    } catch (err) {
+      console.error('Error activating staff:', err);
+      alert('Failed to activate staff');
     } finally {
       setLoading(false);
     }
@@ -184,6 +269,8 @@ const AdminStaff = () => {
   const confirmDelete = async () => {
     try {
       await staffApi.delete(selectedStaff.id);
+      setSuccessMessage(`${selectedStaff.name} deleted successfully`);
+      setTimeout(() => setSuccessMessage(''), 3000);
       setShowModal(false);
       fetchStaff();
     } catch (err) {
@@ -202,7 +289,7 @@ const AdminStaff = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      if (!formData.name || !formData.email || !formData.password || !formData.department || !formData.designation) {
+      if (!formData.name || !formData.email || !formData.department || !formData.designation) {
         alert('Please fill in all required fields');
         return;
       }
@@ -210,7 +297,6 @@ const AdminStaff = () => {
       const staffData = {
         name: formData.name,
         email: formData.email,
-        password: formData.password,
         department: formData.department,
         designation: formData.designation,
         phone: formData.phone || null,
@@ -219,16 +305,19 @@ const AdminStaff = () => {
       };
 
       if (modalType === 'add') {
-        await staffApi.create(staffData);
-        alert('Staff added successfully!');
-      } else if (modalType === 'edit') {
-        const editData = { ...staffData };
-        if (!editData.password) {
-          delete editData.password;
+        if (!formData.password) {
+          alert('Password is required for new staff');
+          return;
         }
-        await staffApi.update(selectedStaff.id, editData);
-        alert('Staff updated successfully!');
+        staffData.password = formData.password;
+        await staffApi.create(staffData);
+        setSuccessMessage(`✅ Staff "${formData.name}" added successfully with ACTIVE status!`);
+      } else if (modalType === 'edit') {
+        await staffApi.update(selectedStaff.id, staffData);
+        setSuccessMessage(`✅ Staff "${formData.name}" updated successfully!`);
       }
+      
+      setTimeout(() => setSuccessMessage(''), 3000);
       setShowModal(false);
       fetchStaff();
     } catch (err) {
@@ -244,6 +333,7 @@ const AdminStaff = () => {
   const clearFilters = () => {
     setSearchTerm('');
     setDepartmentFilter('all');
+    setStatusFilter('all');
   };
 
   // Get unique departments for filter
@@ -264,13 +354,12 @@ const AdminStaff = () => {
         'Phone': member.phone || '',
         'Employee ID': member.employeeId || '',
         'Address': member.address || '',
-        'Status': member.user?.isActive ? 'Active' : 'Inactive'
+        'Status': member.user?.isActive !== false ? 'Active' : 'Inactive'
       }));
 
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(exportData);
       
-      // Set column widths for better readability
       ws['!cols'] = [
         { wch: 5 },   // ID
         { wch: 20 },  // Name
@@ -325,33 +414,16 @@ const AdminStaff = () => {
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
-          header: 1,
-          defval: '',
-          raw: true
-        });
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
         
-        const headers = jsonData[0] || [];
-        const rows = jsonData.slice(1) || [];
-        
-        const formattedData = rows.map(row => {
-          const obj = {};
-          headers.forEach((header, index) => {
-            if (header) {
-              obj[header] = row[index] !== undefined ? row[index] : '';
-            }
-          });
-          return obj;
-        }).filter(row => Object.keys(row).length > 0);
-        
-        if (formattedData.length === 0) {
+        if (jsonData.length === 0) {
           setImportError('The Excel file is empty');
           setShowImportMenu(false);
           event.target.value = '';
           return;
         }
 
-        setImportPreview(formattedData.slice(0, 5));
+        setImportPreview(jsonData.slice(0, 5));
         setShowImportPreview(true);
         setShowImportMenu(false);
       } catch (err) {
@@ -364,7 +436,7 @@ const AdminStaff = () => {
     reader.readAsBinaryString(file);
   };
 
-  // Confirm import - ENHANCED VERSION with duplicate checking
+  // Confirm import with duplicate checking
   const confirmImport = async () => {
     try {
       setLoading(true);
@@ -373,31 +445,14 @@ const AdminStaff = () => {
       reader.onload = async (e) => {
         try {
           const data = e.target.result;
-          console.log('📁 File loaded, size:', data.length);
-          
           const workbook = XLSX.read(data, { type: 'binary' });
           const sheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[sheetName];
           
-          // Convert to JSON with headers
-          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-          
-          const headers = jsonData[0] || [];
-          const rows = jsonData.slice(1) || [];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
-          console.log('📋 Headers found:', headers);
-          console.log('📋 Total rows in Excel:', rows.length);
-
-          if (rows.length === 0) {
-            alert('No data rows found in the Excel file');
-            setLoading(false);
-            return;
-          }
-
-          // First, get all existing staff from database to check duplicates
-          console.log('🔍 Fetching existing staff from database...');
+          // Get existing staff
           const existingResponse = await staffApi.getAll();
-          
           let existingStaff = [];
           if (existingResponse?.success && existingResponse?.data) {
             existingStaff = existingResponse.data;
@@ -405,43 +460,28 @@ const AdminStaff = () => {
             existingStaff = existingResponse;
           }
 
-          // Create Sets of existing emails and employee IDs for quick lookup
           const existingEmails = new Set(existingStaff.map(s => s.email?.toLowerCase()));
           const existingEmpIds = new Set(existingStaff.map(s => s.employeeId).filter(Boolean));
-          
-          console.log(`📊 Found ${existingStaff.length} existing staff in database`);
-          console.log('Existing emails:', Array.from(existingEmails));
-          console.log('Existing Employee IDs:', Array.from(existingEmpIds));
 
           let newCount = 0;
           let skippedCount = 0;
           let errorCount = 0;
           const newStaff = [];
-          const skippedStaff = [];
           const errors = [];
 
-          for (let i = 0; i < rows.length; i++) {
-            const row = rows[i];
-            const rowNumber = i + 2; // +2 because row 1 is headers
-            
-            // Skip empty rows
-            if (!row || row.length === 0 || row.every(cell => !cell)) {
-              continue;
-            }
+          for (let i = 0; i < jsonData.length; i++) {
+            const row = jsonData[i];
+            const rowNumber = i + 2;
 
             try {
-              // Extract data (matching your Excel columns)
-              const name = String(row[0] || '').trim();
-              const email = String(row[1] || '').trim().toLowerCase();
-              const department = String(row[2] || '').trim();
-              const designation = String(row[3] || '').trim();
-              const phone = String(row[4] || '').trim();
-              const employeeId = String(row[5] || '').trim();
-              const address = String(row[6] || '').trim();
+              const name = String(row['Name'] || row['name'] || '').trim();
+              const email = String(row['Email'] || row['email'] || '').trim().toLowerCase();
+              const department = String(row['Department'] || row['department'] || '').trim();
+              const designation = String(row['Designation'] || row['designation'] || '').trim();
+              const phone = String(row['Phone'] || row['phone'] || '').trim();
+              const employeeId = String(row['Employee ID'] || row['employeeId'] || '').trim();
+              const address = String(row['Address'] || row['address'] || '').trim();
 
-              console.log(`📝 Row ${rowNumber}:`, { name, email, department, designation, employeeId });
-
-              // Validation
               if (!name) {
                 errorCount++;
                 errors.push(`Row ${rowNumber}: Name is required`);
@@ -456,7 +496,7 @@ const AdminStaff = () => {
               
               if (!email.includes('@')) {
                 errorCount++;
-                errors.push(`Row ${rowNumber}: Invalid email format - must contain @`);
+                errors.push(`Row ${rowNumber}: Invalid email format`);
                 continue;
               }
               
@@ -472,111 +512,60 @@ const AdminStaff = () => {
                 continue;
               }
 
-              // Check if this email already exists
               if (existingEmails.has(email)) {
-                console.log(`⏭️ Row ${rowNumber}: ${email} already exists, skipping`);
                 skippedCount++;
-                skippedStaff.push(`${name} (${email})`);
                 continue;
               }
 
-              // Check if this employee ID already exists
               if (employeeId && existingEmpIds.has(employeeId)) {
                 errorCount++;
                 errors.push(`Row ${rowNumber}: Employee ID ${employeeId} already exists`);
                 continue;
               }
 
-              // This is a new staff member - prepare for import
-              const staffData = {
+              newStaff.push({
                 name,
                 email,
-                password: 'Welcome@123', // Default password
+                password: 'Welcome@123',
                 department,
                 designation,
                 phone: phone || null,
                 employeeId: employeeId || null,
                 address: address || null
-              };
-
-              newStaff.push(staffData);
+              });
               newCount++;
               
             } catch (err) {
-              console.error(`❌ Error processing row ${rowNumber}:`, err);
               errorCount++;
               errors.push(`Row ${rowNumber}: ${err.message}`);
             }
           }
 
-          console.log('\n📊 IMPORT SUMMARY:');
-          console.log('✅ New staff to import:', newCount);
-          console.log('⏭️ Already exists (skipped):', skippedCount);
-          console.log('❌ Errors:', errorCount);
-          console.log('📋 New staff:', newStaff);
-          console.log('⏭️ Skipped:', skippedStaff);
-          console.log('❌ Error details:', errors);
-
           if (newCount === 0) {
-            let message = `No new staff to import.\n`;
-            message += `${skippedCount} records already exist in database.\n`;
-            message += `${errorCount} validation errors.`;
-            
-            if (errors.length > 0) {
-              message += `\n\nErrors:\n${errors.slice(0, 3).join('\n')}`;
-              if (errors.length > 3) message += `\n... and ${errors.length - 3} more`;
-            }
-            
-            alert(message);
+            alert(`No new staff to import.\n${skippedCount} records already exist.\n${errorCount} validation errors.`);
             setShowImportPreview(false);
             setImportFile(null);
             setLoading(false);
             return;
           }
 
-          // Confirm with user before importing
-          const confirmMessage = `Found ${newCount} new staff to import.\n` +
-            `${skippedCount} records will be skipped (already exist).\n` +
-            `${errorCount} validation errors found.\n\n` +
-            `Do you want to proceed with importing the ${newCount} new records?`;
-          
-          if (!window.confirm(confirmMessage)) {
+          if (!window.confirm(`Found ${newCount} new staff to import.\n${skippedCount} will be skipped.\nProceed?`)) {
             setLoading(false);
             return;
           }
 
-          // Now import the new staff one by one
           let importedCount = 0;
-          const importErrors = [];
-
           for (const staff of newStaff) {
             try {
-              console.log(`📤 Importing:`, staff);
-              const result = await staffApi.create(staff);
-              console.log(`✅ Imported:`, result);
+              await staffApi.create(staff);
               importedCount++;
             } catch (err) {
-              console.error(`❌ Failed to import ${staff.email}:`, err);
-              
-              // Get detailed error message from backend
-              let errorMsg = err.message;
-              if (err.response) {
-                console.error('Error response data:', err.response.data);
-                errorMsg = err.response.data?.message || err.response.data?.error || err.message;
-              }
-              
-              importErrors.push(`${staff.name} (${staff.email}): ${errorMsg}`);
+              console.error(`Failed to import ${staff.email}:`, err);
             }
           }
 
-          const finalMessage = `Import completed:\n` +
-            `✅ Successfully imported: ${importedCount}\n` +
-            `⏭️ Skipped (already exist): ${skippedCount}\n` +
-            `❌ Failed: ${importErrors.length}\n` +
-            (importErrors.length > 0 ? `\nErrors:\n${importErrors.join('\n')}` : '');
-
-          alert(finalMessage);
-
+          alert(`✅ Successfully imported ${importedCount} staff members with ACTIVE status!`);
+          
           setShowImportPreview(false);
           setImportFile(null);
           setImportPreview([]);
@@ -584,12 +573,11 @@ const AdminStaff = () => {
             fileInputRef.current.value = '';
           }
           
-          // Refresh the staff list
           fetchStaff();
           
         } catch (err) {
-          console.error('❌ Fatal import error:', err);
-          alert('Failed to process import: ' + err.message);
+          console.error('Import error:', err);
+          alert('Failed to process import');
         } finally {
           setLoading(false);
         }
@@ -598,13 +586,12 @@ const AdminStaff = () => {
       reader.readAsBinaryString(importFile);
       
     } catch (err) {
-      console.error('❌ File reader error:', err);
+      console.error('File reader error:', err);
       alert('Failed to read file');
       setLoading(false);
     }
   };
 
-  // Cancel import
   const cancelImport = () => {
     setShowImportPreview(false);
     setImportFile(null);
@@ -615,7 +602,6 @@ const AdminStaff = () => {
     }
   };
 
-  // Download sample Excel template
   const downloadSampleTemplate = () => {
     const sampleData = [
       {
@@ -642,13 +628,8 @@ const AdminStaff = () => {
     const ws = XLSX.utils.json_to_sheet(sampleData);
     
     ws['!cols'] = [
-      { wch: 20 }, // Name
-      { wch: 25 }, // Email
-      { wch: 18 }, // Department
-      { wch: 18 }, // Designation
-      { wch: 15 }, // Phone
-      { wch: 12 }, // Employee ID
-      { wch: 30 }  // Address
+      { wch: 20 }, { wch: 25 }, { wch: 18 }, { wch: 18 }, 
+      { wch: 15 }, { wch: 12 }, { wch: 30 }
     ];
     
     XLSX.utils.book_append_sheet(wb, ws, 'Template');
@@ -690,6 +671,14 @@ const AdminStaff = () => {
         style={{ display: 'none' }}
       />
 
+      {/* Success Message */}
+      {successMessage && (
+        <div className="success-message">
+          <CheckCircle size={16} />
+          <span>{successMessage}</span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="page-header">
         <div className="header-left">
@@ -700,7 +689,6 @@ const AdminStaff = () => {
         </div>
         
         <div className="header-right">
-          {/* Import Button */}
           <div className="import-dropdown">
             <button 
               className="btn-import"
@@ -730,7 +718,6 @@ const AdminStaff = () => {
             )}
           </div>
 
-          {/* Export Button */}
           <button 
             className="btn-export"
             onClick={exportToExcel}
@@ -742,6 +729,11 @@ const AdminStaff = () => {
           <button className="btn-icon" onClick={handleRefresh} title="Refresh">
             <RefreshCw size={18} />
           </button>
+          
+          <button className="btn-icon" onClick={activateAllStaff} title="Activate All Staff">
+            <CheckCircle size={18} />
+          </button>
+          
           <button className="btn-add-staff" onClick={handleAdd}>
             <Plus size={20} />
             <span>Add Staff</span>
@@ -764,7 +756,7 @@ const AdminStaff = () => {
                 Found {importPreview.length} records to import. Preview of first 5 rows:
               </p>
               <div className="import-preview-table">
-                <table>
+                 <table>
                   <thead>
                     <tr>
                       {importPreview.length > 0 && Object.keys(importPreview[0]).map(key => (
@@ -783,6 +775,9 @@ const AdminStaff = () => {
                   </tbody>
                 </table>
               </div>
+              <p style={{ marginTop: '12px', fontSize: '12px', color: '#166534', background: '#dcfce7', padding: '8px', borderRadius: '6px' }}>
+                ✅ All imported staff will be created with ACTIVE status by default.
+              </p>
             </div>
             <div className="modal-footer">
               <button className="btn-secondary" onClick={cancelImport}>
@@ -819,11 +814,20 @@ const AdminStaff = () => {
         </div>
         <div className="stat-card">
           <div className="stat-icon purple">
-            <Award size={24} />
+            <CheckCircle size={24} />
           </div>
           <div className="stat-content">
             <span className="stat-label">ACTIVE STAFF</span>
             <span className="stat-value">{stats.activeStaff}</span>
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon gray">
+            <XCircle size={24} />
+          </div>
+          <div className="stat-content">
+            <span className="stat-label">INACTIVE STAFF</span>
+            <span className="stat-value">{stats.inactiveStaff}</span>
           </div>
         </div>
       </div>
@@ -846,7 +850,6 @@ const AdminStaff = () => {
           )}
         </div>
 
-        {/* Department Filter Dropdown */}
         <div className="filter-dropdown">
           <Filter className="filter-icon" size={18} />
           <select
@@ -858,6 +861,20 @@ const AdminStaff = () => {
             {uniqueDepartments.map(dept => (
               <option key={dept} value={dept}>{dept}</option>
             ))}
+          </select>
+          <ChevronDown className="select-chevron" size={16} />
+        </div>
+
+        <div className="filter-dropdown">
+          <Filter className="filter-icon" size={18} />
+          <select
+            className="filter-select"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="all">All Status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
           </select>
           <ChevronDown className="select-chevron" size={16} />
         </div>
@@ -881,70 +898,77 @@ const AdminStaff = () => {
           </thead>
           <tbody>
             {filteredStaff.length > 0 ? (
-              filteredStaff.map((member) => (
-                <tr key={member.id}>
-                  <td>
-                    <span className="staff-id">{member.id}</span>
-                  </td>
-                  <td>
-                    <div className="staff-info">
-                      <div className="staff-avatar">
-                        {member.name?.charAt(0).toUpperCase()}
+              filteredStaff.map((member) => {
+                const isActive = member.user?.isActive !== false;
+                return (
+                  <tr key={member.id}>
+                    <td>
+                      <span className="staff-id">{member.id}</span>
+                    </td>
+                    <td>
+                      <div className="staff-info">
+                        <div className="staff-avatar">
+                          {member.name?.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="staff-details">
+                          <div className="staff-name">{member.name}</div>
+                          <div className="staff-email">{member.email}</div>
+                        </div>
                       </div>
-                      <div className="staff-details">
-                        <div className="staff-name">{member.name}</div>
-                        <div className="staff-email">{member.email}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <span className="department-badge">{member.department}</span>
-                  </td>
-                  <td>
-                    <span className="designation-text">{member.designation}</span>
-                  </td>
-                  <td>
-                    <span className="employee-id">{member.employeeId || '—'}</span>
-                  </td>
-                  <td>
-                    {member.phone ? (
-                      <span className="contact-info">
-                        <Phone size={14} />
-                        {member.phone}
+                    </td>
+                    <td>
+                      <span className="department-badge">{member.department}</span>
+                    </td>
+                    <td>
+                      <span className="designation-text">{member.designation}</span>
+                    </td>
+                    <td>
+                      <span className="employee-id">{member.employeeId || '—'}</span>
+                    </td>
+                    <td>
+                      {member.phone ? (
+                        <span className="contact-info">
+                          <Phone size={14} />
+                          {member.phone}
+                        </span>
+                      ) : (
+                        <span className="contact-info">—</span>
+                      )}
+                    </td>
+                    <td>
+                      <span className="address-text" title={member.address}>
+                        {member.address ? (
+                          member.address.length > 25 
+                            ? member.address.substring(0, 25) + '...' 
+                            : member.address
+                        ) : '—'}
                       </span>
-                    ) : (
-                      <span className="contact-info">—</span>
-                    )}
-                  </td>
-                  <td>
-                    <span className="address-text" title={member.address}>
-                      {member.address ? (
-                        member.address.length > 25 
-                          ? member.address.substring(0, 25) + '...' 
-                          : member.address
-                      ) : '—'}
-                    </span>
-                  </td>
-                  <td>
-                    <span className={`status-badge ${member.user?.isActive ? 'active' : 'inactive'}`}>
-                      {member.user?.isActive ? 'ACTIVE' : 'INACTIVE'}
-                    </span>
-                  </td>
-                  <td>
-                    <div className="action-group">
-                      <button className="action-btn view" onClick={() => handleView(member)} title="View">
-                        <Eye size={18} />
+                    </td>
+                    <td>
+                      <button
+                        className={`status-toggle ${isActive ? 'active' : 'inactive'}`}
+                        onClick={() => handleToggleStatus(member)}
+                        title={isActive ? 'Click to deactivate' : 'Click to activate'}
+                      >
+                        {isActive ? 'ACTIVE' : 'INACTIVE'}
                       </button>
-                      <button className="action-btn edit" onClick={() => handleEdit(member)} title="Edit">
-                        <Edit size={18} />
-                      </button>
-                      <button className="action-btn delete" onClick={() => handleDelete(member)} title="Delete">
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
+                    </td>
+                    <td>
+                      <div className="action-group">
+                        <button className="action-btn view" onClick={() => handleView(member)} title="View">
+                          <Eye size={18} />
+                        </button>
+                        <button className="action-btn edit" onClick={() => handleEdit(member)} title="Edit">
+                          <Edit size={18} />
+                        </button>
+                        <button className="action-btn delete" onClick={() => handleDelete(member)} title="Delete">
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
             ) : (
               <tr>
                 <td colSpan="9" className="empty-state">
@@ -1096,6 +1120,17 @@ const AdminStaff = () => {
                     className="address-textarea"
                   />
                 </div>
+
+                {modalType === 'add' && (
+                  <div className="form-group" style={{ background: '#dcfce7', padding: '12px', borderRadius: '8px', marginTop: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <CheckCircle size={16} color="#166534" />
+                      <span style={{ color: '#166534', fontSize: '13px', fontWeight: '500' }}>
+                        Staff will be created with ACTIVE status by default
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="modal-footer">
@@ -1159,9 +1194,16 @@ const AdminStaff = () => {
                 </div>
                 <div className="detail-item full-width">
                   <span className="detail-label">Status</span>
-                  <span className={`status-badge ${selectedStaff.user?.isActive ? 'active' : 'inactive'}`}>
-                    {selectedStaff.user?.isActive ? 'ACTIVE' : 'INACTIVE'}
-                  </span>
+                  <button
+                    className={`status-toggle ${selectedStaff.user?.isActive !== false ? 'active' : 'inactive'}`}
+                    onClick={() => {
+                      setShowModal(false);
+                      handleToggleStatus(selectedStaff);
+                    }}
+                    style={{ width: 'auto', display: 'inline-flex' }}
+                  >
+                    {selectedStaff.user?.isActive !== false ? 'ACTIVE' : 'INACTIVE'}
+                  </button>
                 </div>
               </div>
             </div>

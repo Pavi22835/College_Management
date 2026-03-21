@@ -97,8 +97,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  padding: 0 10px;
+  gap: 8px;
+  padding: 0 20px;
   background: linear-gradient(135deg, #10b981 0%, #059669 100%);
   color: white;
   border: none;
@@ -108,7 +108,7 @@
   cursor: pointer;
   transition: all 0.3s ease;
   box-shadow: 0 8px 16px -4px rgba(16, 185, 129, 0.3);
-  height: 40px;
+  height: 44px;
   min-width: 140px;
   letter-spacing: 0.3px;
   position: relative;
@@ -278,7 +278,7 @@
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  width: 140px;
+  width: 160px;
   background: white;
   border-radius: 8px;
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
@@ -338,6 +338,14 @@
 .import-option:hover svg,
 .export-option:hover svg {
   color: #10b981;
+}
+
+.import-error {
+  padding: 8px 12px;
+  background: #fee2e2;
+  color: #dc2626;
+  font-size: 12px;
+  border-top: 1px solid #fecaca;
 }
 
 /* ========================================
@@ -419,7 +427,7 @@
 }
 
 /* ========================================
-   Search and Filter Section
+   Search and Filter Section - FIXED LAYOUT
    ======================================== */
 
 .search-filter-section {
@@ -439,9 +447,10 @@
   flex-wrap: wrap;
 }
 
+/* Search Wrapper */
 .search-wrapper {
   flex: 2;
-  min-width: 280px;
+  min-width: 250px;
   position: relative;
 }
 
@@ -463,7 +472,7 @@
   font-size: 14px;
   transition: all 0.2s;
   background: white;
-  height: 42px;
+  height: 44px;
 }
 
 .search-input:focus {
@@ -499,153 +508,52 @@
   height: 14px;
 }
 
-/* Filter Dropdown */
+/* Filter Dropdown - Fixed */
 .filter-dropdown {
   position: relative;
   min-width: 200px;
 }
 
-.filter-btn {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+.filter-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  width: 18px;
+  height: 18px;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.filter-select {
   width: 100%;
-  padding: 0 14px;
-  background: white;
+  padding: 0 32px 0 40px;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   font-size: 14px;
-  color: #334155;
+  background: white;
   cursor: pointer;
-  transition: all 0.2s;
-  height: 42px;
+  appearance: none;
+  height: 44px;
+  color: #334155;
 }
 
-.filter-btn:hover {
+.filter-select:focus {
+  outline: none;
   border-color: #10b981;
-  background: #f8fafc;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
 }
 
-.filter-btn.active {
-  background: #10b981;
-  border-color: #10b981;
-  color: white;
-}
-
-.filter-btn.active svg {
-  color: white;
-}
-
-.filter-menu {
+.select-chevron {
   position: absolute;
-  top: calc(100% + 5px);
-  left: 0;
-  width: 260px;
-  background: white;
-  border-radius: 10px;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-  border: 1px solid #e2e8f0;
-  z-index: 1000;
-  animation: filterFadeIn 0.2s ease;
-}
-
-@keyframes filterFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-5px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.filter-menu-header {
-  padding: 14px 16px;
-  border-bottom: 1px solid #e2e8f0;
-  font-weight: 600;
-  font-size: 14px;
-  color: #0f172a;
-  background: #f8fafc;
-  border-radius: 10px 10px 0 0;
-}
-
-.filter-menu-options {
-  padding: 8px;
-  max-height: 280px;
-  overflow-y: auto;
-}
-
-.filter-menu-option {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 12px;
-  margin: 2px 0;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-size: 14px;
-}
-
-.filter-menu-option:hover {
-  background: #f1f5f9;
-}
-
-.filter-menu-option.selected {
-  background: #f0fdf4;
-  border: 1px solid #10b981;
-}
-
-.option-name {
-  color: #334155;
-  font-weight: 500;
-}
-
-.option-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 28px;
-  height: 24px;
-  background: #e2e8f0;
-  color: #475569;
-  font-size: 12px;
-  font-weight: 600;
-  border-radius: 20px;
-  padding: 0 8px;
-}
-
-.filter-menu-option.selected .option-count {
-  background: #10b981;
-  color: white;
-}
-
-.filter-menu-footer {
-  padding: 12px 16px;
-  border-top: 1px solid #e2e8f0;
-  background: #f8fafc;
-  border-radius: 0 0 10px 10px;
-}
-
-.filter-close-btn {
-  width: 100%;
-  padding: 8px 0;
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 500;
-  color: #475569;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.filter-close-btn:hover {
-  background: #f1f5f9;
-  border-color: #cbd5e1;
-  color: #0f172a;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
 }
 
 /* Active Filters */
@@ -805,7 +713,7 @@
   width: 100%;
   border-collapse: collapse;
   background: white;
-  min-width: 800px;
+  min-width: 1000px;
 }
 
 .students-table th {
@@ -887,6 +795,16 @@
   display: inline-block;
 }
 
+.department-badge {
+  background: #eef2ff;
+  color: #4f46e5;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-block;
+}
+
 .course-badge {
   background: #fef3c7;
   color: #b45309;
@@ -895,17 +813,6 @@
   font-size: 12px;
   font-weight: 500;
   display: inline-block;
-}
-
-.branch-badge {
-  background: #f3e8ff;
-  color: #7c3aed;
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
-  display: inline-block;
-  border: 1px solid #e9d5ff;
 }
 
 .semester-badge {
@@ -920,28 +827,25 @@
   text-align: center;
 }
 
-/* Teacher Badge */
-.teacher-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+/* Status Badge */
+.status-badge {
   padding: 4px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  display: inline-block;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.status-badge.active {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-badge.inactive {
   background: #f1f5f9;
   color: #475569;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.teacher-badge.assigned {
-  background: #dbeafe;
-  color: #2563eb;
-}
-
-.teacher-badge svg {
-  width: 12px;
-  height: 12px;
 }
 
 /* Contact Info */
@@ -1049,6 +953,11 @@
   animation: fadeIn 0.2s;
 }
 
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 .modal-content {
   background: white;
   border-radius: 12px;
@@ -1058,6 +967,17 @@
   overflow-y: auto;
   animation: slideUp 0.3s;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .modal-content.modal-sm {
@@ -1189,6 +1109,20 @@
   box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
 }
 
+.form-group input:disabled,
+.form-group select:disabled {
+  background: #f1f5f9;
+  cursor: not-allowed;
+  color: #94a3b8;
+}
+
+.form-hint {
+  display: block;
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 4px;
+}
+
 /* View Modal Styles */
 .profile-header {
   display: flex;
@@ -1259,22 +1193,6 @@
   font-weight: 500;
   color: #0f172a;
   word-break: break-word;
-}
-
-.teacher-highlight {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: #2563eb;
-  background: #dbeafe;
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 13px;
-}
-
-.teacher-highlight svg {
-  width: 14px;
-  height: 14px;
 }
 
 /* Delete Modal */

@@ -29,11 +29,15 @@ import {
   Sliders,
   Check,
   DownloadCloud,
-  UploadCloud
+  UploadCloud,
+  AlertCircle,
+  Building2,
+  Library
 } from 'lucide-react';
 import studentApi from '../../api/studentApi';
 import staffApi from '../../api/staffApi';
 import courseApi from '../../api/courseApi';
+import { departmentApi } from '../../api/adminApi';
 import * as XLSX from 'xlsx';
 import './Students.css';
 
@@ -42,8 +46,10 @@ const AdminStudents = () => {
   const [filteredStudents, setFilteredStudents] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [courses, setCourses] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('all');
+  const [courseFilter, setCourseFilter] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -56,10 +62,12 @@ const AdminStudents = () => {
   const [importPreview, setImportPreview] = useState([]);
   const [showImportPreview, setShowImportPreview] = useState(false);
   const [importError, setImportError] = useState('');
+  const [importResult, setImportResult] = useState(null);
   const [stats, setStats] = useState({
     totalStudents: 0,
     totalCourses: 0,
-    activeStudents: 0
+    activeStudents: 0,
+    inactiveStudents: 0
   });
 
   const fileInputRef = useRef(null);
@@ -73,29 +81,117 @@ const AdminStudents = () => {
     address: '',
     admissionYear: '',
     age: '',
-    gender: ''
+    gender: '',
+    department: '',
+    course: '',
+    semester: ''
   });
+
+  // Department options from the mapping
+  const departmentOptions = [
+    "Computer Science",
+    "Computer Science and Engineering",
+    "Information Technology",
+    "Mechanical Engineering",
+    "Electronics and Communication Engineering",
+    "Electronics and Instrumentation Engineering",
+    "Instrumentation and Control Engineering",
+    "Computer Science and Design",
+    "Civil Engineering",
+    "Electrical and Electronics Engineering",
+    "Biomedical Engineering",
+    "Aerospace Engineering",
+    "Automobile Engineering",
+    "Chemical Engineering",
+    "Bachelor of Commerce",
+    "Bachelor of Arts in English",
+    "Bachelor of Science in Mathematics",
+    "Bachelor of Arts in Tamil",
+    "Bachelor of Arts in History",
+    "Bachelor of Business Administration",
+    "Bachelor of Arts in Economics",
+    "Bachelor of Arts in Political Science",
+    "Physics",
+    "Chemistry",
+    "Biology"
+  ].sort();
+
+  // Branch/Course options based on department
+  const branchOptions = {
+    "Computer Science": ["B.Sc Computer Science", "M.Sc Computer Science", "BCA", "MCA"],
+    "Computer Science and Engineering": ["B.E Computer Science and Engineering", "M.E Computer Science and Engineering"],
+    "Information Technology": ["B.E Information Technology", "M.E Information Technology"],
+    "Mechanical Engineering": ["B.E Mechanical Engineering", "M.E Mechanical Engineering"],
+    "Electronics and Communication Engineering": ["B.E Electronics and Communication Engineering", "M.E Electronics and Communication Engineering"],
+    "Electronics and Instrumentation Engineering": ["B.E Electronics and Instrumentation Engineering"],
+    "Instrumentation and Control Engineering": ["B.E Instrumentation and Control Engineering"],
+    "Computer Science and Design": ["B.E Computer Science and Design"],
+    "Civil Engineering": ["B.E Civil Engineering", "M.E Civil Engineering"],
+    "Electrical and Electronics Engineering": ["B.E Electrical and Electronics Engineering", "M.E Electrical and Electronics Engineering"],
+    "Biomedical Engineering": ["B.E Biomedical Engineering"],
+    "Aerospace Engineering": ["B.E Aerospace Engineering"],
+    "Automobile Engineering": ["B.E Automobile Engineering"],
+    "Chemical Engineering": ["B.E Chemical Engineering"],
+    "Bachelor of Commerce": ["B.Com", "M.Com"],
+    "Bachelor of Arts in English": ["B.A English", "M.A English"],
+    "Bachelor of Science in Mathematics": ["B.Sc Mathematics", "M.Sc Mathematics"],
+    "Bachelor of Arts in Tamil": ["B.A Tamil", "M.A Tamil"],
+    "Bachelor of Arts in History": ["B.A History", "M.A History"],
+    "Bachelor of Business Administration": ["BBA", "MBA"],
+    "Bachelor of Arts in Economics": ["B.A Economics", "M.A Economics"],
+    "Bachelor of Arts in Political Science": ["B.A Political Science", "M.A Political Science"],
+    "Physics": ["B.Sc Physics", "M.Sc Physics"],
+    "Chemistry": ["B.Sc Chemistry", "M.Sc Chemistry"],
+    "Biology": ["B.Sc Biology", "M.Sc Biology"]
+  };
+
+  const semesterOptions = [1, 2, 3, 4, 5, 6, 7, 8];
 
   useEffect(() => {
     fetchData();
+    fetchDepartments();
   }, []);
 
-  // Filter students based on search term
+  // Filter students based on search term, department, and course
   useEffect(() => {
     let filtered = students;
 
-    // Apply search filter
     if (searchTerm) {
       filtered = filtered.filter(student =>
         student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         student.rollNo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         student.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.teacher?.name?.toLowerCase().includes(searchTerm.toLowerCase())
+        student.phone?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.course?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.department?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
+    if (departmentFilter !== 'all') {
+      filtered = filtered.filter(student => student.department === departmentFilter);
+    }
+
+    if (courseFilter !== 'all') {
+      filtered = filtered.filter(student => student.course === courseFilter);
+    }
+
     setFilteredStudents(filtered);
-  }, [searchTerm, students]);
+  }, [searchTerm, departmentFilter, courseFilter, students]);
+
+  const fetchDepartments = async () => {
+    try {
+      const response = await departmentApi.getAll();
+      let deptsData = [];
+      if (response?.success && response?.data) {
+        deptsData = response.data;
+      } else if (Array.isArray(response)) {
+        deptsData = response;
+      }
+      setDepartments(deptsData);
+    } catch (err) {
+      console.error('Error fetching departments:', err);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -127,16 +223,24 @@ const AdminStudents = () => {
         coursesData = coursesRes;
       }
 
+      console.log('📊 Existing students in DB:', studentsData.length);
+      console.log('Existing Roll Nos:', studentsData.map(s => s.rollNo));
+      console.log('Existing Emails:', studentsData.map(s => s.email));
+
       setStudents(studentsData);
       setFilteredStudents(studentsData);
       setTeachers(teachersData);
       setCourses(coursesData);
 
       const uniqueCourses = [...new Set(studentsData.map(s => s.course).filter(Boolean))];
+      const activeStudents = studentsData.filter(s => s.user?.isActive !== false).length;
+      const inactiveStudents = studentsData.filter(s => s.user?.isActive === false).length;
+      
       setStats({
         totalStudents: studentsData.length,
         totalCourses: uniqueCourses.length,
-        activeStudents: studentsData.filter(s => s.user?.isActive !== false).length
+        activeStudents: activeStudents,
+        inactiveStudents: inactiveStudents
       });
 
     } catch (err) {
@@ -157,7 +261,10 @@ const AdminStudents = () => {
       address: '',
       admissionYear: '',
       age: '',
-      gender: ''
+      gender: '',
+      department: '',
+      course: '',
+      semester: ''
     });
     setSelectedStudent(null);
     setModalType('add');
@@ -175,7 +282,10 @@ const AdminStudents = () => {
       address: student.address || '',
       admissionYear: student.admissionYear || '',
       age: student.age || '',
-      gender: student.gender || ''
+      gender: student.gender || '',
+      department: student.department || '',
+      course: student.course || '',
+      semester: student.semester || ''
     });
     setModalType('edit');
     setShowModal(true);
@@ -205,10 +315,20 @@ const AdminStudents = () => {
   };
 
   const handleChange = (e) => {
+    const { name, value } = e.target;
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
+      [name]: value
     });
+    
+    // Reset course when department changes
+    if (name === 'department') {
+      setFormData(prev => ({
+        ...prev,
+        department: value,
+        course: ''
+      }));
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -228,7 +348,10 @@ const AdminStudents = () => {
         address: formData.address || null,
         admissionYear: formData.admissionYear || null,
         age: formData.age ? parseInt(formData.age) : null,
-        gender: formData.gender || null
+        gender: formData.gender || null,
+        department: formData.department || null,
+        course: formData.course || null,
+        semester: formData.semester ? parseInt(formData.semester) : null
       };
 
       if (modalType === 'add') {
@@ -252,9 +375,23 @@ const AdminStudents = () => {
 
   const clearFilters = () => {
     setSearchTerm('');
+    setDepartmentFilter('all');
+    setCourseFilter('all');
   };
 
-  // Export to Excel only
+  // Get unique departments for filter
+  const getUniqueDepartments = () => {
+    const depts = students.map(s => s.department).filter(Boolean);
+    return [...new Set(depts)].sort();
+  };
+
+  // Get unique courses for filter
+  const getUniqueCourses = () => {
+    const coursesList = students.map(s => s.course).filter(Boolean);
+    return [...new Set(coursesList)].sort();
+  };
+
+  // Export to Excel
   const exportToExcel = () => {
     try {
       const exportData = filteredStudents.map(student => ({
@@ -262,27 +399,34 @@ const AdminStudents = () => {
         'Email': student.email || '',
         'Roll No': student.rollNo || '',
         'Enrollment No': student.enrollmentNo || '',
+        'Department': student.department || '',
+        'Course/Branch': student.course || '',
+        'Semester': student.semester || '',
         'Phone': student.phone || '',
         'Address': student.address || '',
         'Admission Year': student.admissionYear || '',
         'Age': student.age || '',
-        'Gender': student.gender || ''
+        'Gender': student.gender || '',
+        'Status': student.user?.isActive !== false ? 'Active' : 'Inactive'
       }));
 
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(exportData);
       
-      // Set column widths for better readability
       ws['!cols'] = [
         { wch: 20 }, // Name
         { wch: 25 }, // Email
         { wch: 12 }, // Roll No
         { wch: 15 }, // Enrollment No
+        { wch: 20 }, // Department
+        { wch: 25 }, // Course/Branch
+        { wch: 10 }, // Semester
         { wch: 15 }, // Phone
         { wch: 30 }, // Address
         { wch: 15 }, // Admission Year
         { wch: 8 },  // Age
-        { wch: 10 }  // Gender
+        { wch: 10 }, // Gender
+        { wch: 10 }  // Status
       ];
       
       XLSX.utils.book_append_sheet(wb, ws, 'Students');
@@ -308,12 +452,10 @@ const AdminStudents = () => {
       return;
     }
 
-    // Check if file is Excel
     const fileExtension = file.name.split('.').pop().toLowerCase();
     if (!['xlsx', 'xls'].includes(fileExtension)) {
       setImportError('Please upload only Excel files (.xlsx or .xls)');
       setShowImportMenu(false);
-      // Clear the file input
       event.target.value = '';
       return;
     }
@@ -329,37 +471,18 @@ const AdminStudents = () => {
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         
-        // Convert to JSON with raw values to preserve types
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
-          header: 1,
-          defval: '',
-          raw: true
-        });
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
         
-        // Get headers from first row
-        const headers = jsonData[0] || [];
-        // Get data rows (skip header)
-        const rows = jsonData.slice(1) || [];
+        console.log('📄 Excel file data:', jsonData);
         
-        // Convert rows to objects with headers as keys
-        const formattedData = rows.map(row => {
-          const obj = {};
-          headers.forEach((header, index) => {
-            if (header) {
-              obj[header] = row[index] !== undefined ? row[index] : '';
-            }
-          });
-          return obj;
-        }).filter(row => Object.keys(row).length > 0); // Remove empty rows
-        
-        if (formattedData.length === 0) {
+        if (jsonData.length === 0) {
           setImportError('The Excel file is empty');
           setShowImportMenu(false);
           event.target.value = '';
           return;
         }
 
-        setImportPreview(formattedData.slice(0, 5)); // Show first 5 rows as preview
+        setImportPreview(jsonData.slice(0, 5));
         setShowImportPreview(true);
         setShowImportMenu(false);
       } catch (err) {
@@ -372,156 +495,249 @@ const AdminStudents = () => {
     reader.readAsBinaryString(file);
   };
 
-  // Confirm import
+  // Confirm import with proper duplicate checking
   const confirmImport = async () => {
-    try {
-      setLoading(true);
-      
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const data = e.target.result;
-          const workbook = XLSX.read(data, { type: 'binary' });
-          const sheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[sheetName];
-          
-          // Convert to JSON with raw values
-          const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
-            header: 1,
-            defval: '',
-            raw: true
-          });
-          
-          // Get headers from first row
-          const headers = jsonData[0] || [];
-          // Get data rows (skip header)
-          const rows = jsonData.slice(1) || [];
+    if (!importFile) return;
+    
+    setLoading(true);
+    
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const data = e.target.result;
+        const workbook = XLSX.read(data, { type: 'binary' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+        
+        console.log('📊 Import data from Excel:', jsonData);
+        console.log('📊 Total rows in Excel:', jsonData.length);
 
-          let successCount = 0;
-          let errorCount = 0;
-          const errors = [];
+        // Get existing students from database
+        const existingResponse = await studentApi.getStudents();
+        let existingStudents = [];
+        if (existingResponse?.success && existingResponse?.data) {
+          existingStudents = existingResponse.data;
+        } else if (Array.isArray(existingResponse)) {
+          existingStudents = existingResponse;
+        }
 
-          // Import each student
-          for (let i = 0; i < rows.length; i++) {
-            const row = rows[i];
-            
-            try {
-              // Create object from row using headers
-              const rowData = {};
-              headers.forEach((header, index) => {
-                if (header) {
-                  rowData[header] = row[index] !== undefined ? row[index] : '';
-                }
-              });
+        console.log('📊 Existing students in DB:', existingStudents.length);
 
-              // Convert all values to appropriate types
-              const studentData = {
-                name: String(rowData['Name'] || rowData['name'] || '').trim(),
-                email: String(rowData['Email'] || rowData['email'] || '').trim(),
-                // Convert rollNo to string to prevent integer errors
-                rollNo: String(rowData['Roll No'] || rowData['rollNo'] || rowData['rollno'] || '').trim(),
-                // Convert enrollmentNo to string
-                enrollmentNo: String(rowData['Enrollment No'] || rowData['enrollmentNo'] || '').trim() || null,
-                // Convert phone to string
-                phone: String(rowData['Phone'] || rowData['phone'] || '').trim() || null,
-                // Convert address to string
-                address: String(rowData['Address'] || rowData['address'] || '').trim() || null,
-                // Convert admissionYear to string
-                admissionYear: String(rowData['Admission Year'] || rowData['admissionYear'] || '').trim() || null,
-                // Convert age to number if it exists
-                age: rowData['Age'] || rowData['age'] ? parseInt(String(rowData['Age'] || rowData['age'])) : null,
-                // Convert gender to string
-                gender: String(rowData['Gender'] || rowData['gender'] || '').trim() || null
-              };
+        // Create Maps for quick duplicate lookup
+        const existingRollNoMap = new Map();
+        const existingEmailMap = new Map();
+        
+        existingStudents.forEach(student => {
+          if (student.rollNo) {
+            existingRollNoMap.set(student.rollNo.toString().toLowerCase(), student);
+          }
+          if (student.email) {
+            existingEmailMap.set(student.email.toLowerCase(), student);
+          }
+        });
 
-              // Validate required fields
-              if (!studentData.name) {
-                errorCount++;
-                errors.push(`Row ${i + 2}: Name is required`);
-                continue;
-              }
-              
-              if (!studentData.email) {
-                errorCount++;
-                errors.push(`Row ${i + 2}: Email is required`);
-                continue;
-              }
-              
-              if (!studentData.email.includes('@')) {
-                errorCount++;
-                errors.push(`Row ${i + 2}: Invalid email format - must contain @`);
-                continue;
-              }
-              
-              if (!studentData.rollNo) {
-                errorCount++;
-                errors.push(`Row ${i + 2}: Roll No is required`);
-                continue;
-              }
+        let newCount = 0;
+        let duplicateByRollNo = 0;
+        let duplicateByEmail = 0;
+        let errorCount = 0;
+        const newStudents = [];
+        const duplicateRollNos = [];
+        const duplicateEmails = [];
+        const errors = [];
 
-              // Create the student
-              await studentApi.createStudent(studentData);
-              successCount++;
-              
-            } catch (err) {
-              console.error('Error importing row:', err, row);
+        // Process each row from Excel
+        for (let i = 0; i < jsonData.length; i++) {
+          const row = jsonData[i];
+          const rowNumber = i + 2;
+
+          try {
+            const name = String(row['Name'] || row['name'] || '').trim();
+            const email = String(row['Email'] || row['email'] || '').trim().toLowerCase();
+            const rollNo = String(row['Roll No'] || row['rollNo'] || row['rollno'] || '').trim();
+            const enrollmentNo = String(row['Enrollment No'] || row['enrollmentNo'] || '').trim();
+            const department = String(row['Department'] || row['department'] || '').trim();
+            const course = String(row['Course/Branch'] || row['course'] || row['branch'] || '').trim();
+            const semester = row['Semester'] || row['semester'] ? parseInt(row['Semester'] || row['semester']) : null;
+            const phone = String(row['Phone'] || row['phone'] || '').trim();
+            const address = String(row['Address'] || row['address'] || '').trim();
+            const admissionYear = String(row['Admission Year'] || row['admissionYear'] || '').trim();
+            const age = row['Age'] || row['age'] ? parseInt(String(row['Age'] || row['age'])) : null;
+            const gender = String(row['Gender'] || row['gender'] || '').trim();
+
+            console.log(`📝 Row ${rowNumber}: Name="${name}", RollNo="${rollNo}", Email="${email}"`);
+
+            if (!name) {
               errorCount++;
-              errors.push(`Row ${i + 2}: ${err.message || 'Unknown error'}`);
+              errors.push(`Row ${rowNumber}: Name is required`);
+              continue;
             }
-          }
+            
+            if (!email) {
+              errorCount++;
+              errors.push(`Row ${rowNumber}: Email is required`);
+              continue;
+            }
+            
+            if (!email.includes('@')) {
+              errorCount++;
+              errors.push(`Row ${rowNumber}: Invalid email format - must contain @`);
+              continue;
+            }
+            
+            if (!rollNo) {
+              errorCount++;
+              errors.push(`Row ${rowNumber}: Roll No is required`);
+              continue;
+            }
 
-          if (errors.length > 0) {
-            console.warn('Import errors:', errors);
-            alert(`Import completed with issues:\n✅ Successfully imported: ${successCount} students\n❌ Failed: ${errorCount} students\n\nPlease check console for details.`);
-          } else {
-            alert(`✅ Successfully imported ${successCount} students!`);
-          }
+            if (existingRollNoMap.has(rollNo.toLowerCase())) {
+              const existingStudent = existingRollNoMap.get(rollNo.toLowerCase());
+              console.log(`⏭️ Row ${rowNumber}: Roll No "${rollNo}" already exists, skipping`);
+              duplicateByRollNo++;
+              duplicateRollNos.push(`${rollNo} (${existingStudent.name})`);
+              continue;
+            }
 
+            if (existingEmailMap.has(email)) {
+              const existingStudent = existingEmailMap.get(email);
+              console.log(`⏭️ Row ${rowNumber}: Email "${email}" already exists, skipping`);
+              duplicateByEmail++;
+              duplicateEmails.push(`${email} (${existingStudent.name})`);
+              continue;
+            }
+
+            const studentData = {
+              name,
+              email,
+              rollNo,
+              enrollmentNo: enrollmentNo || null,
+              department: department || null,
+              course: course || null,
+              semester: semester,
+              phone: phone || null,
+              address: address || null,
+              admissionYear: admissionYear || null,
+              age: age,
+              gender: gender || null
+            };
+
+            console.log(`✅ Row ${rowNumber}: Valid new student - ${name} (${rollNo})`);
+            newStudents.push(studentData);
+            newCount++;
+            
+          } catch (err) {
+            console.error(`❌ Error processing row ${rowNumber}:`, err);
+            errorCount++;
+            errors.push(`Row ${rowNumber}: ${err.message}`);
+          }
+        }
+
+        console.log('\n📊 IMPORT SUMMARY:');
+        console.log('✅ New students to import:', newCount);
+        console.log('⏭️ Duplicate by Roll No:', duplicateByRollNo);
+        console.log('⏭️ Duplicate by Email:', duplicateByEmail);
+        console.log('❌ Validation errors:', errorCount);
+
+        if (newCount === 0) {
+          let message = `❌ No new students to import.\n\n`;
+          message += `⏭️ Duplicate by Roll No: ${duplicateByRollNo}\n`;
+          message += `⏭️ Duplicate by Email: ${duplicateByEmail}\n`;
+          message += `❌ Validation errors: ${errorCount}\n\n`;
+          
+          if (duplicateRollNos.length > 0) {
+            message += `Duplicate Roll Nos:\n${duplicateRollNos.slice(0, 5).join('\n')}`;
+          }
+          
+          if (duplicateEmails.length > 0) {
+            message += `\n\nDuplicate Emails:\n${duplicateEmails.slice(0, 5).join('\n')}`;
+          }
+          
+          alert(message);
           setShowImportPreview(false);
           setImportFile(null);
-          setImportPreview([]);
-          // Clear the file input
-          if (fileInputRef.current) {
-            fileInputRef.current.value = '';
-          }
-          fetchData();
-        } catch (err) {
-          console.error('Error importing data:', err);
-          alert('Failed to import data. Please check the file format.');
-        } finally {
           setLoading(false);
+          return;
         }
-      };
-      reader.readAsBinaryString(importFile);
-    } catch (err) {
-      console.error('Error importing file:', err);
-      alert('Failed to import file');
-      setLoading(false);
-    }
+
+        const confirmMessage = `📊 Import Summary\n\n` +
+          `✅ New students to import: ${newCount}\n` +
+          `⏭️ Duplicate by Roll No (skipped): ${duplicateByRollNo}\n` +
+          `⏭️ Duplicate by Email (skipped): ${duplicateByEmail}\n` +
+          `❌ Validation errors: ${errorCount}\n\n` +
+          `Do you want to proceed with importing ${newCount} new students?`;
+        
+        if (!window.confirm(confirmMessage)) {
+          setLoading(false);
+          return;
+        }
+
+        let importedCount = 0;
+        const importErrors = [];
+
+        for (const student of newStudents) {
+          try {
+            console.log(`📤 Importing: ${student.name} (${student.rollNo})`);
+            await studentApi.createStudent(student);
+            importedCount++;
+          } catch (err) {
+            console.error(`❌ Failed to import ${student.name}:`, err);
+            importErrors.push(`${student.name} (Roll No: ${student.rollNo}): ${err.message}`);
+          }
+        }
+
+        const finalMessage = `✅ Import Completed!\n\n` +
+          `📊 Successfully imported: ${importedCount} students\n` +
+          `⏭️ Skipped (duplicate Roll No): ${duplicateByRollNo}\n` +
+          `⏭️ Skipped (duplicate Email): ${duplicateByEmail}\n` +
+          `❌ Failed: ${importErrors.length}\n`;
+        
+        alert(finalMessage);
+
+        setShowImportPreview(false);
+        setImportFile(null);
+        setImportPreview([]);
+        
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+        
+        await fetchData();
+        
+      } catch (err) {
+        console.error('❌ Fatal import error:', err);
+        alert('Failed to process import: ' + err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    reader.readAsBinaryString(importFile);
   };
 
-  // Cancel import
   const cancelImport = () => {
     setShowImportPreview(false);
     setImportFile(null);
     setImportPreview([]);
     setImportError('');
-    // Clear the file input
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
-  // Download sample Excel template
   const downloadSampleTemplate = () => {
     const sampleData = [
       {
         'Name': 'John Doe',
         'Email': 'john.doe@example.com',
-        'Roll No': '2024001',  // Stored as string with quotes in Excel
+        'Roll No': '2024001',
         'Enrollment No': 'ENR001',
+        'Department': 'Computer Science',
+        'Course/Branch': 'B.Sc Computer Science',
+        'Semester': 3,
         'Phone': '9876543210',
-        'Address': '123 Main St',
+        'Address': '123 Main Street, City',
         'Admission Year': '2023',
         'Age': 20,
         'Gender': 'Male'
@@ -529,11 +745,14 @@ const AdminStudents = () => {
       {
         'Name': 'Jane Smith',
         'Email': 'jane.smith@example.com',
-        'Roll No': '2024002',  // Stored as string with quotes in Excel
+        'Roll No': '2024002',
         'Enrollment No': 'ENR002',
+        'Department': 'Computer Science and Engineering',
+        'Course/Branch': 'B.E Computer Science and Engineering',
+        'Semester': 5,
         'Phone': '9876543211',
-        'Address': '456 Oak Ave',
-        'Admission Year': '2023',
+        'Address': '456 Oak Avenue, City',
+        'Admission Year': '2022',
         'Age': 21,
         'Gender': 'Female'
       }
@@ -542,12 +761,14 @@ const AdminStudents = () => {
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(sampleData);
     
-    // Set column widths for better readability
     ws['!cols'] = [
       { wch: 20 }, // Name
       { wch: 25 }, // Email
       { wch: 12 }, // Roll No
       { wch: 15 }, // Enrollment No
+      { wch: 20 }, // Department
+      { wch: 25 }, // Course/Branch
+      { wch: 10 }, // Semester
       { wch: 15 }, // Phone
       { wch: 30 }, // Address
       { wch: 15 }, // Admission Year
@@ -555,8 +776,10 @@ const AdminStudents = () => {
       { wch: 10 }  // Gender
     ];
     
-    XLSX.utils.book_append_sheet(wb, ws, 'Template');
+    XLSX.utils.book_append_sheet(wb, ws, 'Student Template');
     XLSX.writeFile(wb, 'student_import_template.xlsx');
+    
+    setShowImportMenu(false);
   };
 
   if (loading) {
@@ -581,6 +804,9 @@ const AdminStudents = () => {
     );
   }
 
+  const uniqueDepartments = getUniqueDepartments();
+  const uniqueCourses = getUniqueCourses();
+
   return (
     <div className="admin-students">
       {/* Hidden file input */}
@@ -601,7 +827,6 @@ const AdminStudents = () => {
           <p className="page-description">Manage student records</p>
         </div>
         <div className="header-actions">
-          {/* Import Button - Excel Only */}
           <div className="import-dropdown">
             <button 
               className="btn-import"
@@ -623,7 +848,7 @@ const AdminStudents = () => {
                   </button>
                 </div>
                 {importError && (
-                  <div className="import-error" style={{ padding: '8px 12px', color: '#ef4444', fontSize: '12px', borderTop: '1px solid #e2e8f0' }}>
+                  <div className="import-error">
                     {importError}
                   </div>
                 )}
@@ -631,7 +856,6 @@ const AdminStudents = () => {
             )}
           </div>
 
-          {/* Export Button - Excel Only */}
           <button 
             className="btn-export"
             onClick={exportToExcel}
@@ -661,8 +885,12 @@ const AdminStudents = () => {
               </button>
             </div>
             <div className="modal-body">
-              <p className="import-preview-info">
-                Found {importPreview.length} records to import. Preview of first 5 rows:
+              <div className="import-preview-info" style={{ background: '#fef3c7', padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>
+                <AlertCircle size={16} style={{ marginRight: '8px', color: '#f59e0b', verticalAlign: 'middle' }} />
+                <span><strong>Duplicate Detection:</strong> Students with existing <strong>Roll No</strong> or <strong>Email</strong> will be automatically skipped.</span>
+              </div>
+              <p style={{ marginBottom: '12px' }}>
+                Found <strong>{importPreview.length}</strong> records to import. Preview of first 5 rows:
               </p>
               <div className="import-preview-table">
                 <table>
@@ -683,6 +911,14 @@ const AdminStudents = () => {
                     ))}
                   </tbody>
                 </table>
+              </div>
+              <div style={{ marginTop: '16px', padding: '12px', background: '#dcfce7', borderRadius: '8px', fontSize: '13px', color: '#166534' }}>
+                <strong>✅ Import Rules:</strong>
+                <ul style={{ marginTop: '8px', marginLeft: '20px' }}>
+                  <li>✓ Students with <strong>Roll No</strong> already in system → <strong>SKIPPED</strong></li>
+                  <li>✓ Students with <strong>Email</strong> already in system → <strong>SKIPPED</strong></li>
+                  <li>✓ All new students will be created with <strong>ACTIVE</strong> status</li>
+                </ul>
               </div>
             </div>
             <div className="modal-footer">
@@ -720,11 +956,11 @@ const AdminStudents = () => {
         </div>
         <div className="stat-card purple">
           <div className="stat-icon purple">
-            <User size={24} />
+            <X size={24} />
           </div>
           <div className="stat-content">
             <span className="stat-label">Inactive Students</span>
-            <span className="stat-value">{stats.totalStudents - stats.activeStudents}</span>
+            <span className="stat-value">{stats.inactiveStudents}</span>
           </div>
         </div>
       </div>
@@ -749,23 +985,71 @@ const AdminStudents = () => {
           </div>
         </div>
 
-        {/* Active Filters */}
-        {searchTerm && (
-          <div className="active-filters">
-            {searchTerm && (
-              <span className="active-filter-tag">
-                "{searchTerm}"
-                <button onClick={() => setSearchTerm('')}>
-                  <X size={14} />
-                </button>
-              </span>
-            )}
-            <button className="clear-all-btn" onClick={clearFilters}>
-              Clear all
-            </button>
-          </div>
-        )}
+        {/* Department Filter */}
+        <div className="filter-dropdown">
+          <Building2 className="filter-icon" size={18} />
+          <select
+            className="filter-select"
+            value={departmentFilter}
+            onChange={(e) => setDepartmentFilter(e.target.value)}
+          >
+            <option value="all">All Departments</option>
+            {uniqueDepartments.map(dept => (
+              <option key={dept} value={dept}>{dept}</option>
+            ))}
+          </select>
+          <ChevronDown className="select-chevron" size={16} />
+        </div>
+
+        {/* Course/Branch Filter */}
+        <div className="filter-dropdown">
+          <Library className="filter-icon" size={18} />
+          <select
+            className="filter-select"
+            value={courseFilter}
+            onChange={(e) => setCourseFilter(e.target.value)}
+          >
+            <option value="all">All Courses/Branches</option>
+            {uniqueCourses.map(course => (
+              <option key={course} value={course}>{course}</option>
+            ))}
+          </select>
+          <ChevronDown className="select-chevron" size={16} />
+        </div>
       </div>
+
+      {/* Active Filters Display */}
+      {(searchTerm || departmentFilter !== 'all' || courseFilter !== 'all') && (
+        <div className="active-filters">
+          {searchTerm && (
+            <span className="active-filter-tag">
+              Search: "{searchTerm}"
+              <button onClick={() => setSearchTerm('')}>
+                <X size={14} />
+              </button>
+            </span>
+          )}
+          {departmentFilter !== 'all' && (
+            <span className="active-filter-tag">
+              Department: {departmentFilter}
+              <button onClick={() => setDepartmentFilter('all')}>
+                <X size={14} />
+              </button>
+            </span>
+          )}
+          {courseFilter !== 'all' && (
+            <span className="active-filter-tag">
+              Course: {courseFilter}
+              <button onClick={() => setCourseFilter('all')}>
+                <X size={14} />
+              </button>
+            </span>
+          )}
+          <button className="clear-all-btn" onClick={clearFilters}>
+            Clear all
+          </button>
+        </div>
+      )}
 
       {/* Students Table */}
       <div className="table-container">
@@ -774,56 +1058,77 @@ const AdminStudents = () => {
             <tr>
               <th>Student</th>
               <th>Roll No</th>
+              <th>Department</th>
+              <th>Course/Branch</th>
+              <th>Semester</th>
               <th>Contact</th>
+              <th>Status</th>
               <th>Actions</th>
             </tr>
-          </thead>
+            </thead>
           <tbody>
             {filteredStudents.length > 0 ? (
-              filteredStudents.map((student) => (
-                <tr key={student.id}>
-                  <td>
-                    <div className="student-info">
-                      <div className="student-avatar">
-                        {student.name?.charAt(0).toUpperCase()}
+              filteredStudents.map((student) => {
+                const isActive = student.user?.isActive !== false;
+                return (
+                  <tr key={student.id}>
+                    <td>
+                      <div className="student-info">
+                        <div className="student-avatar">
+                          {student.name?.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <div className="student-name">{student.name}</div>
+                          <div className="student-email">{student.email}</div>
+                        </div>
                       </div>
-                      <div>
-                        <div className="student-name">{student.name}</div>
-                        <div className="student-email">{student.email}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <span className="roll-badge">{student.rollNo}</span>
-                  </td>
-                  <td>
-                    {student.phone ? (
-                      <span className="contact-info">
-                        <Phone size={14} />
-                        {student.phone}
+                    </td>
+                    <td>
+                      <span className="roll-badge">{student.rollNo}</span>
+                    </td>
+                    <td>
+                      <span className="department-badge">{student.department || '—'}</span>
+                    </td>
+                    <td>
+                      <span className="course-badge">{student.course || '—'}</span>
+                    </td>
+                    <td>
+                      <span className="semester-badge">{student.semester || '—'}</span>
+                    </td>
+                    <td>
+                      {student.phone ? (
+                        <span className="contact-info">
+                          <Phone size={14} />
+                          {student.phone}
+                        </span>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td>
+                      <span className={`status-badge ${isActive ? 'active' : 'inactive'}`}>
+                        {isActive ? 'ACTIVE' : 'INACTIVE'}
                       </span>
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                  <td>
-                    <div className="action-group">
-                      <button className="action-btn view" onClick={() => handleView(student)} title="View">
-                        <Eye size={18} />
-                      </button>
-                      <button className="action-btn edit" onClick={() => handleEdit(student)} title="Edit">
-                        <Edit size={18} />
-                      </button>
-                      <button className="action-btn delete" onClick={() => handleDelete(student)} title="Delete">
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
+                    </td>
+                    <td>
+                      <div className="action-group">
+                        <button className="action-btn view" onClick={() => handleView(student)} title="View">
+                          <Eye size={18} />
+                        </button>
+                        <button className="action-btn edit" onClick={() => handleEdit(student)} title="Edit">
+                          <Edit size={18} />
+                        </button>
+                        <button className="action-btn delete" onClick={() => handleDelete(student)} title="Delete">
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
             ) : (
               <tr>
-                <td colSpan="4" className="empty-state">
+                <td colSpan="8" className="empty-state">
                   {students.length === 0 ? (
                     <>
                       <Users size={48} />
@@ -950,15 +1255,63 @@ const AdminStudents = () => {
                     </div>
                   </div>
 
-                  <div className="form-group">
-                    <label>Admission Year</label>
-                    <input
-                      type="text"
-                      name="admissionYear"
-                      value={formData.admissionYear}
-                      onChange={handleChange}
-                      placeholder="e.g., 2023"
-                    />
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Department *</label>
+                      <select
+                        name="department"
+                        value={formData.department}
+                        onChange={handleChange}
+                        required
+                      >
+                        <option value="">Select Department</option>
+                        {departmentOptions.map(dept => (
+                          <option key={dept} value={dept}>{dept}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Course/Branch *</label>
+                      <select
+                        name="course"
+                        value={formData.course}
+                        onChange={handleChange}
+                        required
+                        disabled={!formData.department}
+                      >
+                        <option value="">Select Course/Branch</option>
+                        {formData.department && branchOptions[formData.department]?.map(branch => (
+                          <option key={branch} value={branch}>{branch}</option>
+                        ))}
+                      </select>
+                      {!formData.department && (
+                        <small className="form-hint" style={{ color: '#f59e0b' }}>
+                          Please select a department first
+                        </small>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Semester</label>
+                      <select name="semester" value={formData.semester} onChange={handleChange}>
+                        <option value="">Select Semester</option>
+                        {semesterOptions.map(sem => (
+                          <option key={sem} value={sem}>{sem}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Admission Year</label>
+                      <input
+                        type="text"
+                        name="admissionYear"
+                        value={formData.admissionYear}
+                        onChange={handleChange}
+                        placeholder="e.g., 2023"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -1020,6 +1373,18 @@ const AdminStudents = () => {
                   <span className="detail-value">{selectedStudent.enrollmentNo || '—'}</span>
                 </div>
                 <div className="detail-item">
+                  <span className="detail-label">Department</span>
+                  <span className="detail-value">{selectedStudent.department || '—'}</span>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-label">Course/Branch</span>
+                  <span className="detail-value">{selectedStudent.course || '—'}</span>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-label">Semester</span>
+                  <span className="detail-value">{selectedStudent.semester || '—'}</span>
+                </div>
+                <div className="detail-item">
                   <span className="detail-label">Admission Year</span>
                   <span className="detail-value">{selectedStudent.admissionYear || '—'}</span>
                 </div>
@@ -1038,6 +1403,12 @@ const AdminStudents = () => {
                 <div className="detail-item full-width">
                   <span className="detail-label">Address</span>
                   <span className="detail-value">{selectedStudent.address || '—'}</span>
+                </div>
+                <div className="detail-item full-width">
+                  <span className="detail-label">Status</span>
+                  <span className={`status-badge ${selectedStudent.user?.isActive !== false ? 'active' : 'inactive'}`}>
+                    {selectedStudent.user?.isActive !== false ? 'ACTIVE' : 'INACTIVE'}
+                  </span>
                 </div>
               </div>
             </div>

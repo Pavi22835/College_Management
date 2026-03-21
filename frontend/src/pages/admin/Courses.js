@@ -47,6 +47,7 @@ const AdminCourses = () => {
   const [importFile, setImportFile] = useState(null);
   const [importPreview, setImportPreview] = useState([]);
   const [showImportPreview, setShowImportPreview] = useState(false);
+  const [importResult, setImportResult] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [weather, setWeather] = useState({ temp: 34, condition: 'sunny' });
 
@@ -309,14 +310,12 @@ const AdminCourses = () => {
     try {
       const doc = new jsPDF();
       
-      // Add title
       doc.setFontSize(18);
       doc.text('Courses List', 14, 22);
       doc.setFontSize(11);
       doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 30);
       doc.text(`Total Courses: ${filteredCourses.length}`, 14, 36);
 
-      // Prepare table data
       const tableColumn = [
         'Code', 
         'Course Name', 
@@ -335,7 +334,6 @@ const AdminCourses = () => {
         course.schedule || ''
       ]);
 
-      // Add table
       doc.autoTable({
         head: [tableColumn],
         body: tableRows,
@@ -352,8 +350,16 @@ const AdminCourses = () => {
     }
   };
 
-  // Handle file import
-  const handleFileImport = (event) => {
+  // Trigger file input click
+  const triggerFileInput = () => {
+    const fileInput = document.getElementById('excel-import-input');
+    if (fileInput) {
+      fileInput.click();
+    }
+  };
+
+  // Handle file selection
+  const handleFileSelect = (event) => {
     const file = event.target.files[0];
     if (!file) return;
 
@@ -368,7 +374,12 @@ const AdminCourses = () => {
         const worksheet = workbook.Sheets[sheetName];
         const jsonData = XLSX.utils.sheet_to_json(worksheet);
         
-        setImportPreview(jsonData.slice(0, 5)); // Show first 5 rows as preview
+        if (jsonData.length === 0) {
+          alert('The file is empty!');
+          return;
+        }
+        
+        setImportPreview(jsonData.slice(0, 5));
         setShowImportPreview(true);
       } catch (err) {
         console.error('Error reading file:', err);
@@ -376,57 +387,97 @@ const AdminCourses = () => {
       }
     };
     reader.readAsBinaryString(file);
+    
+    // Reset file input
+    event.target.value = '';
   };
 
-  // Confirm import
+  // Confirm import - skip existing courses
   const confirmImport = async () => {
-    try {
-      setLoading(true);
-      
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const data = e.target.result;
-          const workbook = XLSX.read(data, { type: 'binary' });
-          const sheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[sheetName];
-          const jsonData = XLSX.utils.sheet_to_json(worksheet);
+    if (!importFile) return;
+    
+    setLoading(true);
+    
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const data = e.target.result;
+        const workbook = XLSX.read(data, { type: 'binary' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
-          // Import each course
-          for (const row of jsonData) {
-            const courseData = {
-              code: row['Course Code'] || row['code'] || '',
-              name: row['Course Name'] || row['name'] || '',
-              department: row['Department'] || row['department'] || '',
-              credits: parseInt(row['Credits'] || row['credits'] || 0),
-              semester: row['Semester'] || row['semester'] ? parseInt(row['Semester'] || row['semester']) : null,
-              schedule: row['Schedule'] || row['schedule'] || '',
-              description: row['Description'] || row['description'] || ''
-            };
+        let imported = 0;
+        let skipped = 0;
+        const skippedCourses = [];
 
-            if (courseData.code && courseData.name && courseData.department) {
-              await courseApi.createCourse(courseData);
-            }
+        // Get existing course codes for duplicate checking
+        const existingCodes = new Set(courses.map(c => c.code));
+
+        // Import each course, skip if already exists
+        for (const row of jsonData) {
+          const courseCode = row['Course Code'] || row['code'] || '';
+          const courseName = row['Course Name'] || row['name'] || '';
+          const department = row['Department'] || row['department'] || '';
+          const credits = parseInt(row['Credits'] || row['credits'] || 0);
+          
+          // Skip if course already exists
+          if (existingCodes.has(courseCode)) {
+            skipped++;
+            skippedCourses.push(courseCode);
+            continue;
+          }
+          
+          // Skip if required fields are missing
+          if (!courseCode || !courseName || !department || !credits) {
+            skipped++;
+            continue;
           }
 
-          alert(`Successfully imported ${jsonData.length} courses!`);
-          setShowImportPreview(false);
-          setShowImportMenu(false);
-          setImportFile(null);
-          fetchData();
-        } catch (err) {
-          console.error('Error importing data:', err);
-          alert('Failed to import data. Please check the file format.');
-        } finally {
-          setLoading(false);
+          const courseData = {
+            code: courseCode,
+            name: courseName,
+            department: department,
+            credits: credits,
+            semester: row['Semester'] || row['semester'] ? parseInt(row['Semester'] || row['semester']) : null,
+            schedule: row['Schedule'] || row['schedule'] || '',
+            description: row['Description'] || row['description'] || '',
+            teacherId: null
+          };
+
+          try {
+            await courseApi.createCourse(courseData);
+            imported++;
+          } catch (err) {
+            console.error('Error importing course:', courseCode, err);
+            skipped++;
+          }
         }
-      };
-      reader.readAsBinaryString(importFile);
-    } catch (err) {
-      console.error('Error importing file:', err);
-      alert('Failed to import file');
-      setLoading(false);
-    }
+
+        setImportResult({
+          imported,
+          skipped,
+          skippedCourses: skippedCourses.slice(0, 10) // Show first 10 skipped
+        });
+        
+        alert(`Import completed!\n\nImported: ${imported} courses\nSkipped (already exist): ${skipped} courses`);
+        
+        setShowImportPreview(false);
+        setShowImportMenu(false);
+        setImportFile(null);
+        setImportPreview([]);
+        
+        // Refresh the data
+        await fetchData();
+        
+      } catch (err) {
+        console.error('Error importing data:', err);
+        alert('Failed to import data. Please check the file format.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    reader.readAsBinaryString(importFile);
   };
 
   // Download sample Excel template
@@ -438,19 +489,50 @@ const AdminCourses = () => {
         'Department': 'Computer Science',
         'Credits': 4,
         'Semester': 1,
-        'Schedule': 'Mon/Wed 10:00 AM',
-        'Description': 'Fundamental concepts of programming'
+        'Schedule': '10:00',
+        'Description': 'Fundamental concepts of programming and computer science.'
+      },
+      {
+        'Course Code': 'MATH201',
+        'Course Name': 'Calculus I',
+        'Department': 'Mathematics',
+        'Credits': 3,
+        'Semester': 1,
+        'Schedule': '09:00',
+        'Description': 'Limits, derivatives, and integrals.'
+      },
+      {
+        'Course Code': 'PHYS101',
+        'Course Name': 'Physics Fundamentals',
+        'Department': 'Physics',
+        'Credits': 4,
+        'Semester': 1,
+        'Schedule': '14:00',
+        'Description': 'Introduction to mechanics and thermodynamics.'
       }
     ];
 
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(sampleData);
-    XLSX.utils.book_append_sheet(wb, ws, 'Template');
+    
+    // Set column widths
+    ws['!cols'] = [
+      { wch: 15 }, // Course Code
+      { wch: 30 }, // Course Name
+      { wch: 20 }, // Department
+      { wch: 10 }, // Credits
+      { wch: 10 }, // Semester
+      { wch: 12 }, // Schedule
+      { wch: 40 }  // Description
+    ];
+    
+    XLSX.utils.book_append_sheet(wb, ws, 'Course Template');
     XLSX.writeFile(wb, 'course_import_template.xlsx');
+    
+    setShowImportMenu(false);
   };
 
   const handleLogout = () => {
-    // Add your logout logic here
     console.log('Logging out...');
   };
 
@@ -478,6 +560,15 @@ const AdminCourses = () => {
 
   return (
     <div className="admin-courses">
+      {/* Hidden file input */}
+      <input
+        type="file"
+        id="excel-import-input"
+        accept=".xlsx,.xls,.csv"
+        style={{ display: 'none' }}
+        onChange={handleFileSelect}
+      />
+
       {/* Header */}
       <div className="page-header">
         <div className="header-left">
@@ -499,19 +590,16 @@ const AdminCourses = () => {
             {showImportMenu && (
               <div className="import-menu">
                 <div className="import-menu-body">
-                  <label className="import-option">
+                  <button 
+                    className="import-option" 
+                    onClick={triggerFileInput}
+                  >
                     <FileSpreadsheet size={16} />
-                    <span>Excel</span>
-                    <input
-                      type="file"
-                      accept=".xlsx,.xls"
-                      onChange={handleFileImport}
-                      style={{ display: 'none' }}
-                    />
-                  </label>
+                    <span>Excel File</span>
+                  </button>
                   <button className="import-option" onClick={downloadSampleTemplate}>
                     <Download size={16} />
-                    <span>Template</span>
+                    <span>Download Template</span>
                   </button>
                 </div>
               </div>
@@ -571,7 +659,7 @@ const AdminCourses = () => {
                 <table>
                   <thead>
                     <tr>
-                      {Object.keys(importPreview[0] || {}).map(key => (
+                      {importPreview.length > 0 && Object.keys(importPreview[0]).map(key => (
                         <th key={key}>{key}</th>
                       ))}
                     </tr>
@@ -580,13 +668,16 @@ const AdminCourses = () => {
                     {importPreview.map((row, index) => (
                       <tr key={index}>
                         {Object.values(row).map((value, i) => (
-                          <td key={i}>{value}</td>
+                          <td key={i}>{String(value)}</td>
                         ))}
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+              <p className="import-note" style={{ marginTop: '12px', fontSize: '12px', color: '#64748b' }}>
+                Note: Courses with existing course codes will be automatically skipped.
+              </p>
             </div>
             <div className="modal-footer">
               <button className="btn-secondary" onClick={() => setShowImportPreview(false)}>
@@ -672,7 +763,7 @@ const AdminCourses = () => {
         </div>
       )}
 
-      {/* Courses Table - Room column removed */}
+      {/* Courses Table */}
       <div className="table-container">
         <table className="courses-table">
           <thead>
@@ -770,10 +861,9 @@ const AdminCourses = () => {
             )}
           </tbody>
         </table>
-
       </div>
 
-      {/* Add/Edit Modal - Room field removed, Schedule as time picker */}
+      {/* Add/Edit Modal */}
       {(modalType === 'add' || modalType === 'edit') && showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content modal-lg" onClick={(e) => e.stopPropagation()}>
@@ -903,7 +993,7 @@ const AdminCourses = () => {
         </div>
       )}
 
-      {/* View Modal - Room field removed */}
+      {/* View Modal */}
       {modalType === 'view' && selectedCourse && showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>

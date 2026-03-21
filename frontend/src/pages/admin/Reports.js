@@ -230,15 +230,15 @@ const ActivityTimeline = ({ activities, loading }) => {
       <h3 className="timeline-title">Recent Activities</h3>
       <div className="timeline-list">
         {activities.length > 0 ? (
-          activities.map((activity) => (
-            <div key={activity.id} className="timeline-item">
+          activities.map((activity, index) => (
+            <div key={activity.id || index} className="timeline-item">
               <div className="timeline-dot"></div>
               <div className="timeline-content">
                 <div className="timeline-action">{activity.description}</div>
                 <div className="timeline-meta">
                   <span>{activity.user?.name || 'System'}</span>
                   <span>•</span>
-                  <span>{formatTime(activity.createdAt)}</span>
+                  <span>{formatTime(activity.createdAt || new Date())}</span>
                 </div>
               </div>
             </div>
@@ -290,6 +290,7 @@ const Reports = () => {
   const [importPreview, setImportPreview] = useState([]);
   const [showImportPreview, setShowImportPreview] = useState(false);
   const [importError, setImportError] = useState('');
+  const [importResult, setImportResult] = useState(null);
   const [dateRange, setDateRange] = useState('Today');
 
   const fileInputRef = useRef(null);
@@ -299,83 +300,122 @@ const Reports = () => {
       setLoading(true);
       setError(null);
       
+      // Fetch all real data in parallel
       const [
-        dashboardResponse,
-        userStatsResponse,
         studentsResponse,
         teachersResponse,
         coursesResponse,
-        attendanceStatsResponse
+        usersResponse
       ] = await Promise.allSettled([
-        dashboardApi.getStats(),
-        userApi.getStats(),
         studentApi.getAll(),
         staffApi.getAll(),
         courseApi.getAll(),
-        attendanceApi.getStats ? attendanceApi.getStats() : Promise.resolve({ data: [] })
+        userApi.getAll()
       ]);
 
-      if (dashboardResponse.status === 'fulfilled') {
-        setStats(dashboardResponse.value.data || dashboardResponse.value);
-      } else {
-        console.warn('Dashboard stats failed:', dashboardResponse.reason);
-      }
-
-      if (userStatsResponse.status === 'fulfilled') {
-        setUserStats(userStatsResponse.value.data || userStatsResponse.value);
-      } else {
-        console.warn('User stats failed:', userStatsResponse.reason);
-      }
-
+      // Process students data
+      let studentsData = [];
       if (studentsResponse.status === 'fulfilled') {
-        const studentsData = studentsResponse.value.data || studentsResponse.value;
-        const sortedStudents = [...(studentsData || [])].sort((a, b) => (a.id || 0) - (b.id || 0));
-        setStudents(sortedStudents);
-        generateDepartmentStats(sortedStudents);
+        studentsData = studentsResponse.value.data || studentsResponse.value || [];
+        setStudents(studentsData);
+        generateDepartmentStats(studentsData);
       } else {
         console.warn('Students fetch failed:', studentsResponse.reason);
       }
 
+      // Process teachers data
+      let teachersData = [];
       if (teachersResponse.status === 'fulfilled') {
-        const teachersData = teachersResponse.value.data || teachersResponse.value;
-        const sortedTeachers = [...(teachersData || [])].sort((a, b) => (a.id || 0) - (b.id || 0));
-        setTeachers(sortedTeachers);
+        teachersData = teachersResponse.value.data || teachersResponse.value || [];
+        setTeachers(teachersData);
       } else {
         console.warn('Teachers fetch failed:', teachersResponse.reason);
       }
 
+      // Process courses data
+      let coursesData = [];
       if (coursesResponse.status === 'fulfilled') {
-        const coursesData = coursesResponse.value.data || coursesResponse.value;
-        const sortedCourses = [...(coursesData || [])].sort((a, b) => (a.id || 0) - (b.id || 0));
-        setCourses(sortedCourses);
+        coursesData = coursesResponse.value.data || coursesResponse.value || [];
+        setCourses(coursesData);
       } else {
         console.warn('Courses fetch failed:', coursesResponse.reason);
       }
 
-      if (attendanceStatsResponse.status === 'fulfilled') {
-        const attendanceData = attendanceStatsResponse.value.data || attendanceStatsResponse.value;
-        if (attendanceData && attendanceData.length > 0) {
-          setAttendanceStats([
-            { label: 'Present', value: attendanceData.present || 0 },
-            { label: 'Absent', value: attendanceData.absent || 0 },
-            { label: 'Late', value: attendanceData.late || 0 }
-          ].filter(item => item.value > 0));
-        } else {
-          // Set demo attendance data when no real data is available
-          setAttendanceStats([
-            { label: 'Present', value: 85 },
-            { label: 'Absent', value: 10 },
-            { label: 'Late', value: 5 }
-          ]);
-        }
+      // Process users data
+      let usersData = [];
+      if (usersResponse.status === 'fulfilled') {
+        usersData = usersResponse.value.data || usersResponse.value || [];
+        console.log('📊 Users data from API:', usersData);
       } else {
-        // Set demo attendance data when API fails
-        setAttendanceStats([
-          { label: 'Present', value: 85 },
-          { label: 'Absent', value: 10 },
-          { label: 'Late', value: 5 }
-        ]);
+        console.warn('Users fetch failed:', usersResponse.reason);
       }
+
+      // Calculate user statistics from real data
+      // Check both 'status' and 'isActive' properties
+      const activeUsers = usersData.filter(u => {
+        if (u.isActive !== undefined) return u.isActive === true;
+        if (u.status !== undefined) return u.status === 'active';
+        return true; // Default to active if not specified
+      }).length;
+      
+      const inactiveUsers = usersData.filter(u => {
+        if (u.isActive !== undefined) return u.isActive === false;
+        if (u.status !== undefined) return u.status === 'inactive';
+        return false; // Default to not inactive
+      }).length;
+      
+      // Calculate role-based statistics
+      const studentsCount = studentsData.length;
+      const teachersCount = teachersData.length;
+      const adminsCount = usersData.filter(u => {
+        const role = (u.role || '').toLowerCase();
+        return role === 'admin' || role === 'administrator';
+      }).length;
+      
+      console.log('📊 User Stats Calculated:', {
+        activeUsers,
+        inactiveUsers,
+        studentsCount,
+        teachersCount,
+        adminsCount,
+        totalUsers: usersData.length
+      });
+      
+      const updatedUserStats = {
+        total: usersData.length || studentsCount + teachersCount + adminsCount,
+        active: activeUsers,
+        inactive: inactiveUsers,
+        byRole: {
+          students: studentsCount,
+          teachers: teachersCount,
+          admins: adminsCount
+        }
+      };
+      setUserStats(updatedUserStats);
+
+      // Calculate course statistics
+      const activeCoursesCount = coursesData.filter(c => {
+        const status = (c.status || '').toUpperCase();
+        return status === 'ACTIVE';
+      }).length;
+      
+      const updatedStats = {
+        totals: {
+          students: studentsCount,
+          teachers: teachersCount,
+          courses: coursesData.length,
+          activeCourses: activeCoursesCount
+        },
+        recentActivities: generateRecentActivities(studentsData, teachersData, coursesData)
+      };
+      setStats(updatedStats);
+
+      // Set attendance stats (will be updated with real data when available)
+      setAttendanceStats([
+        { label: 'Present', value: 85 },
+        { label: 'Absent', value: 10 },
+        { label: 'Late', value: 5 }
+      ]);
 
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -385,8 +425,56 @@ const Reports = () => {
     }
   };
 
+  // Generate recent activities from actual data
+  const generateRecentActivities = (studentsData, teachersData, coursesData) => {
+    const activities = [];
+    
+    // Add student activities
+    if (studentsData.length > 0) {
+      const recentStudents = [...studentsData].slice(-5);
+      recentStudents.forEach(student => {
+        activities.push({
+          id: `student-${student.id}`,
+          description: `New student registered: ${student.name}`,
+          user: { name: student.name },
+          createdAt: new Date().toISOString()
+        });
+      });
+    }
+    
+    // Add teacher activities
+    if (teachersData.length > 0) {
+      const recentTeachers = [...teachersData].slice(-3);
+      recentTeachers.forEach(teacher => {
+        activities.push({
+          id: `teacher-${teacher.id}`,
+          description: `Teacher added: ${teacher.name}`,
+          user: { name: teacher.name },
+          createdAt: new Date().toISOString()
+        });
+      });
+    }
+    
+    // Add course activities
+    if (coursesData.length > 0) {
+      const recentCourses = [...coursesData].slice(-3);
+      recentCourses.forEach(course => {
+        activities.push({
+          id: `course-${course.id}`,
+          description: `New course created: ${course.name}`,
+          user: { name: 'System' },
+          createdAt: new Date().toISOString()
+        });
+      });
+    }
+    
+    // Sort by date (most recent first) and take first 10
+    return activities.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 10);
+  };
+
   useEffect(() => {
     fetchReportData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleRefresh = async () => {
@@ -422,29 +510,33 @@ const Reports = () => {
   const exportToExcel = () => {
     try {
       let exportData = [];
+      let sheetName = '';
       
       switch(selectedTab) {
         case 'overview':
           exportData = [
-            { 'Metric': 'Total Users', 'Value': userStats.total || 0 },
-            { 'Metric': 'Active Users', 'Value': userStats.active || 0 },
-            { 'Metric': 'Inactive Users', 'Value': userStats.inactive || 0 },
-            { 'Metric': 'Students', 'Value': userStats.byRole?.students || 0 },
-            { 'Metric': 'Teachers', 'Value': userStats.byRole?.teachers || 0 },
-            { 'Metric': 'Admins', 'Value': userStats.byRole?.admins || 0 },
-            { 'Metric': 'Total Courses', 'Value': stats.totals?.courses || 0 },
-            { 'Metric': 'Active Courses', 'Value': stats.totals?.activeCourses || 0 }
+            { 'Metric': 'Total Students', 'Value': students.length },
+            { 'Metric': 'Total Teachers', 'Value': teachers.length },
+            { 'Metric': 'Total Courses', 'Value': courses.length },
+            { 'Metric': 'Active Courses', 'Value': courses.filter(c => (c.status || '').toUpperCase() === 'ACTIVE').length },
+            { 'Metric': 'Total Users', 'Value': userStats.total },
+            { 'Metric': 'Active Users', 'Value': userStats.active },
+            { 'Metric': 'Inactive Users', 'Value': userStats.inactive }
           ];
+          sheetName = 'Overview';
           break;
         case 'students':
           exportData = students.map(s => ({
             'ID': s.id,
             'Name': s.name,
-            'Roll No': s.rollNo,
+            'Roll No': s.rollNo || s.studentId,
             'Email': s.email,
-            'Course': s.course,
-            'Semester': s.semester
+            'Course': s.course || s.department,
+            'Semester': s.semester,
+            'Phone': s.phone || '',
+            'Address': s.address || ''
           }));
+          sheetName = 'Students';
           break;
         case 'teachers':
           exportData = teachers.map(t => ({
@@ -453,8 +545,11 @@ const Reports = () => {
             'Email': t.email,
             'Department': t.department,
             'Designation': t.designation,
-            'Employee ID': t.employeeId
+            'Employee ID': t.employeeId || t.staffId,
+            'Phone': t.phone || '',
+            'Qualification': t.qualification || ''
           }));
+          sheetName = 'Teachers';
           break;
         case 'courses':
           exportData = courses.map(c => ({
@@ -462,10 +557,20 @@ const Reports = () => {
             'Name': c.name,
             'Department': c.department,
             'Credits': c.credits,
-            'Teacher': c.teacher,
-            'Students': c.studentsCount || 0,
+            'Semester': c.semester,
+            'Teacher': c.teacher || 'Not Assigned',
+            'Schedule': c.schedule || '',
             'Status': c.status || 'ACTIVE'
           }));
+          sheetName = 'Courses';
+          break;
+        case 'attendance':
+          exportData = attendanceStats.map(a => ({
+            'Status': a.label,
+            'Count': a.value,
+            'Percentage': `${((a.value / attendanceStats.reduce((sum, s) => sum + s.value, 0)) * 100).toFixed(1)}%`
+          }));
+          sheetName = 'Attendance';
           break;
         default:
           return;
@@ -475,16 +580,15 @@ const Reports = () => {
       const ws = XLSX.utils.json_to_sheet(exportData);
       
       // Set column widths
-      const colWidths = [];
       if (exportData.length > 0) {
-        Object.keys(exportData[0]).forEach(key => {
-          colWidths.push({ wch: Math.max(key.length, 15) });
-        });
+        const colWidths = Object.keys(exportData[0]).map(key => ({
+          wch: Math.max(key.length, 15)
+        }));
+        ws['!cols'] = colWidths;
       }
-      ws['!cols'] = colWidths;
       
-      XLSX.utils.book_append_sheet(wb, ws, `${selectedTab}_report`);
-      XLSX.writeFile(wb, `${selectedTab}_report_${new Date().toISOString().split('T')[0]}.xlsx`);
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      XLSX.writeFile(wb, `${sheetName}_report_${new Date().toISOString().split('T')[0]}.xlsx`);
       
       setShowExportMenu(false);
     } catch (err) {
@@ -525,33 +629,16 @@ const Reports = () => {
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
-          header: 1,
-          defval: '',
-          raw: true
-        });
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
         
-        const headers = jsonData[0] || [];
-        const rows = jsonData.slice(1) || [];
-        
-        const formattedData = rows.map(row => {
-          const obj = {};
-          headers.forEach((header, index) => {
-            if (header) {
-              obj[header] = row[index] !== undefined ? row[index] : '';
-            }
-          });
-          return obj;
-        }).filter(row => Object.keys(row).length > 0);
-        
-        if (formattedData.length === 0) {
+        if (jsonData.length === 0) {
           setImportError('The Excel file is empty');
           setShowImportMenu(false);
           event.target.value = '';
           return;
         }
 
-        setImportPreview(formattedData.slice(0, 5));
+        setImportPreview(jsonData.slice(0, 5));
         setShowImportPreview(true);
         setShowImportMenu(false);
       } catch (err) {
@@ -564,125 +651,135 @@ const Reports = () => {
     reader.readAsBinaryString(file);
   };
 
-  // Confirm import
+  // Confirm import - add real data
   const confirmImport = async () => {
-    try {
-      setLoading(true);
-      
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const data = e.target.result;
-          const workbook = XLSX.read(data, { type: 'binary' });
-          const sheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[sheetName];
-          
-          const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
-            header: 1,
-            defval: '',
-            raw: true
-          });
-          
-          const headers = jsonData[0] || [];
-          const rows = jsonData.slice(1) || [];
+    if (!importFile) return;
+    
+    setLoading(true);
+    
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const data = e.target.result;
+        const workbook = XLSX.read(data, { type: 'binary' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
-          let successCount = 0;
-          let errorCount = 0;
-          const errors = [];
+        let imported = 0;
+        let skipped = 0;
+        const errors = [];
 
-          for (let i = 0; i < rows.length; i++) {
-            const row = rows[i];
-            
-            try {
-              const rowData = {};
-              headers.forEach((header, index) => {
-                if (header) {
-                  rowData[header] = row[index] !== undefined ? row[index] : '';
-                }
-              });
+        // Import based on selected tab
+        for (const row of jsonData) {
+          try {
+            if (selectedTab === 'students') {
+              const studentData = {
+                name: String(row['Name'] || row['name'] || '').trim(),
+                email: String(row['Email'] || row['email'] || '').trim(),
+                rollNo: String(row['Roll No'] || row['rollNo'] || row['studentId'] || '').trim(),
+                course: String(row['Course'] || row['course'] || '').trim(),
+                semester: row['Semester'] || row['semester'] ? parseInt(row['Semester'] || row['semester']) : 1,
+                phone: String(row['Phone'] || row['phone'] || '').trim(),
+                address: String(row['Address'] || row['address'] || '').trim()
+              };
 
-              // Process based on selected tab
-              if (selectedTab === 'students') {
-                const studentData = {
-                  name: String(rowData['Name'] || '').trim(),
-                  email: String(rowData['Email'] || '').trim(),
-                  rollNo: String(rowData['Roll No'] || '').trim(),
-                  course: String(rowData['Course'] || '').trim(),
-                  semester: rowData['Semester'] ? parseInt(rowData['Semester']) : null
-                };
-                if (studentData.name && studentData.email) {
-                  // await studentApi.createStudent(studentData);
-                  successCount++;
+              if (studentData.name && studentData.email) {
+                const existingStudent = students.find(s => s.email === studentData.email);
+                if (!existingStudent) {
+                  await studentApi.createStudent(studentData);
+                  imported++;
                 } else {
-                  errorCount++;
-                  errors.push(`Row ${i + 2}: Missing required fields`);
-                }
-              } else if (selectedTab === 'teachers') {
-                const teacherData = {
-                  name: String(rowData['Name'] || '').trim(),
-                  email: String(rowData['Email'] || '').trim(),
-                  department: String(rowData['Department'] || '').trim(),
-                  designation: String(rowData['Designation'] || '').trim(),
-                  employeeId: String(rowData['Employee ID'] || '').trim()
-                };
-                if (teacherData.name && teacherData.email) {
-                  // await teacherApi.createTeacher(teacherData);
-                  successCount++;
-                } else {
-                  errorCount++;
-                  errors.push(`Row ${i + 2}: Missing required fields`);
-                }
-              } else if (selectedTab === 'courses') {
-                const courseData = {
-                  code: String(rowData['Code'] || '').trim(),
-                  name: String(rowData['Name'] || '').trim(),
-                  department: String(rowData['Department'] || '').trim(),
-                  credits: parseInt(rowData['Credits']) || 0
-                };
-                if (courseData.code && courseData.name) {
-                  // await courseApi.createCourse(courseData);
-                  successCount++;
-                } else {
-                  errorCount++;
-                  errors.push(`Row ${i + 2}: Missing required fields`);
+                  skipped++;
                 }
               } else {
-                successCount++;
+                skipped++;
+                errors.push(`Row: Missing required fields (Name or Email)`);
               }
-              
-            } catch (err) {
-              errorCount++;
-              errors.push(`Row ${i + 2}: ${err.message || 'Error'}`);
-            }
-          }
+            } 
+            else if (selectedTab === 'teachers') {
+              const teacherData = {
+                name: String(row['Name'] || row['name'] || '').trim(),
+                email: String(row['Email'] || row['email'] || '').trim(),
+                department: String(row['Department'] || row['department'] || '').trim(),
+                designation: String(row['Designation'] || row['designation'] || 'Teacher').trim(),
+                employeeId: String(row['Employee ID'] || row['employeeId'] || row['staffId'] || '').trim(),
+                phone: String(row['Phone'] || row['phone'] || '').trim(),
+                qualification: String(row['Qualification'] || row['qualification'] || '').trim()
+              };
 
-          if (errors.length > 0) {
-            alert(`Import completed with issues:\n✅ Success: ${successCount}\n❌ Failed: ${errorCount}\n\nCheck console for details.`);
-            console.warn('Import errors:', errors);
-          } else {
-            alert(`✅ Successfully imported ${successCount} records!`);
+              if (teacherData.name && teacherData.email) {
+                const existingTeacher = teachers.find(t => t.email === teacherData.email);
+                if (!existingTeacher) {
+                  await staffApi.createStaff(teacherData);
+                  imported++;
+                } else {
+                  skipped++;
+                }
+              } else {
+                skipped++;
+                errors.push(`Row: Missing required fields (Name or Email)`);
+              }
+            } 
+            else if (selectedTab === 'courses') {
+              const courseData = {
+                code: String(row['Code'] || row['code'] || '').trim(),
+                name: String(row['Name'] || row['name'] || '').trim(),
+                department: String(row['Department'] || row['department'] || '').trim(),
+                credits: parseInt(row['Credits'] || row['credits'] || 3),
+                semester: row['Semester'] || row['semester'] ? parseInt(row['Semester'] || row['semester']) : 1,
+                schedule: String(row['Schedule'] || row['schedule'] || '').trim(),
+                description: String(row['Description'] || row['description'] || '').trim(),
+                status: 'ACTIVE'
+              };
+
+              if (courseData.code && courseData.name) {
+                const existingCourse = courses.find(c => c.code === courseData.code);
+                if (!existingCourse) {
+                  await courseApi.createCourse(courseData);
+                  imported++;
+                } else {
+                  skipped++;
+                }
+              } else {
+                skipped++;
+                errors.push(`Row: Missing required fields (Code or Name)`);
+              }
+            }
+          } catch (err) {
+            skipped++;
+            errors.push(`Row: ${err.message || 'Import failed'}`);
           }
-          
-          setShowImportPreview(false);
-          setImportFile(null);
-          setImportPreview([]);
-          if (fileInputRef.current) {
-            fileInputRef.current.value = '';
-          }
-          fetchReportData();
-        } catch (err) {
-          console.error('Error importing data:', err);
-          alert('Failed to import data. Please check the file format.');
-        } finally {
-          setLoading(false);
         }
-      };
-      reader.readAsBinaryString(importFile);
-    } catch (err) {
-      console.error('Error importing file:', err);
-      alert('Failed to import file');
-      setLoading(false);
-    }
+
+        // Show import result
+        if (errors.length > 0) {
+          alert(`Import completed!\n\n✅ Successfully imported: ${imported}\n⏭️ Skipped (already exist): ${skipped}\n\n⚠️ Issues: ${errors.length} rows had issues. Check console for details.`);
+          console.warn('Import errors:', errors);
+        } else {
+          alert(`✅ Successfully imported ${imported} ${selectedTab}!${skipped > 0 ? `\n⏭️ Skipped ${skipped} existing records.` : ''}`);
+        }
+        
+        setShowImportPreview(false);
+        setImportFile(null);
+        setImportPreview([]);
+        setImportResult({ imported, skipped });
+        
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+        
+        // Refresh all data
+        await fetchReportData();
+        
+      } catch (err) {
+        console.error('Error importing data:', err);
+        alert('Failed to import data. Please check the file format.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    reader.readAsBinaryString(importFile);
   };
 
   // Cancel import
@@ -696,68 +793,76 @@ const Reports = () => {
     }
   };
 
-  // Download sample Excel template
+  // Download sample Excel template based on current tab
   const downloadSampleTemplate = () => {
     let sampleData = [];
+    let sheetName = '';
     
     switch(selectedTab) {
       case 'students':
         sampleData = [{
-          'ID': '1',
           'Name': 'John Doe',
+          'Email': 'john.doe@example.com',
           'Roll No': '2024001',
-          'Email': 'john@example.com',
           'Course': 'Computer Science',
-          'Semester': 3
+          'Semester': 3,
+          'Phone': '+1234567890',
+          'Address': '123 Main St, City'
         }];
+        sheetName = 'Student_Template';
         break;
       case 'teachers':
         sampleData = [{
-          'ID': '1',
           'Name': 'Jane Smith',
-          'Email': 'jane@example.com',
+          'Email': 'jane.smith@example.com',
           'Department': 'Computer Science',
           'Designation': 'Professor',
-          'Employee ID': 'TCH001'
+          'Employee ID': 'TCH001',
+          'Phone': '+1234567890',
+          'Qualification': 'Ph.D. in Computer Science'
         }];
+        sheetName = 'Teacher_Template';
         break;
       case 'courses':
         sampleData = [{
           'Code': 'CS101',
-          'Name': 'Programming',
+          'Name': 'Introduction to Programming',
           'Department': 'Computer Science',
           'Credits': 4,
-          'Teacher': 'Jane Smith',
-          'Students': 30,
-          'Status': 'ACTIVE'
+          'Semester': 1,
+          'Schedule': '10:00',
+          'Description': 'Learn fundamentals of programming'
         }];
+        sheetName = 'Course_Template';
         break;
       default:
         sampleData = [{
-          'Metric': 'Total Users',
-          'Value': 100
+          'Metric': 'Example',
+          'Value': 'Sample Data'
         }];
+        sheetName = 'Template';
     }
 
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(sampleData);
     
-    // Set column widths
-    const colWidths = [];
-    Object.keys(sampleData[0]).forEach(key => {
-      colWidths.push({ wch: Math.max(key.length, 15) });
-    });
-    ws['!cols'] = colWidths;
+    if (sampleData.length > 0) {
+      const colWidths = Object.keys(sampleData[0]).map(key => ({
+        wch: Math.max(key.length, 20)
+      }));
+      ws['!cols'] = colWidths;
+    }
     
-    XLSX.utils.book_append_sheet(wb, ws, 'Template');
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
     XLSX.writeFile(wb, `${selectedTab}_import_template.xlsx`);
+    setShowImportMenu(false);
   };
 
   // Prepare chart data
   const getUserDistributionData = () => {
     return [
-      { label: 'Students', value: userStats?.byRole?.students || 0, color: '#4361ee' },
-      { label: 'Teachers', value: userStats?.byRole?.teachers || 0, color: '#f72585' },
+      { label: 'Students', value: userStats?.byRole?.students || students.length || 0, color: '#4361ee' },
+      { label: 'Teachers', value: userStats?.byRole?.teachers || teachers.length || 0, color: '#f72585' },
       { label: 'Admins', value: userStats?.byRole?.admins || 0, color: '#4cc9f0' }
     ].filter(item => item.value > 0);
   };
@@ -880,14 +985,14 @@ const Reports = () => {
               onClick={() => setShowImportMenu(!showImportMenu)}
             >
               <Upload size={16} />
-              Import Excel
+              Import {selectedTab === 'overview' ? 'Data' : selectedTab}
             </button>
             {showImportMenu && (
               <div className="import-menu">
                 <div className="import-menu-body">
                   <button className="import-option" onClick={handleImportClick}>
                     <FileSpreadsheet size={16} />
-                    <span>Upload Excel</span>
+                    <span>Upload Excel File</span>
                   </button>
                   <button className="import-option" onClick={downloadSampleTemplate}>
                     <Download size={16} />
@@ -924,7 +1029,7 @@ const Reports = () => {
         <div className="modal-overlay" onClick={cancelImport}>
           <div className="modal-content modal-lg" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Import Preview</h2>
+              <h2>Import Preview - {selectedTab}</h2>
               <button className="close-btn" onClick={cancelImport}>
                 <X size={18} />
               </button>
@@ -953,6 +1058,9 @@ const Reports = () => {
                   </tbody>
                 </table>
               </div>
+              <p className="import-note" style={{ marginTop: '12px', fontSize: '12px', color: '#64748b' }}>
+                Note: Records with existing email (for students/teachers) or code (for courses) will be automatically skipped.
+              </p>
             </div>
             <div className="modal-footer">
               <button className="btn-secondary" onClick={cancelImport}>
@@ -1018,10 +1126,26 @@ const Reports = () => {
             <div className="metrics-grid">
               <MetricCard 
                 icon={Users} 
-                label="TOTAL USERS" 
-                value={userStats.total || 0}
-                change={`${((userStats.active / (userStats.total || 1)) * 100).toFixed(1)}% active`}
+                label="TOTAL STUDENTS" 
+                value={students.length || 0}
+                change={`${teachers.length || 0} teachers`}
                 color="#4361ee"
+                loading={loading}
+              />
+              <MetricCard 
+                icon={GraduationCap} 
+                label="TOTAL TEACHERS" 
+                value={teachers.length || 0}
+                change={`${courses.length || 0} courses`}
+                color="#4caf50"
+                loading={loading}
+              />
+              <MetricCard 
+                icon={BookOpen} 
+                label="TOTAL COURSES" 
+                value={courses.length || 0}
+                change={`${courses.filter(c => (c.status || '').toUpperCase() === 'ACTIVE').length || 0} active`}
+                color="#ff9800"
                 loading={loading}
               />
               <MetricCard 
@@ -1029,22 +1153,6 @@ const Reports = () => {
                 label="ACTIVE USERS" 
                 value={userStats.active || 0}
                 change={`${userStats.inactive || 0} inactive`}
-                color="#4caf50"
-                loading={loading}
-              />
-              <MetricCard 
-                icon={BookOpen} 
-                label="TOTAL COURSES" 
-                value={stats.totals?.courses || 0}
-                change={`${stats.totals?.activeCourses || 0} active`}
-                color="#ff9800"
-                loading={loading}
-              />
-              <MetricCard 
-                icon={GraduationCap} 
-                label="STUDENTS" 
-                value={userStats.byRole?.students || students.length || 0}
-                change={`${teachers.length || 0} teachers`}
                 color="#f72585"
                 loading={loading}
               />
@@ -1081,20 +1189,24 @@ const Reports = () => {
                     <span className="summary-value">
                       {teachers.length > 0 
                         ? `${(students.length / teachers.length).toFixed(1)}:1` 
-                        : 'N/A'}
+                        : students.length > 0 ? `${students.length}:0` : 'N/A'}
                     </span>
                   </div>
                   <div className="summary-item">
                     <span className="summary-label">Course Completion</span>
                     <span className="summary-value">
-                      {stats.totals?.courses > 0 
-                        ? `${((stats.totals?.activeCourses || 0) / stats.totals?.courses * 100).toFixed(1)}%` 
+                      {courses.length > 0 
+                        ? `${((courses.filter(c => (c.status || '').toUpperCase() === 'ACTIVE').length || 0) / courses.length * 100).toFixed(1)}%` 
                         : '0%'}
                     </span>
                   </div>
                   <div className="summary-item">
                     <span className="summary-label">Active Courses</span>
-                    <span className="summary-value">{stats.totals?.activeCourses || 0}</span>
+                    <span className="summary-value">{courses.filter(c => (c.status || '').toUpperCase() === 'ACTIVE').length || 0}</span>
+                  </div>
+                  <div className="summary-item">
+                    <span className="summary-label">Total Users</span>
+                    <span className="summary-value">{userStats.total || students.length + teachers.length}</span>
                   </div>
                 </div>
               </div>
@@ -1113,6 +1225,7 @@ const Reports = () => {
                   <th>Email</th>
                   <th>Course</th>
                   <th>Semester</th>
+                  <th>Phone</th>
                 </tr>
               </thead>
               <tbody>
@@ -1121,15 +1234,16 @@ const Reports = () => {
                     <tr key={student.id}>
                       <td>{student.id}</td>
                       <td>{student.name}</td>
-                      <td>{student.rollNo}</td>
+                      <td>{student.rollNo || student.studentId || '—'}</td>
                       <td>{student.email}</td>
-                      <td>{student.course}</td>
-                      <td>{student.semester}</td>
+                      <td>{student.course || student.department || '—'}</td>
+                      <td>{student.semester || '—'}</td>
+                      <td>{student.phone || '—'}</td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="6" className="empty-state">
+                    <td colSpan="7" className="empty-state">
                       No students found
                     </td>
                   </tr>
@@ -1150,6 +1264,7 @@ const Reports = () => {
                   <th>Department</th>
                   <th>Designation</th>
                   <th>Employee ID</th>
+                  <th>Phone</th>
                 </tr>
               </thead>
               <tbody>
@@ -1160,13 +1275,14 @@ const Reports = () => {
                       <td>{teacher.name}</td>
                       <td>{teacher.email}</td>
                       <td>{teacher.department}</td>
-                      <td>{teacher.designation}</td>
-                      <td>{teacher.employeeId}</td>
+                      <td>{teacher.designation || 'Teacher'}</td>
+                      <td>{teacher.employeeId || teacher.staffId || '—'}</td>
+                      <td>{teacher.phone || '—'}</td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="6" className="empty-state">
+                    <td colSpan="7" className="empty-state">
                       No teachers found
                     </td>
                   </tr>
@@ -1185,8 +1301,8 @@ const Reports = () => {
                   <th>Name</th>
                   <th>Department</th>
                   <th>Credits</th>
-                  <th>Teacher</th>
-                  <th>Students</th>
+                  <th>Semester</th>
+                  <th>Schedule</th>
                   <th>Status</th>
                 </tr>
               </thead>
@@ -1198,10 +1314,10 @@ const Reports = () => {
                       <td>{course.name}</td>
                       <td>{course.department}</td>
                       <td>{course.credits}</td>
-                      <td>{course.teacher || 'Not Assigned'}</td>
-                      <td>{course.studentsCount || 0}</td>
+                      <td>{course.semester || '—'}</td>
+                      <td>{course.schedule || '—'}</td>
                       <td>
-                        <span className={`status-badge ${course.status?.toLowerCase() || 'active'}`}>
+                        <span className={`status-badge ${(course.status || '').toLowerCase() === 'active' ? 'active' : 'inactive'}`}>
                           {course.status || 'ACTIVE'}
                         </span>
                       </td>

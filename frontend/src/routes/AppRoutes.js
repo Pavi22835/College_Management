@@ -11,7 +11,10 @@ import Login from '../pages/auth/Login';
 // Admin Pages
 import AdminDashboard from '../pages/admin/Dashboard';
 import AdminStudents from '../pages/admin/Students';
-import AdminStaff from '../pages/admin/Staff';
+import AdminStaff from '../pages/admin/StaffRoles/Staff';
+import AdminStaffHOD from '../pages/admin/StaffRoles/StaffHOD';
+import AdminStaffFaculty from '../pages/admin/StaffRoles/StaffFaculty';
+import AdminStaffMentor from '../pages/admin/StaffRoles/StaffMentor';
 import AdminCourses from '../pages/admin/Courses';
 import AdminAttendance from '../pages/admin/Attendance';
 import AdminTrash from '../pages/admin/Trash';
@@ -84,7 +87,6 @@ const AppRoutes = () => {
   // If user has no role (shouldn't happen, but just in case)
   if (!role) {
     console.log('⚠️ AppRoutes - User has no role, logging out');
-    // You might want to logout here or redirect to login
     return (
       <Routes>
         <Route path="/login" element={<Login />} />
@@ -107,7 +109,13 @@ const AppRoutes = () => {
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<AdminDashboard />} />
           <Route path="students" element={<AdminStudents />} />
+          
+          {/* Staff Management Routes - with subcategories */}
           <Route path="staff" element={<AdminStaff />} />
+          <Route path="staff/hod" element={<AdminStaffHOD />} />
+          <Route path="staff/faculty" element={<AdminStaffFaculty />} />
+          <Route path="staff/mentor" element={<AdminStaffMentor />} />
+          
           <Route path="courses" element={<AdminCourses />} />
           <Route path="attendance" element={<AdminAttendance />} />
           <Route path="users" element={<AdminUsers />} />
@@ -120,7 +128,7 @@ const AppRoutes = () => {
         </Route>
       )}
 
-      {/* Staff Routes */}
+      {/* Staff Routes (Teachers) */}
       {role === 'STAFF' && (
         <Route path="/staff" element={
           <PrivateRoute>
@@ -161,7 +169,7 @@ const AppRoutes = () => {
         </Route>
       )}
 
-      {/* Root redirect - FIXED: Check if role exists before using toLowerCase */}
+      {/* Root redirect */}
       <Route path="/" element={
         role ? <Navigate to={`/${role.toLowerCase()}/dashboard`} replace /> : <Navigate to="/login" replace />
       } />

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { 
@@ -15,16 +15,31 @@ import {
   Award,
   MessageSquare,
   FileText,
-  Clock
+  Clock,
+  ChevronDown,
+  ChevronRight,
+  Star,
+  UserCog as FacultyIcon,
+  UserCheck as MentorIcon
 } from 'lucide-react';
 import './Sidebar.css';
 
 const Sidebar = () => {
   const { user, logout } = useAuth();
+  const [openMenus, setOpenMenus] = useState({
+    staff: false
+  });
 
   // DEBUG: Log the full user object to see what properties are available
   console.log('👤 Sidebar - Full user object:', user);
   console.log('👤 Sidebar - User role:', user?.role);
+
+  const toggleMenu = (menu) => {
+    setOpenMenus(prev => ({
+      ...prev,
+      [menu]: !prev[menu]
+    }));
+  };
 
   // Get menu items based on user role
   const getMenuItems = () => {
@@ -33,8 +48,18 @@ const Sidebar = () => {
     if (role === 'ADMIN') {
       return [
         { path: '/admin/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
+        { 
+          label: 'Staff', 
+          icon: <UserCheck size={18} />,
+          hasSubmenu: true,
+          submenu: [
+            { path: '/admin/staff/hod', label: 'Head of Department (HOD)', icon: <Star size={16} /> },
+            { path: '/admin/staff/faculty', label: 'Faculty Member', icon: <FacultyIcon size={16} /> },
+            { path: '/admin/staff/mentor', label: 'Mentor', icon: <MentorIcon size={16} /> },
+            { path: '/admin/staff', label: 'All Staff', icon: <UserCheck size={16} /> }
+          ]
+        },
         { path: '/admin/students', label: 'Students', icon: <Users size={18} /> },
-        { path: '/admin/staff', label: 'Staff', icon: <UserCheck size={18} /> },
         { path: '/admin/courses', label: 'Courses', icon: <BookOpen size={18} /> },
         { path: '/admin/attendance', label: 'Attendance', icon: <Calendar size={18} /> },
         { path: '/admin/users', label: 'User Management', icon: <UserCog size={18} /> },
@@ -86,20 +111,50 @@ const Sidebar = () => {
         <h1>{portalTitle}</h1>
       </div>
 
-      {/* USER INFO SECTION COMPLETELY REMOVED - NO NAMES FOR ANY ROLE */}
-
       <nav className="sidebar-nav">
-        {menuItems.map((item) => (
-          <NavLink
-            key={item.path}
-            to={item.path}
-            className={({ isActive }) => 
-              `nav-item ${isActive ? 'active' : ''}`
-            }
-          >
-            <span className="nav-icon">{item.icon}</span>
-            <span className="nav-label">{item.label}</span>
-          </NavLink>
+        {menuItems.map((item, index) => (
+          <div key={index} className="nav-item-wrapper">
+            {item.hasSubmenu ? (
+              <>
+                <button 
+                  className={`nav-item ${openMenus.staff ? 'active' : ''}`}
+                  onClick={() => toggleMenu('staff')}
+                >
+                  <span className="nav-icon">{item.icon}</span>
+                  <span className="nav-label">{item.label}</span>
+                  <span className="nav-chevron">
+                    {openMenus.staff ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                  </span>
+                </button>
+                {openMenus.staff && (
+                  <div className="submenu">
+                    {item.submenu.map((subItem, subIndex) => (
+                      <NavLink
+                        key={subIndex}
+                        to={subItem.path}
+                        className={({ isActive }) => 
+                          `submenu-item ${isActive ? 'active' : ''}`
+                        }
+                      >
+                        <span className="submenu-icon">{subItem.icon}</span>
+                        <span className="submenu-label">{subItem.label}</span>
+                      </NavLink>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <NavLink
+                to={item.path}
+                className={({ isActive }) => 
+                  `nav-item ${isActive ? 'active' : ''}`
+                }
+              >
+                <span className="nav-icon">{item.icon}</span>
+                <span className="nav-label">{item.label}</span>
+              </NavLink>
+            )}
+          </div>
         ))}
       </nav>
 
