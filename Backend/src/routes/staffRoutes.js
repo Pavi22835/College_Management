@@ -5,42 +5,53 @@ import {
   getAllStaff,
   getStaffById,
   createStaff,
+  updateStaff,
   deleteStaff,
+  getHODs,
+  getFaculty,
+  getMentors,
+  getStaffStats,
   
-  // Staff methods (self)
-  getTeacherProfile,
-  updateTeacherProfile,
+  // Staff self methods
+  getStaffProfile,
+  updateStaffProfile,
+  updateStaffPassword,
   getStaffDashboardStats,
-  getTeacherCourses,
-  getTeacherStudents,
-  getTeacherTodaySchedule,
-  updateTeacherPassword
+  getStaffCourses,
+  getStaffStudents,
+  getStaffTodaySchedule
 } from "../controllers/staffController.js";
 
 const router = express.Router();
 
 /* ========================================
-   TEACHER ROUTES (Self - Protected)
-   MUST be first to avoid being caught by generic /:id route
+   STAFF SELF ROUTES (Protected)
+   These must come first to avoid being caught by /:id route
    ======================================== */
-// Profile routes
-router.get("/profile", protect, authorize("STAFF"), getTeacherProfile);
-router.put("/profile", protect, authorize("STAFF"), updateTeacherProfile);
-router.put("/password", protect, authorize("STAFF"), updateTeacherPassword);
+router.get("/profile", protect, authorize("STAFF"), getStaffProfile);
+router.put("/profile", protect, authorize("STAFF"), updateStaffProfile);
+router.put("/password", protect, authorize("STAFF"), updateStaffPassword);
 
 // Dashboard routes
 router.get("/dashboard/stats", protect, authorize("STAFF"), getStaffDashboardStats);
-router.get("/dashboard/courses", protect, authorize("STAFF"), getTeacherCourses);
-router.get("/dashboard/students", protect, authorize("STAFF"), getTeacherStudents);
-router.get("/dashboard/schedule/today", protect, authorize("STAFF"), getTeacherTodaySchedule);
+router.get("/dashboard/courses", protect, authorize("STAFF"), getStaffCourses);
+router.get("/dashboard/students", protect, authorize("STAFF"), getStaffStudents);
+router.get("/dashboard/schedule/today", protect, authorize("STAFF"), getStaffTodaySchedule);
 
 /* ========================================
-   ADMIN ONLY ROUTES
-   Must be last - generic /:id route comes last
+   ADMIN ROUTES
    ======================================== */
+// Staff role-specific routes
+router.get("/hods", protect, authorize("ADMIN"), getHODs);
+router.get("/faculty", protect, authorize("ADMIN"), getFaculty);
+router.get("/mentors", protect, authorize("ADMIN"), getMentors);
+router.get("/stats", protect, authorize("ADMIN"), getStaffStats);
+
+// CRUD operations
 router.get("/", protect, authorize("ADMIN"), getAllStaff);
 router.post("/", protect, authorize("ADMIN"), createStaff);
 router.get("/:id", protect, authorize("ADMIN"), getStaffById);
+router.put("/:id", protect, authorize("ADMIN"), updateStaff);
 router.delete("/:id", protect, authorize("ADMIN"), deleteStaff);
 
 export default router;

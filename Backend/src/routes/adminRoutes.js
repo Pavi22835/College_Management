@@ -1,6 +1,7 @@
 import express from 'express';
 import { protect, authorize } from '../middleware/authMiddleware.js';
 import * as adminController from '../controllers/adminController.js';
+import * as staffController from '../controllers/staffController.js';
 
 const router = express.Router();
 
@@ -25,13 +26,22 @@ router.delete('/students/:id', adminController.deleteStudent);
 router.post('/students/:id/restore', adminController.restoreStudent);
 router.delete('/students/:id/permanent', adminController.permanentDeleteStudent);
 
-// ==================== STAFF ROUTES ====================
-router.get('/staff', adminController.getAllTeachers);
+// ==================== STAFF ROUTES - USING STAFF CONTROLLER ====================
+// Role-specific routes
+router.get('/staff/hods', staffController.getHODs);
+router.get('/staff/faculty', staffController.getFaculty);
+router.get('/staff/mentors', staffController.getMentors);
+router.get('/staff/stats', staffController.getStaffStats);
+
+// CRUD operations
+router.get('/staff', staffController.getAllStaff);
+router.post('/staff', staffController.createStaff);
+router.get('/staff/:id', staffController.getStaffById);
+router.put('/staff/:id', staffController.updateStaff);
+router.delete('/staff/:id', staffController.deleteStaff);
+
+// Staff trash routes (using adminController for trash operations)
 router.get('/staff/trash', adminController.getTrashedTeachers);
-router.post('/staff', adminController.createTeacher);
-router.get('/staff/:id', adminController.getTeacherById);
-router.put('/staff/:id', adminController.updateTeacher);
-router.delete('/staff/:id', adminController.deleteTeacher);
 router.post('/staff/:id/restore', adminController.restoreTeacher);
 router.delete('/staff/:id/permanent', adminController.permanentDeleteTeacher);
 
