@@ -6,8 +6,8 @@ const staffApi = {
   // Get all staff (Admin)
   getStaff: async () => {
     try {
-      const response = await axiosInstance.get("/staff");
-      console.log("Get staff response:", response.data);
+      const response = await axiosInstance.get("/admin/staff");
+      console.log("📊 Get staff response:", response.data);
       
       if (response.data?.success && response.data?.data) {
         return response.data.data;
@@ -18,7 +18,7 @@ const staffApi = {
       }
       return [];
     } catch (error) {
-      console.error("Error fetching staff:", {
+      console.error("❌ Error fetching staff:", {
         message: error.message,
         response: error.response?.data
       });
@@ -34,10 +34,10 @@ const staffApi = {
   // Get staff by role
   getStaffByRole: async (role) => {
     try {
-      const response = await axiosInstance.get("/staff", { 
+      const response = await axiosInstance.get("/admin/staff", { 
         params: { role: role.toUpperCase() } 
       });
-      console.log(`Get staff by role (${role}) response:`, response.data);
+      console.log(`📊 Get staff by role (${role}) response:`, response.data);
       
       if (response.data?.success && response.data?.data) {
         return response.data.data;
@@ -46,7 +46,7 @@ const staffApi = {
       }
       return [];
     } catch (error) {
-      console.error(`Error fetching staff by role (${role}):`, error);
+      console.error(`❌ Error fetching staff by role (${role}):`, error);
       throw error;
     }
   },
@@ -54,8 +54,8 @@ const staffApi = {
   // Get HODs (Head of Departments)
   getHODs: async () => {
     try {
-      const response = await axiosInstance.get("/staff/hods");
-      console.log("Get HODs response:", response.data);
+      const response = await axiosInstance.get("/admin/staff/hods");
+      console.log("📊 Get HODs response:", response.data);
       
       if (response.data?.success && response.data?.data) {
         return response.data.data;
@@ -64,18 +64,19 @@ const staffApi = {
       }
       return [];
     } catch (error) {
-      console.error("Error fetching HODs:", error);
+      console.error("❌ Error fetching HODs:", error);
       // Fallback: filter from all staff if endpoint doesn't exist
       try {
         const allStaff = await staffApi.getStaff();
         const hods = allStaff.filter(staff => 
+          staff.staffRole === 'HOD' ||
           staff.designation?.toLowerCase().includes('head') || 
-          staff.designation?.toLowerCase().includes('hod') ||
-          staff.role === 'HOD'
+          staff.designation?.toLowerCase().includes('hod')
         );
+        console.log("📊 Fallback HODs filtered:", hods.length);
         return hods;
       } catch (fallbackError) {
-        console.error("Fallback error fetching HODs:", fallbackError);
+        console.error("❌ Fallback error fetching HODs:", fallbackError);
         throw error;
       }
     }
@@ -84,8 +85,8 @@ const staffApi = {
   // Get Faculty Members (excluding HODs and Mentors)
   getFaculty: async () => {
     try {
-      const response = await axiosInstance.get("/staff/faculty");
-      console.log("Get Faculty response:", response.data);
+      const response = await axiosInstance.get("/admin/staff/faculty");
+      console.log("📊 Get Faculty response:", response.data);
       
       if (response.data?.success && response.data?.data) {
         return response.data.data;
@@ -94,20 +95,21 @@ const staffApi = {
       }
       return [];
     } catch (error) {
-      console.error("Error fetching faculty:", error);
+      console.error("❌ Error fetching faculty:", error);
       // Fallback: filter from all staff if endpoint doesn't exist
       try {
         const allStaff = await staffApi.getStaff();
         const faculty = allStaff.filter(staff => 
-          staff.role === 'FACULTY' || 
+          staff.staffRole === 'FACULTY' || 
           (staff.designation && 
            !staff.designation.toLowerCase().includes('head') &&
            !staff.designation.toLowerCase().includes('hod') &&
            !staff.designation.toLowerCase().includes('mentor'))
         );
+        console.log("📊 Fallback Faculty filtered:", faculty.length);
         return faculty;
       } catch (fallbackError) {
-        console.error("Fallback error fetching faculty:", fallbackError);
+        console.error("❌ Fallback error fetching faculty:", fallbackError);
         throw error;
       }
     }
@@ -116,8 +118,8 @@ const staffApi = {
   // Get Mentors
   getMentors: async () => {
     try {
-      const response = await axiosInstance.get("/staff/mentors");
-      console.log("Get Mentors response:", response.data);
+      const response = await axiosInstance.get("/admin/staff/mentors");
+      console.log("📊 Get Mentors response:", response.data);
       
       if (response.data?.success && response.data?.data) {
         return response.data.data;
@@ -126,17 +128,18 @@ const staffApi = {
       }
       return [];
     } catch (error) {
-      console.error("Error fetching mentors:", error);
+      console.error("❌ Error fetching mentors:", error);
       // Fallback: filter from all staff if endpoint doesn't exist
       try {
         const allStaff = await staffApi.getStaff();
         const mentors = allStaff.filter(staff => 
-          staff.role === 'MENTOR' || 
+          staff.staffRole === 'MENTOR' || 
           staff.designation?.toLowerCase().includes('mentor')
         );
+        console.log("📊 Fallback Mentors filtered:", mentors.length);
         return mentors;
       } catch (fallbackError) {
-        console.error("Fallback error fetching mentors:", fallbackError);
+        console.error("❌ Fallback error fetching mentors:", fallbackError);
         throw error;
       }
     }
@@ -145,10 +148,10 @@ const staffApi = {
   // Get staff by department
   getStaffByDepartment: async (department) => {
     try {
-      const response = await axiosInstance.get("/staff", { 
+      const response = await axiosInstance.get("/admin/staff", { 
         params: { department } 
       });
-      console.log(`Get staff by department (${department}) response:`, response.data);
+      console.log(`📊 Get staff by department (${department}) response:`, response.data);
       
       if (response.data?.success && response.data?.data) {
         return response.data.data;
@@ -157,7 +160,7 @@ const staffApi = {
       }
       return [];
     } catch (error) {
-      console.error(`Error fetching staff by department (${department}):`, error);
+      console.error(`❌ Error fetching staff by department (${department}):`, error);
       throw error;
     }
   },
@@ -165,10 +168,10 @@ const staffApi = {
   // Get staff by designation
   getStaffByDesignation: async (designation) => {
     try {
-      const response = await axiosInstance.get("/staff", { 
+      const response = await axiosInstance.get("/admin/staff", { 
         params: { designation } 
       });
-      console.log(`Get staff by designation (${designation}) response:`, response.data);
+      console.log(`📊 Get staff by designation (${designation}) response:`, response.data);
       
       if (response.data?.success && response.data?.data) {
         return response.data.data;
@@ -177,7 +180,7 @@ const staffApi = {
       }
       return [];
     } catch (error) {
-      console.error(`Error fetching staff by designation (${designation}):`, error);
+      console.error(`❌ Error fetching staff by designation (${designation}):`, error);
       throw error;
     }
   },
@@ -185,10 +188,11 @@ const staffApi = {
   // Get teacher by ID (Admin)
   getStaffById: async (id) => {
     try {
-      const response = await axiosInstance.get(`/staff/${id}`);
+      const response = await axiosInstance.get(`/admin/staff/${id}`);
+      console.log(`📊 Get staff by ID (${id}) response:`, response.data);
       return response.data?.data || response.data;
     } catch (error) {
-      console.error("Error fetching staff by ID:", error);
+      console.error("❌ Error fetching staff by ID:", error);
       throw error;
     }
   },
@@ -196,7 +200,7 @@ const staffApi = {
   // Create new staff member (Admin)
   createStaff: async (data) => {
     try {
-      console.log("Creating staff with data:", JSON.stringify(data, null, 2));
+      console.log("📤 Creating staff with data:", JSON.stringify(data, null, 2));
       
       const requiredFields = ['name', 'email', 'password', 'department', 'designation'];
       const missingFields = requiredFields.filter(field => !data[field]);
@@ -205,15 +209,18 @@ const staffApi = {
         throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
       }
       
-      const response = await axiosInstance.post("/staff", data);
-      console.log("Create staff response:", response.data);
+      // Log the staffRole specifically
+      console.log(`👔 Staff Role being created: ${data.staffRole || 'Not specified (default will apply)'}`);
+      
+      const response = await axiosInstance.post("/admin/staff", data);
+      console.log("✅ Create staff response:", response.data);
       
       if (response.data?.success) {
         return response.data.data;
       }
       throw new Error(response.data?.message || "Failed to create staff");
     } catch (error) {
-      console.error("Error creating staff:", {
+      console.error("❌ Error creating staff:", {
         message: error.message,
         response: error.response?.data,
         status: error.response?.status
@@ -229,15 +236,17 @@ const staffApi = {
   // Update staff member (Admin)
   updateStaff: async (id, data) => {
     try {
-      const response = await axiosInstance.put(`/staff/${id}`, data);
-      console.log("Update staff response:", response.data);
+      console.log(`📤 Updating staff (ID: ${id}) with data:`, JSON.stringify(data, null, 2));
+      
+      const response = await axiosInstance.put(`/admin/staff/${id}`, data);
+      console.log("✅ Update staff response:", response.data);
       
       if (response.data?.success) {
         return response.data.data;
       }
       throw new Error(response.data?.message || "Failed to update staff");
     } catch (error) {
-      console.error("Error updating staff:", error);
+      console.error("❌ Error updating staff:", error);
       throw error;
     }
   },
@@ -245,15 +254,15 @@ const staffApi = {
   // Delete staff member (Admin) - soft delete to trash
   deleteStaff: async (id) => {
     try {
-      const response = await axiosInstance.delete(`/staff/${id}`);
-      console.log("Delete staff response:", response.data);
+      const response = await axiosInstance.delete(`/admin/staff/${id}`);
+      console.log(`🗑️ Delete staff (ID: ${id}) response:`, response.data);
       
       if (response.data?.success) {
         return response.data;
       }
       throw new Error(response.data?.message || "Failed to delete staff");
     } catch (error) {
-      console.error("Error deleting staff:", error);
+      console.error("❌ Error deleting staff:", error);
       throw error;
     }
   },
@@ -264,10 +273,10 @@ const staffApi = {
   getDashboardStats: async () => {
     try {
       const response = await axiosInstance.get("/staff/dashboard/stats");
-      console.log("Dashboard stats response:", response.data);
+      console.log("📊 Dashboard stats response:", response.data);
       return response.data;
     } catch (error) {
-      console.error("Error fetching dashboard stats:", error);
+      console.error("❌ Error fetching dashboard stats:", error);
       throw error;
     }
   },
@@ -276,10 +285,10 @@ const staffApi = {
   getCourses: async () => {
     try {
       const response = await axiosInstance.get("/staff/dashboard/courses");
-      console.log("Teacher courses response:", response.data);
+      console.log("📊 Teacher courses response:", response.data);
       return response.data;
     } catch (error) {
-      console.error("Error fetching teacher courses:", error);
+      console.error("❌ Error fetching teacher courses:", error);
       throw error;
     }
   },
@@ -288,10 +297,10 @@ const staffApi = {
   getStudents: async () => {
     try {
       const response = await axiosInstance.get("/staff/dashboard/students");
-      console.log("Teacher students response:", response.data);
+      console.log("📊 Teacher students response:", response.data);
       return response.data;
     } catch (error) {
-      console.error("Error fetching teacher students:", error);
+      console.error("❌ Error fetching teacher students:", error);
       throw error;
     }
   },
@@ -300,10 +309,10 @@ const staffApi = {
   getTodaySchedule: async () => {
     try {
       const response = await axiosInstance.get("/staff/dashboard/schedule/today");
-      console.log("Teacher schedule response:", response.data);
+      console.log("📊 Teacher schedule response:", response.data);
       return response.data;
     } catch (error) {
-      console.error("Error fetching teacher schedule:", error);
+      console.error("❌ Error fetching teacher schedule:", error);
       throw error;
     }
   },
@@ -312,9 +321,10 @@ const staffApi = {
   getProfile: async () => {
     try {
       const response = await axiosInstance.get("/staff/profile");
+      console.log("📊 Teacher profile response:", response.data);
       return response.data;
     } catch (error) {
-      console.error("Error fetching teacher profile:", error);
+      console.error("❌ Error fetching teacher profile:", error);
       throw error;
     }
   },
@@ -323,9 +333,10 @@ const staffApi = {
   updateProfile: async (data) => {
     try {
       const response = await axiosInstance.put("/staff/profile", data);
+      console.log("✅ Update profile response:", response.data);
       return response.data;
     } catch (error) {
-      console.error("Error updating teacher profile:", error);
+      console.error("❌ Error updating teacher profile:", error);
       throw error;
     }
   },
@@ -337,9 +348,10 @@ const staffApi = {
         currentPassword,
         newPassword
       });
+      console.log("✅ Update password response:", response.data);
       return response.data;
     } catch (error) {
-      console.error("Error updating password:", error);
+      console.error("❌ Error updating password:", error);
       throw error;
     }
   },
@@ -349,8 +361,8 @@ const staffApi = {
   // Get trashed staff (Admin)
   getTrashedStaff: async () => {
     try {
-      const response = await axiosInstance.get("/staff/trash");
-      console.log("Get trashed staff response:", response.data);
+      const response = await axiosInstance.get("/admin/staff/trash");
+      console.log("📊 Get trashed staff response:", response.data);
       
       if (response.data?.success && response.data?.data) {
         return response.data.data;
@@ -359,7 +371,7 @@ const staffApi = {
       }
       return [];
     } catch (error) {
-      console.error("Error fetching trashed staff:", error);
+      console.error("❌ Error fetching trashed staff:", error);
       throw error;
     }
   },
@@ -367,11 +379,11 @@ const staffApi = {
   // Restore staff from trash (Admin)
   restoreStaff: async (id) => {
     try {
-      const response = await axiosInstance.post(`/staff/${id}/restore`);
-      console.log("Restore staff response:", response.data);
+      const response = await axiosInstance.post(`/admin/staff/${id}/restore`);
+      console.log(`✅ Restore staff (ID: ${id}) response:`, response.data);
       return response.data;
     } catch (error) {
-      console.error("Error restoring staff:", error);
+      console.error("❌ Error restoring staff:", error);
       throw error;
     }
   },
@@ -379,11 +391,11 @@ const staffApi = {
   // Permanently delete staff (Admin)
   permanentDeleteStaff: async (id) => {
     try {
-      const response = await axiosInstance.delete(`/staff/${id}/permanent`);
-      console.log("Permanent delete staff response:", response.data);
+      const response = await axiosInstance.delete(`/admin/staff/${id}/permanent`);
+      console.log(`🗑️ Permanent delete staff (ID: ${id}) response:`, response.data);
       return response.data;
     } catch (error) {
-      console.error("Error permanently deleting staff:", error);
+      console.error("❌ Error permanently deleting staff:", error);
       throw error;
     }
   },
@@ -393,11 +405,11 @@ const staffApi = {
   // Get staff statistics
   getStaffStats: async () => {
     try {
-      const response = await axiosInstance.get("/staff/stats");
-      console.log("Staff stats response:", response.data);
+      const response = await axiosInstance.get("/admin/staff/stats");
+      console.log("📊 Staff stats response:", response.data);
       return response.data;
     } catch (error) {
-      console.error("Error fetching staff stats:", error);
+      console.error("❌ Error fetching staff stats:", error);
       throw error;
     }
   },
@@ -405,11 +417,11 @@ const staffApi = {
   // Get department-wise staff count
   getDepartmentWiseCount: async () => {
     try {
-      const response = await axiosInstance.get("/staff/stats/departments");
-      console.log("Department wise staff count response:", response.data);
+      const response = await axiosInstance.get("/admin/staff/stats/departments");
+      console.log("📊 Department wise staff count response:", response.data);
       return response.data;
     } catch (error) {
-      console.error("Error fetching department wise staff count:", error);
+      console.error("❌ Error fetching department wise staff count:", error);
       throw error;
     }
   },
@@ -417,11 +429,11 @@ const staffApi = {
   // Get designation-wise staff count
   getDesignationWiseCount: async () => {
     try {
-      const response = await axiosInstance.get("/staff/stats/designations");
-      console.log("Designation wise staff count response:", response.data);
+      const response = await axiosInstance.get("/admin/staff/stats/designations");
+      console.log("📊 Designation wise staff count response:", response.data);
       return response.data;
     } catch (error) {
-      console.error("Error fetching designation wise staff count:", error);
+      console.error("❌ Error fetching designation wise staff count:", error);
       throw error;
     }
   },

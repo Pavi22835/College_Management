@@ -97,10 +97,18 @@ export const studentApi = {
 export const staffApi = {
   getAll: async () => {
     try {
-      const response = await axiosConfig.get('/admin/staff');
-      return response.data;
+      // Try both possible endpoints
+      try {
+        const response = await axiosConfig.get('/admin/staff');
+        return response.data;
+      } catch (err) {
+        // Fallback to /staff if /admin/staff fails
+        console.log('Trying fallback endpoint /staff');
+        const response = await axiosConfig.get('/staff');
+        return response.data;
+      }
     } catch (error) {
-      console.error('❌ Error fetching teachers:', error.response?.data || error.message);
+      console.error('❌ Error fetching staff:', error.response?.data || error.message);
       throw error;
     }
   },
@@ -110,17 +118,19 @@ export const staffApi = {
       const response = await axiosConfig.get(`/admin/staff/${id}`);
       return response.data;
     } catch (error) {
-      console.error(`❌ Error fetching teacher ${id}:`, error.response?.data || error.message);
+      console.error(`❌ Error fetching staff ${id}:`, error.response?.data || error.message);
       throw error;
     }
   },
 
   create: async (data) => {
     try {
+      console.log('📤 Creating staff with data:', data);
       const response = await axiosConfig.post('/admin/staff', data);
+      console.log('📥 Create response:', response.data);
       return response.data;
     } catch (error) {
-      console.error('❌ Error creating teacher:', error.response?.data || error.message);
+      console.error('❌ Error creating staff:', error.response?.data || error.message);
       throw error;
     }
   },
@@ -130,7 +140,7 @@ export const staffApi = {
       const response = await axiosConfig.put(`/admin/staff/${id}`, data);
       return response.data;
     } catch (error) {
-      console.error(`❌ Error updating teacher ${id}:`, error.response?.data || error.message);
+      console.error(`❌ Error updating staff ${id}:`, error.response?.data || error.message);
       throw error;
     }
   },
@@ -140,18 +150,51 @@ export const staffApi = {
       const response = await axiosConfig.delete(`/admin/staff/${id}`);
       return response.data;
     } catch (error) {
-      console.error(`❌ Error deleting teacher ${id}:`, error.response?.data || error.message);
+      console.error(`❌ Error deleting staff ${id}:`, error.response?.data || error.message);
       throw error;
     }
   },
 
-  // Teacher trash methods
+  // Get HODs
+  getHODs: async () => {
+    try {
+      const response = await axiosConfig.get('/staff/hods');
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error fetching HODs:', error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  // Get Faculty
+  getFaculty: async () => {
+    try {
+      const response = await axiosConfig.get('/staff/faculty');
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error fetching faculty:', error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  // Get Mentors
+  getMentors: async () => {
+    try {
+      const response = await axiosConfig.get('/staff/mentors');
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error fetching mentors:', error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  // Staff trash methods
   getTrashed: async () => {
     try {
       const response = await axiosConfig.get('/admin/staff/trash');
       return response.data;
     } catch (error) {
-      console.error('❌ Error fetching trashed teachers:', error.response?.data || error.message);
+      console.error('❌ Error fetching trashed staff:', error.response?.data || error.message);
       throw error;
     }
   },
@@ -161,7 +204,7 @@ export const staffApi = {
       const response = await axiosConfig.post(`/admin/staff/${id}/restore`);
       return response.data;
     } catch (error) {
-      console.error(`❌ Error restoring teacher ${id}:`, error.response?.data || error.message);
+      console.error(`❌ Error restoring staff ${id}:`, error.response?.data || error.message);
       throw error;
     }
   },
@@ -171,7 +214,7 @@ export const staffApi = {
       const response = await axiosConfig.delete(`/admin/staff/${id}/permanent`);
       return response.data;
     } catch (error) {
-      console.error(`❌ Error permanently deleting teacher ${id}:`, error.response?.data || error.message);
+      console.error(`❌ Error permanently deleting staff ${id}:`, error.response?.data || error.message);
       throw error;
     }
   }
