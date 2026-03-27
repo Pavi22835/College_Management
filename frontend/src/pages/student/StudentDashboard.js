@@ -1,35 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  LayoutDashboard,
   BookOpen,
+  Users,
   Calendar,
-  Clock,
-  TrendingUp,
-  ChevronRight,
-  Bell,
-  User,
-  LogOut,
-  Home,
-  RefreshCw,
-  Plus,
-  CheckCircle,
-  FileText,
   Award,
+  BarChart3,
   MessageSquare,
-  Mail,
-  Settings,
-  BarChart,
-  AlertCircle,
-  GraduationCap,
-  UserCheck,
-  HelpCircle,
+  Clock,
+  LogOut,
+  ChevronRight,
+  CheckCircle,
+  Upload,
+  Plus,
   Download,
-  Edit,
-  Eye,
-  Filter,
-  Search,
-  Star
+  Settings,
+  FileText,
+  AlertCircle,
+  RefreshCw,
+  Bell,
+  GraduationCap,
+  Home,
+  User
 } from 'lucide-react';
 import studentApi from '../../api/studentApi';
 import { useAuth } from '../../context/AuthContext';
@@ -41,28 +33,13 @@ const StudentDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [dashboardData, setDashboardData] = useState({
-    student: {
-      name: '',
-      rollNo: '',
-      course: '',
-      semester: '',
-      email: '',
-      teacher: ''
-    },
-    stats: {
-      enrolledCourses: 0,
-      attendance: 0,
-      assignments: 0,
-      gpa: 0
-    },
-    courses: [],
-    recentAttendance: [],
-    upcomingDeadlines: [],
-    recentGrades: []
+    student: { name: '', rollNo: '', course: '', semester: '', email: '' },
+    stats: { totalCourses: 0, totalStudents: 0, todayAttendance: 0, averageAttendance: 0 },
+    recentActivities: [],
+    upcomingTasks: []
   });
 
   useEffect(() => {
-    console.log('👤 Current user:', user);
     fetchDashboardData();
   }, []);
 
@@ -71,35 +48,37 @@ const StudentDashboard = () => {
       setLoading(true);
       setError(null);
       
-      console.log('📡 Fetching student dashboard...');
-      
-      // Try to fetch from API, but use demo data if it fails
       try {
         const response = await studentApi.getDashboard();
-        console.log('📥 Dashboard response:', response);
-        
         if (response?.success && response?.data) {
-          // Ensure all nested objects exist
           const data = response.data;
           setDashboardData({
             student: data.student || {
-              name: user?.name || 'John Student',
-              rollNo: 'STU001',
-              course: 'Computer Science',
-              semester: '3',
-              email: user?.email || 'john@example.com',
-              teacher: 'Dr. Sarah Wilson'
+              name: user?.name || 'Ranjith Kumar',
+              rollNo: 'CS2024001',
+              course: 'Computer Science Engineering',
+              semester: '6th Semester',
+              email: 'ranjith.kumar@college.edu'
             },
             stats: data.stats || {
-              enrolledCourses: 4,
-              attendance: 85,
-              assignments: 6,
-              gpa: 3.2
+              totalCourses: 4,
+              totalStudents: 128,
+              todayAttendance: 85,
+              averageAttendance: 78
             },
-            courses: Array.isArray(data.courses) ? data.courses : [],
-            recentAttendance: Array.isArray(data.recentAttendance) ? data.recentAttendance : [],
-            upcomingDeadlines: Array.isArray(data.upcomingDeadlines) ? data.upcomingDeadlines : [],
-            recentGrades: Array.isArray(data.recentGrades) ? data.recentGrades : []
+            recentActivities: Array.isArray(data.recentActivities) ? data.recentActivities : [
+              { id: 1, title: 'Marked attendance for Data Structures', time: '2 hours ago' },
+              { id: 2, title: 'Assignment submission deadline: Algorithms Quiz', time: 'Tomorrow, 5:00 PM' },
+              { id: 3, title: 'Downloaded course materials for Database Systems', time: 'Yesterday' },
+              { id: 4, title: 'Submitted Web Development Assignment', time: 'Yesterday' },
+              { id: 5, title: 'New announcement: Mid-term exam schedule', time: '2 days ago' }
+            ],
+            upcomingTasks: Array.isArray(data.upcomingTasks) ? data.upcomingTasks : [
+              { id: 1, title: 'Data Structures Assignment', dueDate: 'Tomorrow, 5:00 PM' },
+              { id: 2, title: 'Algorithms Quiz', dueDate: 'Thursday, 10:00 AM' },
+              { id: 3, title: 'Database Project Submission', dueDate: 'Friday, 3:00 PM' },
+              { id: 4, title: 'Web Development Review', dueDate: 'Next Monday, 9:00 AM' }
+            ]
           });
           return;
         }
@@ -107,67 +86,48 @@ const StudentDashboard = () => {
         console.warn('API fetch failed, using demo data:', apiError);
       }
       
-      // Set demo data if API fails
       setDashboardData({
         student: {
-          name: user?.name || 'John Student',
-          rollNo: 'STU001',
-          course: 'Computer Science',
-          semester: '3',
-          email: user?.email || 'john@example.com',
-          teacher: 'Dr. Sarah Wilson'
+          name: user?.name || 'Ranjith Kumar',
+          rollNo: 'CS2024001',
+          course: 'Computer Science Engineering',
+          semester: '6th Semester',
+          email: 'ranjith.kumar@college.edu'
         },
         stats: {
-          enrolledCourses: 4,
-          attendance: 85,
-          assignments: 6,
-          gpa: 3.2
+          totalCourses: 4,
+          totalStudents: 128,
+          todayAttendance: 85,
+          averageAttendance: 78
         },
-        courses: [
-          { id: 1, name: 'Data Structures', code: 'CS201', instructor: 'Prof. Sharma', schedule: 'Mon/Wed 10:00 AM', room: 'Room 301', progress: 75, color: '#3b82f6' },
-          { id: 2, name: 'Algorithms', code: 'CS202', instructor: 'Dr. Gupta', schedule: 'Tue/Thu 2:00 PM', room: 'Room 205', progress: 60, color: '#10b981' },
-          { id: 3, name: 'Database Systems', code: 'CS301', instructor: 'Prof. Patel', schedule: 'Fri 9:00 AM', room: 'Lab 102', progress: 45, color: '#f59e0b' },
-          { id: 4, name: 'Web Development', code: 'CS401', instructor: 'Mr. Kumar', schedule: 'Mon/Wed 4:00 PM', room: 'Lab 105', progress: 30, color: '#8b5cf6' }
+        recentActivities: [
+          { id: 1, title: 'Marked attendance for Data Structures', time: '2 hours ago' },
+          { id: 2, title: 'Assignment submission deadline: Algorithms Quiz', time: 'Tomorrow, 5:00 PM' },
+          { id: 3, title: 'Downloaded course materials for Database Systems', time: 'Yesterday' },
+          { id: 4, title: 'Submitted Web Development Assignment', time: 'Yesterday' },
+          { id: 5, title: 'New announcement: Mid-term exam schedule', time: '2 days ago' }
         ],
-        recentAttendance: [
-          { date: '2024-03-13', course: { name: 'Data Structures' }, status: 'Present' },
-          { date: '2024-03-12', course: { name: 'Algorithms' }, status: 'Present' },
-          { date: '2024-03-11', course: { name: 'Database Systems' }, status: 'Absent' },
-          { date: '2024-03-10', course: { name: 'Web Development' }, status: 'Present' }
-        ],
-        upcomingDeadlines: [
-          { id: 1, title: 'Data Structures Assignment 3', course: 'CS201', dueDate: '2024-03-20', priority: 'high' },
-          { id: 2, title: 'Algorithms Quiz', course: 'CS202', dueDate: '2024-03-18', priority: 'medium' },
-          { id: 3, title: 'Database Project Proposal', course: 'CS301', dueDate: '2024-03-25', priority: 'low' }
-        ],
-        recentGrades: [
-          { id: 1, title: 'Data Structures Assignment 2', grade: 'A-', percentage: 88 },
-          { id: 2, title: 'Algorithms Midterm', grade: 'B+', percentage: 82 },
-          { id: 3, title: 'Database Quiz 1', grade: 'A', percentage: 92 }
+        upcomingTasks: [
+          { id: 1, title: 'Data Structures Assignment', dueDate: 'Tomorrow, 5:00 PM' },
+          { id: 2, title: 'Algorithms Quiz', dueDate: 'Thursday, 10:00 AM' },
+          { id: 3, title: 'Database Project Submission', dueDate: 'Friday, 3:00 PM' },
+          { id: 4, title: 'Web Development Review', dueDate: 'Next Monday, 9:00 AM' }
         ]
       });
 
     } catch (err) {
-      console.error('❌ Error in dashboard:', err);
+      console.error('Error fetching dashboard:', err);
       setError('Failed to load dashboard');
     } finally {
       setLoading(false);
     }
   };
 
-  const getAttendanceColor = (attendance) => {
-    if (attendance >= 85) return '#10b981';
-    if (attendance >= 75) return '#f59e0b';
-    return '#ef4444';
-  };
-
-  const handleRetry = () => {
-    fetchDashboardData();
-  };
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 17) return 'Good Afternoon';
+    return 'Good Evening';
   };
 
   if (loading) {
@@ -185,270 +145,183 @@ const StudentDashboard = () => {
         <AlertCircle size={32} />
         <h3>Error Loading Dashboard</h3>
         <p>{error}</p>
-        <button className="sd-retry-btn" onClick={handleRetry}>
+        <button className="sd-retry-btn" onClick={fetchDashboardData}>
           <RefreshCw size={14} /> Try Again
         </button>
       </div>
     );
   }
 
-  // Safe access with default values
-  const student = dashboardData?.student || {};
-  const stats = dashboardData?.stats || {};
-  const courses = dashboardData?.courses || [];
-  const recentAttendance = dashboardData?.recentAttendance || [];
-  const upcomingDeadlines = dashboardData?.upcomingDeadlines || [];
-  const recentGrades = dashboardData?.recentGrades || [];
-
   return (
     <div className="student-dashboard">
-      {/* Header - Updated: Removed notification bell and logout button */}
-      <div className="sd-header">
-        <div className="sd-header-left">
-          <h1 className="sd-header-title">
-            Student Dashboard
+      {/* Main Content */}
+      <main className="sd-main-container">
+        {/* Header Section */}
+        <div className="sd-header-section">
+          <h1 className="sd-greeting">
+            {getGreeting()}, {dashboardData.student.name.split(' ')[0]}! 🎉
           </h1>
-          <p className="sd-header-subtitle">
-            Welcome back, <span className="sd-student-name">{student.name || 'Student'}</span>
+          <p className="sd-welcome-message">
+            Welcome back to your student dashboard. Here's what's happening with your courses today.
           </p>
-          
-        </div>
-        <div className="sd-header-right">
-          {/* Only the user avatar remains - notification and logout buttons removed */}
-        </div>
-      </div>
-
-      {/* Stats Grid */}
-      <div className="sd-stats-grid">
-        <div className="sd-stat-card" onClick={() => navigate('/student/courses')}>
-          <div className="sd-stat-icon blue">
-            <BookOpen size={24} />
-          </div>
-          <div className="sd-stat-content">
-            <span className="sd-stat-label">ENROLLED COURSES</span>
-            <span className="sd-stat-value">{stats.enrolledCourses || 0}</span>
-          </div>
         </div>
 
-        <div className="sd-stat-card" onClick={() => navigate('/student/attendance')}>
-          <div className="sd-stat-icon green">
-            <Calendar size={24} />
+        {/* Stats Cards - 4 Cards */}
+        <div className="sd-stats-cards">
+          <div className="sd-stat-card" onClick={() => navigate('/student/courses')}>
+            <div className="sd-stat-icon blue">
+              <BookOpen size={24} />
+            </div>
+            <div className="sd-stat-info">
+              <span className="sd-stat-number">{dashboardData.stats.totalCourses}</span>
+              <span className="sd-stat-label">TOTAL COURSES</span>
+            </div>
           </div>
-          <div className="sd-stat-content">
-            <span className="sd-stat-label">ATTENDANCE</span>
-            <span className="sd-stat-value">{stats.attendance || 0}%</span>
+
+          <div className="sd-stat-card" onClick={() => navigate('/student/attendance')}>
+            <div className="sd-stat-icon green">
+              <Users size={24} />
+            </div>
+            <div className="sd-stat-info">
+              <span className="sd-stat-number">{dashboardData.stats.totalStudents}</span>
+              <span className="sd-stat-label">CLASSMATES</span>
+            </div>
           </div>
-          <div className="sd-stat-progress">
-            <div className="sd-progress-track">
-              <div 
-                className="sd-progress-fill" 
-                style={{ 
-                  width: `${stats.attendance || 0}%`,
-                  backgroundColor: getAttendanceColor(stats.attendance || 0)
-                }}
-              />
+
+          <div className="sd-stat-card" onClick={() => navigate('/student/attendance/today')}>
+            <div className="sd-stat-icon orange">
+              <Calendar size={24} />
+            </div>
+            <div className="sd-stat-info">
+              <span className="sd-stat-number">{dashboardData.stats.todayAttendance}%</span>
+              <span className="sd-stat-label">TODAY'S ATTENDANCE</span>
+            </div>
+          </div>
+
+          <div className="sd-stat-card" onClick={() => navigate('/student/attendance')}>
+            <div className="sd-stat-icon purple">
+              <BarChart3 size={24} />
+            </div>
+            <div className="sd-stat-info">
+              <span className="sd-stat-number">{dashboardData.stats.averageAttendance}%</span>
+              <span className="sd-stat-label">AVERAGE ATTENDANCE</span>
             </div>
           </div>
         </div>
 
-        <div className="sd-stat-card" onClick={() => navigate('/student/assignments')}>
-          <div className="sd-stat-icon purple">
-            <FileText size={24} />
+        {/* Quick Actions Section */}
+        <div className="sd-quick-actions">
+          <div className="sd-section-header">
+            <h2>Quick Actions</h2>
+            <p>Common tasks and shortcuts</p>
           </div>
-          <div className="sd-stat-content">
-            <span className="sd-stat-label">ASSIGNMENTS</span>
-            <span className="sd-stat-value">{stats.assignments || 0}</span>
-          </div>
-        </div>
-
-        <div className="sd-stat-card" onClick={() => navigate('/student/grades')}>
-          <div className="sd-stat-icon orange">
-            <Award size={24} />
-          </div>
-          <div className="sd-stat-content">
-            <span className="sd-stat-label">CURRENT GPA</span>
-            <span className="sd-stat-value">{stats.gpa || 0}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="sd-quick-actions">
-        <h2 className="sd-section-title">
-          <Settings size={18} />
-          Quick Actions
-        </h2>
-        <div className="sd-quick-actions-grid">
-          <button className="sd-quick-action-btn" onClick={() => navigate('/student/courses/enroll')}>
-            <Plus size={16} />
-            <span>Enroll in Courses</span>
-          </button>
-          <button className="sd-quick-action-btn" onClick={() => navigate('/student/attendance')}>
-            <Calendar size={16} />
-            <span>View Attendance</span>
-          </button>
-          <button className="sd-quick-action-btn" onClick={() => navigate('/student/assignments')}>
-            <FileText size={16} />
-            <span>View Assignments</span>
-          </button>
-          <button className="sd-quick-action-btn" onClick={() => navigate('/student/grades')}>
-            <Award size={16} />
-            <span>Check Grades</span>
-          </button>
-          <button className="sd-quick-action-btn" onClick={() => navigate('/student/schedule')}>
-            <Clock size={16} />
-            <span>Class Schedule</span>
-          </button>
-          <button className="sd-quick-action-btn" onClick={() => navigate('/student/communication')}>
-            <MessageSquare size={16} />
-            <span>Contact Teacher</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Main Content Grid */}
-      <div className="sd-content-grid">
-        {/* My Courses */}
-        <div className="sd-content-card sd-full-width">
-          <div className="sd-card-header">
-            <h2 className="sd-card-title">
-              <BookOpen size={18} />
-              My Courses
-            </h2>
-            <button className="sd-view-all" onClick={() => navigate('/student/courses')}>
-              View All <ChevronRight size={14} />
+          
+          <div className="sd-actions-grid">
+            <button className="sd-action-item" onClick={() => navigate('/student/attendance/mark')}>
+              <div className="sd-action-icon">
+                <CheckCircle size={20} />
+              </div>
+              <div className="sd-action-text">
+                <span className="sd-action-title">Mark Attendance</span>
+                <span className="sd-action-desc">Record student attendance</span>
+              </div>
+            </button>
+            
+            <button className="sd-action-item" onClick={() => navigate('/student/assignments')}>
+              <div className="sd-action-icon">
+                <FileText size={20} />
+              </div>
+              <div className="sd-action-text">
+                <span className="sd-action-title">View Assignments</span>
+                <span className="sd-action-desc">Check pending submissions</span>
+              </div>
+            </button>
+            
+            <button className="sd-action-item" onClick={() => navigate('/student/materials')}>
+              <div className="sd-action-icon">
+                <Download size={20} />
+              </div>
+              <div className="sd-action-text">
+                <span className="sd-action-title">Download Materials</span>
+                <span className="sd-action-desc">Access course resources</span>
+              </div>
+            </button>
+            
+            <button className="sd-action-item" onClick={() => navigate('/student/communication')}>
+              <div className="sd-action-icon">
+                <MessageSquare size={20} />
+              </div>
+              <div className="sd-action-text">
+                <span className="sd-action-title">Send Message</span>
+                <span className="sd-action-desc">Communicate with teachers</span>
+              </div>
+            </button>
+            
+            <button className="sd-action-item" onClick={() => navigate('/student/assignments/create')}>
+              <div className="sd-action-icon">
+                <Upload size={20} />
+              </div>
+              <div className="sd-action-text">
+                <span className="sd-action-title">Submit Assignment</span>
+                <span className="sd-action-desc">Upload your work</span>
+              </div>
+            </button>
+            
+            <button className="sd-action-item" onClick={() => navigate('/student/grades')}>
+              <div className="sd-action-icon">
+                <Award size={20} />
+              </div>
+              <div className="sd-action-text">
+                <span className="sd-action-title">View Grades</span>
+                <span className="sd-action-desc">Check your performance</span>
+              </div>
             </button>
           </div>
-          <div className="sd-courses-list">
-            {courses.length > 0 ? (
-              courses.map((course) => (
-                <div 
-                  key={course.id} 
-                  className="sd-course-item"
-                  onClick={() => navigate(`/student/courses/${course.id}`)}
-                >
-                  <div className="sd-course-color" style={{ backgroundColor: course.color || '#3b82f6' }} />
-                  <div className="sd-course-info">
-                    <h3 className="sd-course-name">{course.name}</h3>
-                    <p className="sd-course-code">{course.code}</p>
-                    <p className="sd-course-instructor">{course.instructor}</p>
-                    <div className="sd-course-meta">
-                      <span><Calendar size={12} /> {course.schedule}</span>
-                      <span><Clock size={12} /> {course.room}</span>
-                    </div>
-                  </div>
-                  <div className="sd-course-progress">
-                    <span className="sd-progress-value">{course.progress}%</span>
-                    <div className="sd-progress-track">
-                      <div 
-                        className="sd-progress-fill" 
-                        style={{ 
-                          width: `${course.progress}%`,
-                          backgroundColor: course.color || '#3b82f6'
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="sd-empty-state">
-                <p>No courses enrolled</p>
-              </div>
-            )}
-          </div>
         </div>
 
-        {/* Upcoming Deadlines */}
-        <div className="sd-content-card">
-          <div className="sd-card-header">
-            <h2 className="sd-card-title">
-              <Clock size={18} />
-              Upcoming Deadlines
-            </h2>
-            <button className="sd-view-all" onClick={() => navigate('/student/deadlines')}>
-              View All <ChevronRight size={14} />
-            </button>
-          </div>
-          <div className="sd-deadlines-list">
-            {upcomingDeadlines.length > 0 ? (
-              upcomingDeadlines.map((deadline) => (
-                <div key={deadline.id} className="sd-deadline-item">
-                  <div className="sd-deadline-info">
-                    <h3 className="sd-deadline-title">{deadline.title}</h3>
-                    <p className="sd-deadline-course">{deadline.course}</p>
+        {/* Two Column Layout */}
+        <div className="sd-two-columns">
+          {/* Recent Activities */}
+          <div className="sd-activities-card">
+            <div className="sd-card-header">
+              <h3>Recent Activities</h3>
+              <button className="sd-view-link" onClick={() => navigate('/student/activities')}>
+                View All <ChevronRight size={14} />
+              </button>
+            </div>
+            <div className="sd-activities-list">
+              {dashboardData.recentActivities.map(activity => (
+                <div key={activity.id} className="sd-activity-row">
+                  <div className="sd-activity-details">
+                    <span className="sd-activity-title">{activity.title}</span>
+                    <span className="sd-activity-time">{activity.time}</span>
                   </div>
-                  <span className={`sd-deadline-badge ${deadline.priority}`}>
-                    {deadline.dueDate ? new Date(deadline.dueDate).toLocaleDateString() : 'No date'}
-                  </span>
                 </div>
-              ))
-            ) : (
-              <div className="sd-empty-state">
-                <p>No upcoming deadlines</p>
-              </div>
-            )}
+              ))}
+            </div>
           </div>
-        </div>
 
-        {/* Recent Grades */}
-        <div className="sd-content-card">
-          <div className="sd-card-header">
-            <h2 className="sd-card-title">
-              <Award size={18} />
-              Recent Grades
-            </h2>
-            <button className="sd-view-all" onClick={() => navigate('/student/grades')}>
-              View All <ChevronRight size={14} />
-            </button>
-          </div>
-          <div className="sd-grades-list">
-            {recentGrades.length > 0 ? (
-              recentGrades.map((grade) => (
-                <div key={grade.id} className="sd-grade-item">
-                  <div className="sd-grade-info">
-                    <h3 className="sd-grade-title">{grade.title}</h3>
-                    <p className="sd-grade-assignment">{grade.percentage}%</p>
+          {/* Upcoming Tasks */}
+          <div className="sd-tasks-card">
+            <div className="sd-card-header">
+              <h3>Upcoming Tasks</h3>
+              <button className="sd-view-link" onClick={() => navigate('/student/tasks')}>
+                View All <ChevronRight size={14} />
+              </button>
+            </div>
+            <div className="sd-tasks-list">
+              {dashboardData.upcomingTasks.map(task => (
+                <div key={task.id} className="sd-task-row">
+                  <div className="sd-task-details">
+                    <span className="sd-task-title">{task.title}</span>
+                    <span className="sd-task-date">{task.dueDate}</span>
                   </div>
-                  <span className="sd-grade-letter">{grade.grade}</span>
                 </div>
-              ))
-            ) : (
-              <div className="sd-empty-state">
-                <p>No grades available</p>
-              </div>
-            )}
+              ))}
+            </div>
           </div>
         </div>
-      </div>
-
-      {/* Recent Attendance */}
-      {recentAttendance.length > 0 && (
-        <div className="sd-attendance-section">
-          <h2 className="sd-section-title">
-            <Calendar size={18} />
-            Recent Attendance
-          </h2>
-          <div className="sd-attendance-list">
-            {recentAttendance.map((record, index) => (
-              <div key={index} className="sd-attendance-item">
-                <div className="sd-attendance-date">
-                  {record.date ? new Date(record.date).toLocaleDateString() : 'No date'}
-                </div>
-                <div className="sd-attendance-course">{record.course?.name || 'Unknown Course'}</div>
-                <span className={`sd-attendance-status ${record.status?.toLowerCase() || ''}`}>
-                  {record.status || 'Unknown'}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Footer - Removed logout button */}
-      <div className="sd-footer">
-        {/* Footer is now empty - you can add other content here if needed */}
-      </div>
+      </main>
     </div>
   );
 };
