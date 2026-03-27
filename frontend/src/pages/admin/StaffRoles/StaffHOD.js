@@ -33,7 +33,7 @@ const StaffHOD = () => {
   const [modalType, setModalType] = useState('');
   const [selectedStaff, setSelectedStaff] = useState(null);
 
-  // Form data for add/edit
+  // Form data for add/edit - REMOVED address field
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -42,7 +42,6 @@ const StaffHOD = () => {
     designation: '',
     phone: '',
     employeeId: '',
-    address: '',
     appointedDate: ''
   });
 
@@ -75,7 +74,7 @@ const StaffHOD = () => {
     fetchHODStaff();
   }, []);
 
-  // Filter staff based on search term
+  // Filter staff based on search term and department
   useEffect(() => {
     let filtered = hodStaff;
 
@@ -97,24 +96,37 @@ const StaffHOD = () => {
   const fetchHODStaff = async () => {
     try {
       setLoading(true);
+      setError(null);
+      
       const response = await staffApi.getAll();
+      console.log('📊 API Response:', response);
+      
       let staffData = [];
       if (response?.success && response?.data) {
         staffData = response.data;
       } else if (Array.isArray(response)) {
         staffData = response;
+      } else if (response?.data && Array.isArray(response.data)) {
+        staffData = response.data;
       }
-      // Filter only HODs
+      
+      console.log('📊 All staff data:', staffData);
+      
+      // Filter only HODs - check both staffRole and designation
       const hods = staffData.filter(staff => 
+        staff.staffRole === 'HOD' ||
         staff.designation?.toLowerCase().includes('head') || 
-        staff.designation?.toLowerCase().includes('hod') ||
-        staff.role === 'HOD'
+        staff.designation?.toLowerCase().includes('hod')
       );
+      
+      console.log('📊 Filtered HODs:', hods);
+      
       setHodStaff(hods);
       setFilteredStaff(hods);
     } catch (error) {
       console.error('Error fetching HOD staff:', error);
-      setError('Failed to load HOD data');
+      const errorMsg = error.response?.data?.message || error.message || 'Unknown error';
+      setError(`Failed to load HOD data: ${errorMsg}`);
     } finally {
       setLoading(false);
     }
@@ -139,12 +151,12 @@ const StaffHOD = () => {
       designation: '',
       phone: '',
       employeeId: '',
-      address: '',
       appointedDate: ''
     });
     setSelectedStaff(null);
     setModalType('add');
     setShowModal(true);
+    setError(null);
   };
 
   // Handle Edit button click
@@ -158,11 +170,11 @@ const StaffHOD = () => {
       designation: staff.designation || '',
       phone: staff.phone || '',
       employeeId: staff.employeeId || '',
-      address: staff.address || '',
       appointedDate: staff.appointedDate || staff.createdAt?.split('T')[0] || ''
     });
     setModalType('edit');
     setShowModal(true);
+    setError(null);
   };
 
   // Handle View button click
@@ -189,7 +201,8 @@ const StaffHOD = () => {
       fetchHODStaff();
     } catch (err) {
       console.error('Error deleting staff:', err);
-      alert('Failed to delete staff');
+      const errorMsg = err.response?.data?.message || err.message || 'Unknown error';
+      alert(`Failed to delete staff: ${errorMsg}`);
     }
   };
 
@@ -201,45 +214,64 @@ const StaffHOD = () => {
     });
   };
 
-  // Handle form submit
+  // Handle form submit - REMOVED address field
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      setError(null);
+      
       if (!formData.name || !formData.email || !formData.department || !formData.designation) {
         alert('Please fill in all required fields');
         return;
       }
 
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.email)) {
+        alert('Please enter a valid email address');
+        return;
+      }
+
+      // Validate password for new staff
+      if (modalType === 'add' && (!formData.password || formData.password.length < 6)) {
+        alert('Password is required and must be at least 6 characters');
+        return;
+      }
+
+      // Prepare staff data with HOD role - REMOVED address
       const staffData = {
-        name: formData.name,
-        email: formData.email,
+        name: formData.name.trim(),
+        email: formData.email.trim().toLowerCase(),
         department: formData.department,
         designation: formData.designation,
+        staffRole: 'HOD',
         phone: formData.phone || null,
         employeeId: formData.employeeId || null,
-        address: formData.address || null,
         appointedDate: formData.appointedDate || null
       };
 
+      console.log('📤 Submitting HOD data:', staffData);
+
+      let response;
       if (modalType === 'add') {
-        if (!formData.password) {
-          alert('Password is required for new staff');
-          return;
-        }
         staffData.password = formData.password;
-        await staffApi.create(staffData);
+        response = await staffApi.create(staffData);
         setSuccessMessage(`✅ HOD "${formData.name}" added successfully!`);
       } else if (modalType === 'edit') {
-        await staffApi.update(selectedStaff.id, staffData);
+        response = await staffApi.update(selectedStaff.id, staffData);
         setSuccessMessage(`✅ HOD "${formData.name}" updated successfully!`);
       }
+      
+      console.log('✅ Response:', response);
       
       setTimeout(() => setSuccessMessage(''), 3000);
       setShowModal(false);
       fetchHODStaff();
     } catch (err) {
-      console.error('Error saving HOD:', err);
-      alert(err.message || 'Failed to save HOD');
+      console.error('❌ Error saving HOD:', err);
+      const errorMsg = err.response?.data?.message || err.message || 'Failed to save HOD';
+      setError(errorMsg);
+      alert(errorMsg);
     }
   };
 
@@ -258,7 +290,7 @@ const StaffHOD = () => {
     );
   }
 
-  if (error) {
+  if (error && !hodStaff.length) {
     return (
       <div className="error-container">
         <div className="error-icon">!</div>
@@ -275,9 +307,17 @@ const StaffHOD = () => {
 
   return (
     <div className="staff-hod">
+      {/* Error Message */}
+      {error && (
+        <div className="error-message" style={{ background: '#fee2e2', border: '1px solid #fecaca', borderRadius: '8px', padding: '12px 16px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px', color: '#b91c1c' }}>
+          <AlertCircle size={16} />
+          <span>{error}</span>
+        </div>
+      )}
+
       {/* Success Message */}
       {successMessage && (
-        <div className="success-message">
+        <div className="success-message" style={{ background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '12px 16px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px', color: '#166534' }}>
           <CheckCircle size={16} />
           <span>{successMessage}</span>
         </div>
@@ -496,7 +536,7 @@ const StaffHOD = () => {
                         name="password"
                         value={formData.password}
                         onChange={handleChange}
-                        placeholder="Enter password"
+                        placeholder="Enter password (min 6 characters)"
                         required
                       />
                     </div>
@@ -566,17 +606,16 @@ const StaffHOD = () => {
                   </div>
                 </div>
 
-                <div className="form-group">
-                  <label>Address</label>
-                  <textarea
-                    name="address"
-                    value={formData.address}
-                    onChange={handleChange}
-                    placeholder="Enter full address"
-                    rows="3"
-                    className="address-textarea"
-                  />
-                </div>
+                {modalType === 'add' && (
+                  <div className="form-group" style={{ background: '#dcfce7', padding: '12px', borderRadius: '8px', marginTop: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <CheckCircle size={16} color="#166534" />
+                      <span style={{ color: '#166534', fontSize: '13px', fontWeight: '500' }}>
+                        Staff will be created with HOD role and ACTIVE status
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="modal-footer">
@@ -636,12 +675,6 @@ const StaffHOD = () => {
                   <span className="detail-label">Appointed Date</span>
                   <span className="detail-value">
                     {selectedStaff.appointedDate ? new Date(selectedStaff.appointedDate).toLocaleDateString() : '—'}
-                  </span>
-                </div>
-                <div className="detail-item full-width">
-                  <span className="detail-label">Address</span>
-                  <span className="detail-value address-value">
-                    {selectedStaff.address || '—'}
                   </span>
                 </div>
               </div>

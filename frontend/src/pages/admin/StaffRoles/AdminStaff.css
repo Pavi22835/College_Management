@@ -23,7 +23,7 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 0;
+  margin-bottom: 24px;
   padding-bottom: 16px;
   border-bottom: 1px solid #e2e8f0;
   width: 100%;
@@ -176,12 +176,13 @@
   border-top: 1px solid #fecaca;
 }
 
-/* ===== STATS CARDS ===== */
+/* ===== STATS CARDS - FIXED ALIGNMENT ===== */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 20px;
   margin-bottom: 28px;
+  width: 100%;
 }
 
 .stat-card {
@@ -193,10 +194,12 @@
   align-items: center;
   gap: 16px;
   transition: all 0.2s;
+  min-width: 0;
 }
 
 .stat-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.06);
   border-color: #cbd5e1;
 }
 
@@ -207,21 +210,22 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .stat-icon.blue {
-  background: #dbeafe;
-  color: #1e40af;
+  background: #eff6ff;
+  color: #2563eb;
 }
 
 .stat-icon.green {
-  background: #dcfce7;
-  color: #166534;
+  background: #f0fdf4;
+  color: #059669;
 }
 
 .stat-icon.purple {
-  background: #ede9fe;
-  color: #5b21b6;
+  background: #faf5ff;
+  color: #7c3aed;
 }
 
 .stat-icon.gray {
@@ -229,9 +233,16 @@
   color: #475569;
 }
 
+.stat-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
 .stat-content {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-width: 0;
 }
 
 .stat-label {
@@ -240,13 +251,20 @@
   text-transform: uppercase;
   letter-spacing: 0.3px;
   margin-bottom: 4px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .stat-value {
   font-size: 28px;
-  font-weight: 500;
-  color: #1e293b;
+  font-weight: 600;
+  color: #0f172a;
   line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ===== SEARCH AND FILTER ===== */
@@ -255,10 +273,12 @@
   gap: 16px;
   margin-bottom: 28px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .search-box {
   flex: 2;
+  min-width: 250px;
   position: relative;
 }
 
@@ -307,8 +327,8 @@
 
 .filter-dropdown {
   flex: 1;
-  position: relative;
   min-width: 180px;
+  position: relative;
 }
 
 .filter-icon {
@@ -323,7 +343,7 @@
 
 .filter-select {
   width: 100%;
-  padding: 12px 16px 12px 42px;
+  padding: 12px 32px 12px 42px;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   font-size: 14px;
@@ -353,13 +373,14 @@
   background: white;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
-  overflow: hidden;
+  overflow: auto;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
 }
 
 .staff-table {
   width: 100%;
   border-collapse: collapse;
+  min-width: 1000px;
 }
 
 .staff-table th {
@@ -417,6 +438,7 @@
   justify-content: center;
   font-weight: 500;
   font-size: 16px;
+  flex-shrink: 0;
 }
 
 .staff-details {
@@ -468,6 +490,7 @@
   gap: 6px;
   font-size: 13px;
   color: #475569;
+  white-space: nowrap;
 }
 
 .contact-info svg {
@@ -479,6 +502,9 @@
   color: #475569;
   max-width: 200px;
   display: inline-block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ===== STATUS TOGGLE BUTTON ===== */
@@ -730,6 +756,7 @@
   justify-content: center;
   font-size: 36px;
   font-weight: 500;
+  flex-shrink: 0;
 }
 
 .profile-info h3 {
@@ -1034,6 +1061,7 @@
 @media (max-width: 1024px) {
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
   }
   
   .form-row {
@@ -1071,10 +1099,6 @@
     overflow-x: auto;
   }
 
-  .stats-grid {
-    grid-template-columns: 1fr;
-  }
-
   .details-grid {
     grid-template-columns: 1fr;
   }
@@ -1093,7 +1117,42 @@
   }
 }
 
+@media (max-width: 640px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  
+  .stat-card {
+    padding: 16px;
+    gap: 12px;
+  }
+  
+  .stat-icon {
+    width: 48px;
+    height: 48px;
+  }
+  
+  .stat-icon svg {
+    width: 20px;
+    height: 20px;
+  }
+  
+  .stat-label {
+    font-size: 10px;
+  }
+  
+  .stat-value {
+    font-size: 22px;
+  }
+}
+
 @media (max-width: 480px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  
   .page-title {
     font-size: 24px;
   }
@@ -1121,4 +1180,24 @@
     width: 100%;
     justify-content: center;
   }
+}
+
+/* ===== SCROLLBAR STYLES ===== */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }

@@ -32,7 +32,9 @@ import {
   UploadCloud,
   AlertCircle,
   Building2,
-  Library
+  Library,
+  Lock,
+  Key
 } from 'lucide-react';
 import studentApi from '../../api/studentApi';
 import staffApi from '../../api/staffApi';
@@ -69,17 +71,22 @@ const AdminStudents = () => {
     activeStudents: 0,
     inactiveStudents: 0
   });
+  const [departmentSearchTerm, setDepartmentSearchTerm] = useState('');
+  const [showDepartmentDropdown, setShowDepartmentDropdown] = useState(false);
+  const departmentSearchRef = useRef(null);
 
   const fileInputRef = useRef(null);
 
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    password: '',
     rollNo: '',
     enrollmentNo: '',
     phone: '',
     address: '',
     admissionYear: '',
+    batch: '',
     age: '',
     gender: '',
     department: '',
@@ -87,7 +94,6 @@ const AdminStudents = () => {
     semester: ''
   });
 
-  // Department options from the mapping
   const departmentOptions = [
     "Computer Science",
     "Computer Science and Engineering",
@@ -116,7 +122,10 @@ const AdminStudents = () => {
     "Biology"
   ].sort();
 
-  // Branch/Course options based on department
+  const filteredDepartments = departmentOptions.filter(dept =>
+    dept.toLowerCase().includes(departmentSearchTerm.toLowerCase())
+  );
+
   const branchOptions = {
     "Computer Science": ["B.Sc Computer Science", "M.Sc Computer Science", "BCA", "MCA"],
     "Computer Science and Engineering": ["B.E Computer Science and Engineering", "M.E Computer Science and Engineering"],
@@ -152,7 +161,6 @@ const AdminStudents = () => {
     fetchDepartments();
   }, []);
 
-  // Filter students based on search term, department, and course
   useEffect(() => {
     let filtered = students;
 
@@ -163,7 +171,8 @@ const AdminStudents = () => {
         student.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         student.phone?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         student.course?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.department?.toLowerCase().includes(searchTerm.toLowerCase())
+        student.department?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.batch?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
@@ -177,6 +186,16 @@ const AdminStudents = () => {
 
     setFilteredStudents(filtered);
   }, [searchTerm, departmentFilter, courseFilter, students]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (departmentSearchRef.current && !departmentSearchRef.current.contains(event.target)) {
+        setShowDepartmentDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const fetchDepartments = async () => {
     try {
@@ -223,10 +242,6 @@ const AdminStudents = () => {
         coursesData = coursesRes;
       }
 
-      console.log('📊 Existing students in DB:', studentsData.length);
-      console.log('Existing Roll Nos:', studentsData.map(s => s.rollNo));
-      console.log('Existing Emails:', studentsData.map(s => s.email));
-
       setStudents(studentsData);
       setFilteredStudents(studentsData);
       setTeachers(teachersData);
@@ -255,17 +270,20 @@ const AdminStudents = () => {
     setFormData({
       name: '',
       email: '',
+      password: '',
       rollNo: '',
       enrollmentNo: '',
       phone: '',
       address: '',
       admissionYear: '',
+      batch: '',
       age: '',
       gender: '',
       department: '',
       course: '',
       semester: ''
     });
+    setDepartmentSearchTerm('');
     setSelectedStudent(null);
     setModalType('add');
     setShowModal(true);
@@ -276,17 +294,20 @@ const AdminStudents = () => {
     setFormData({
       name: student.name || '',
       email: student.email || '',
+      password: '',
       rollNo: student.rollNo || '',
       enrollmentNo: student.enrollmentNo || '',
       phone: student.phone || '',
       address: student.address || '',
       admissionYear: student.admissionYear || '',
+      batch: student.batch || '',
       age: student.age || '',
       gender: student.gender || '',
       department: student.department || '',
       course: student.course || '',
       semester: student.semester || ''
     });
+    setDepartmentSearchTerm(student.department || '');
     setModalType('edit');
     setShowModal(true);
   };
@@ -321,14 +342,25 @@ const AdminStudents = () => {
       [name]: value
     });
     
-    // Reset course when department changes
     if (name === 'department') {
       setFormData(prev => ({
         ...prev,
         department: value,
         course: ''
       }));
+      setDepartmentSearchTerm(value);
+      setShowDepartmentDropdown(false);
     }
+  };
+
+  const handleDepartmentSelect = (dept) => {
+    setFormData(prev => ({
+      ...prev,
+      department: dept,
+      course: ''
+    }));
+    setDepartmentSearchTerm(dept);
+    setShowDepartmentDropdown(false);
   };
 
   const handleSubmit = async (e) => {
@@ -336,6 +368,16 @@ const AdminStudents = () => {
     try {
       if (!formData.name || !formData.email || !formData.rollNo) {
         alert('Please fill in all required fields');
+        return;
+      }
+      
+      if (modalType === 'add' && !formData.password) {
+        alert('Please enter a password for the student');
+        return;
+      }
+      
+      if (modalType === 'add' && formData.password.length < 6) {
+        alert('Password must be at least 6 characters long');
         return;
       }
 
@@ -347,17 +389,25 @@ const AdminStudents = () => {
         phone: formData.phone || null,
         address: formData.address || null,
         admissionYear: formData.admissionYear || null,
+        batch: formData.batch || null,
         age: formData.age ? parseInt(formData.age) : null,
         gender: formData.gender || null,
         department: formData.department || null,
         course: formData.course || null,
         semester: formData.semester ? parseInt(formData.semester) : null
       };
+      
+      if (modalType === 'add') {
+        studentData.password = formData.password;
+      }
 
       if (modalType === 'add') {
         await studentApi.createStudent(studentData);
         alert('Student added successfully!');
       } else if (modalType === 'edit') {
+        if (formData.password) {
+          studentData.password = formData.password;
+        }
         await studentApi.updateStudent(selectedStudent.id, studentData);
         alert('Student updated successfully!');
       }
@@ -379,19 +429,16 @@ const AdminStudents = () => {
     setCourseFilter('all');
   };
 
-  // Get unique departments for filter
   const getUniqueDepartments = () => {
     const depts = students.map(s => s.department).filter(Boolean);
     return [...new Set(depts)].sort();
   };
 
-  // Get unique courses for filter
   const getUniqueCourses = () => {
     const coursesList = students.map(s => s.course).filter(Boolean);
     return [...new Set(coursesList)].sort();
   };
 
-  // Export to Excel
   const exportToExcel = () => {
     try {
       const exportData = filteredStudents.map(student => ({
@@ -402,6 +449,7 @@ const AdminStudents = () => {
         'Department': student.department || '',
         'Course/Branch': student.course || '',
         'Semester': student.semester || '',
+        'Batch': student.batch || '',
         'Phone': student.phone || '',
         'Address': student.address || '',
         'Admission Year': student.admissionYear || '',
@@ -414,24 +462,13 @@ const AdminStudents = () => {
       const ws = XLSX.utils.json_to_sheet(exportData);
       
       ws['!cols'] = [
-        { wch: 20 }, // Name
-        { wch: 25 }, // Email
-        { wch: 12 }, // Roll No
-        { wch: 15 }, // Enrollment No
-        { wch: 20 }, // Department
-        { wch: 25 }, // Course/Branch
-        { wch: 10 }, // Semester
-        { wch: 15 }, // Phone
-        { wch: 30 }, // Address
-        { wch: 15 }, // Admission Year
-        { wch: 8 },  // Age
-        { wch: 10 }, // Gender
-        { wch: 10 }  // Status
+        { wch: 20 }, { wch: 25 }, { wch: 12 }, { wch: 15 },
+        { wch: 20 }, { wch: 25 }, { wch: 10 }, { wch: 12 },
+        { wch: 15 }, { wch: 30 }, { wch: 15 }, { wch: 8 }, { wch: 10 }, { wch: 10 }
       ];
       
       XLSX.utils.book_append_sheet(wb, ws, 'Students');
       XLSX.writeFile(wb, `students_${new Date().toISOString().split('T')[0]}.xlsx`);
-      
       setShowExportMenu(false);
     } catch (err) {
       console.error('Error exporting to Excel:', err);
@@ -439,12 +476,10 @@ const AdminStudents = () => {
     }
   };
 
-  // Trigger file input click
   const handleImportClick = () => {
     fileInputRef.current.click();
   };
 
-  // Handle file import (Excel only)
   const handleFileImport = (event) => {
     const file = event.target.files[0];
     if (!file) {
@@ -470,10 +505,7 @@ const AdminStudents = () => {
         const workbook = XLSX.read(data, { type: 'binary' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        
         const jsonData = XLSX.utils.sheet_to_json(worksheet);
-        
-        console.log('📄 Excel file data:', jsonData);
         
         if (jsonData.length === 0) {
           setImportError('The Excel file is empty');
@@ -495,7 +527,6 @@ const AdminStudents = () => {
     reader.readAsBinaryString(file);
   };
 
-  // Confirm import with proper duplicate checking
   const confirmImport = async () => {
     if (!importFile) return;
     
@@ -508,13 +539,8 @@ const AdminStudents = () => {
         const workbook = XLSX.read(data, { type: 'binary' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        
         const jsonData = XLSX.utils.sheet_to_json(worksheet);
-        
-        console.log('📊 Import data from Excel:', jsonData);
-        console.log('📊 Total rows in Excel:', jsonData.length);
 
-        // Get existing students from database
         const existingResponse = await studentApi.getStudents();
         let existingStudents = [];
         if (existingResponse?.success && existingResponse?.data) {
@@ -523,9 +549,6 @@ const AdminStudents = () => {
           existingStudents = existingResponse;
         }
 
-        console.log('📊 Existing students in DB:', existingStudents.length);
-
-        // Create Maps for quick duplicate lookup
         const existingRollNoMap = new Map();
         const existingEmailMap = new Map();
         
@@ -543,11 +566,7 @@ const AdminStudents = () => {
         let duplicateByEmail = 0;
         let errorCount = 0;
         const newStudents = [];
-        const duplicateRollNos = [];
-        const duplicateEmails = [];
-        const errors = [];
 
-        // Process each row from Excel
         for (let i = 0; i < jsonData.length; i++) {
           const row = jsonData[i];
           const rowNumber = i + 2;
@@ -560,159 +579,80 @@ const AdminStudents = () => {
             const department = String(row['Department'] || row['department'] || '').trim();
             const course = String(row['Course/Branch'] || row['course'] || row['branch'] || '').trim();
             const semester = row['Semester'] || row['semester'] ? parseInt(row['Semester'] || row['semester']) : null;
+            const batch = String(row['Batch'] || row['batch'] || '').trim();
             const phone = String(row['Phone'] || row['phone'] || '').trim();
             const address = String(row['Address'] || row['address'] || '').trim();
             const admissionYear = String(row['Admission Year'] || row['admissionYear'] || '').trim();
             const age = row['Age'] || row['age'] ? parseInt(String(row['Age'] || row['age'])) : null;
             const gender = String(row['Gender'] || row['gender'] || '').trim();
 
-            console.log(`📝 Row ${rowNumber}: Name="${name}", RollNo="${rollNo}", Email="${email}"`);
-
-            if (!name) {
+            if (!name || !email || !rollNo) {
               errorCount++;
-              errors.push(`Row ${rowNumber}: Name is required`);
-              continue;
-            }
-            
-            if (!email) {
-              errorCount++;
-              errors.push(`Row ${rowNumber}: Email is required`);
-              continue;
-            }
-            
-            if (!email.includes('@')) {
-              errorCount++;
-              errors.push(`Row ${rowNumber}: Invalid email format - must contain @`);
-              continue;
-            }
-            
-            if (!rollNo) {
-              errorCount++;
-              errors.push(`Row ${rowNumber}: Roll No is required`);
               continue;
             }
 
             if (existingRollNoMap.has(rollNo.toLowerCase())) {
-              const existingStudent = existingRollNoMap.get(rollNo.toLowerCase());
-              console.log(`⏭️ Row ${rowNumber}: Roll No "${rollNo}" already exists, skipping`);
               duplicateByRollNo++;
-              duplicateRollNos.push(`${rollNo} (${existingStudent.name})`);
               continue;
             }
 
             if (existingEmailMap.has(email)) {
-              const existingStudent = existingEmailMap.get(email);
-              console.log(`⏭️ Row ${rowNumber}: Email "${email}" already exists, skipping`);
               duplicateByEmail++;
-              duplicateEmails.push(`${email} (${existingStudent.name})`);
               continue;
             }
 
-            const studentData = {
-              name,
-              email,
-              rollNo,
-              enrollmentNo: enrollmentNo || null,
-              department: department || null,
-              course: course || null,
-              semester: semester,
-              phone: phone || null,
-              address: address || null,
-              admissionYear: admissionYear || null,
-              age: age,
-              gender: gender || null
-            };
-
-            console.log(`✅ Row ${rowNumber}: Valid new student - ${name} (${rollNo})`);
-            newStudents.push(studentData);
+            const defaultPassword = `student@${rollNo}`;
+            
+            newStudents.push({
+              name, email, rollNo, enrollmentNo: enrollmentNo || null,
+              department: department || null, course: course || null, semester,
+              batch: batch || null, phone: phone || null, address: address || null,
+              admissionYear: admissionYear || null, age, gender: gender || null,
+              password: defaultPassword
+            });
             newCount++;
             
           } catch (err) {
-            console.error(`❌ Error processing row ${rowNumber}:`, err);
             errorCount++;
-            errors.push(`Row ${rowNumber}: ${err.message}`);
           }
         }
 
-        console.log('\n📊 IMPORT SUMMARY:');
-        console.log('✅ New students to import:', newCount);
-        console.log('⏭️ Duplicate by Roll No:', duplicateByRollNo);
-        console.log('⏭️ Duplicate by Email:', duplicateByEmail);
-        console.log('❌ Validation errors:', errorCount);
-
         if (newCount === 0) {
-          let message = `❌ No new students to import.\n\n`;
-          message += `⏭️ Duplicate by Roll No: ${duplicateByRollNo}\n`;
-          message += `⏭️ Duplicate by Email: ${duplicateByEmail}\n`;
-          message += `❌ Validation errors: ${errorCount}\n\n`;
-          
-          if (duplicateRollNos.length > 0) {
-            message += `Duplicate Roll Nos:\n${duplicateRollNos.slice(0, 5).join('\n')}`;
-          }
-          
-          if (duplicateEmails.length > 0) {
-            message += `\n\nDuplicate Emails:\n${duplicateEmails.slice(0, 5).join('\n')}`;
-          }
-          
-          alert(message);
+          alert(`No new students to import.\nDuplicate Roll No: ${duplicateByRollNo}\nDuplicate Email: ${duplicateByEmail}\nErrors: ${errorCount}`);
           setShowImportPreview(false);
           setImportFile(null);
           setLoading(false);
           return;
         }
 
-        const confirmMessage = `📊 Import Summary\n\n` +
-          `✅ New students to import: ${newCount}\n` +
-          `⏭️ Duplicate by Roll No (skipped): ${duplicateByRollNo}\n` +
-          `⏭️ Duplicate by Email (skipped): ${duplicateByEmail}\n` +
-          `❌ Validation errors: ${errorCount}\n\n` +
-          `Do you want to proceed with importing ${newCount} new students?`;
-        
-        if (!window.confirm(confirmMessage)) {
+        if (!window.confirm(`Import ${newCount} new students?`)) {
           setLoading(false);
           return;
         }
 
         let importedCount = 0;
-        const importErrors = [];
-
         for (const student of newStudents) {
           try {
-            console.log(`📤 Importing: ${student.name} (${student.rollNo})`);
             await studentApi.createStudent(student);
             importedCount++;
           } catch (err) {
-            console.error(`❌ Failed to import ${student.name}:`, err);
-            importErrors.push(`${student.name} (Roll No: ${student.rollNo}): ${err.message}`);
+            console.error(`Failed to import ${student.name}:`, err);
           }
         }
 
-        const finalMessage = `✅ Import Completed!\n\n` +
-          `📊 Successfully imported: ${importedCount} students\n` +
-          `⏭️ Skipped (duplicate Roll No): ${duplicateByRollNo}\n` +
-          `⏭️ Skipped (duplicate Email): ${duplicateByEmail}\n` +
-          `❌ Failed: ${importErrors.length}\n`;
-        
-        alert(finalMessage);
-
+        alert(`Import Completed!\nSuccessfully imported: ${importedCount} students`);
         setShowImportPreview(false);
         setImportFile(null);
-        setImportPreview([]);
-        
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
-        
+        if (fileInputRef.current) fileInputRef.current.value = '';
         await fetchData();
         
       } catch (err) {
-        console.error('❌ Fatal import error:', err);
-        alert('Failed to process import: ' + err.message);
+        console.error('Import error:', err);
+        alert('Failed to process import');
       } finally {
         setLoading(false);
       }
     };
-    
     reader.readAsBinaryString(importFile);
   };
 
@@ -721,64 +661,25 @@ const AdminStudents = () => {
     setImportFile(null);
     setImportPreview([]);
     setImportError('');
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const downloadSampleTemplate = () => {
     const sampleData = [
       {
-        'Name': 'John Doe',
-        'Email': 'john.doe@example.com',
-        'Roll No': '2024001',
-        'Enrollment No': 'ENR001',
-        'Department': 'Computer Science',
-        'Course/Branch': 'B.Sc Computer Science',
-        'Semester': 3,
-        'Phone': '9876543210',
-        'Address': '123 Main Street, City',
-        'Admission Year': '2023',
-        'Age': 20,
-        'Gender': 'Male'
-      },
-      {
-        'Name': 'Jane Smith',
-        'Email': 'jane.smith@example.com',
-        'Roll No': '2024002',
-        'Enrollment No': 'ENR002',
-        'Department': 'Computer Science and Engineering',
-        'Course/Branch': 'B.E Computer Science and Engineering',
-        'Semester': 5,
-        'Phone': '9876543211',
-        'Address': '456 Oak Avenue, City',
-        'Admission Year': '2022',
-        'Age': 21,
-        'Gender': 'Female'
+        'Name': 'John Doe', 'Email': 'john.doe@example.com', 'Roll No': '2024001',
+        'Enrollment No': 'ENR001', 'Department': 'Computer Science',
+        'Course/Branch': 'B.Sc Computer Science', 'Semester': 3, 'Batch': '2023-2026',
+        'Phone': '9876543210', 'Address': '123 Main Street, City',
+        'Admission Year': '2023', 'Age': 20, 'Gender': 'Male'
       }
     ];
 
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(sampleData);
-    
-    ws['!cols'] = [
-      { wch: 20 }, // Name
-      { wch: 25 }, // Email
-      { wch: 12 }, // Roll No
-      { wch: 15 }, // Enrollment No
-      { wch: 20 }, // Department
-      { wch: 25 }, // Course/Branch
-      { wch: 10 }, // Semester
-      { wch: 15 }, // Phone
-      { wch: 30 }, // Address
-      { wch: 15 }, // Admission Year
-      { wch: 8 },  // Age
-      { wch: 10 }  // Gender
-    ];
-    
+    ws['!cols'] = [{ wch: 20 }, { wch: 25 }, { wch: 12 }, { wch: 15 }, { wch: 20 }, { wch: 25 }, { wch: 10 }, { wch: 12 }, { wch: 15 }, { wch: 30 }, { wch: 15 }, { wch: 8 }, { wch: 10 }];
     XLSX.utils.book_append_sheet(wb, ws, 'Student Template');
     XLSX.writeFile(wb, 'student_import_template.xlsx');
-    
     setShowImportMenu(false);
   };
 
@@ -809,68 +710,32 @@ const AdminStudents = () => {
 
   return (
     <div className="admin-students">
-      {/* Hidden file input */}
-      <input
-        type="file"
-        ref={fileInputRef}
-        accept=".xlsx,.xls"
-        onChange={handleFileImport}
-        style={{ display: 'none' }}
-      />
+      <input type="file" ref={fileInputRef} accept=".xlsx,.xls" onChange={handleFileImport} style={{ display: 'none' }} />
 
       {/* Header */}
       <div className="page-header">
         <div>
-          <h1 className="page-title">
-            Student Management
-          </h1>
+          <h1 className="page-title">Student Management</h1>
           <p className="page-description">Manage student records</p>
         </div>
         <div className="header-actions">
           <div className="import-dropdown">
-            <button 
-              className="btn-import"
-              onClick={() => setShowImportMenu(!showImportMenu)}
-            >
-              <Upload size={18} />
-              <span>Import Excel</span>
+            <button className="btn-import" onClick={() => setShowImportMenu(!showImportMenu)}>
+              <Upload size={18} /><span>Import Excel</span>
             </button>
             {showImportMenu && (
               <div className="import-menu">
                 <div className="import-menu-body">
-                  <button className="import-option" onClick={handleImportClick}>
-                    <FileSpreadsheet size={16} />
-                    <span>Upload Excel</span>
-                  </button>
-                  <button className="import-option" onClick={downloadSampleTemplate}>
-                    <Download size={16} />
-                    <span>Download Template</span>
-                  </button>
+                  <button className="import-option" onClick={handleImportClick}><FileSpreadsheet size={16} /><span>Upload Excel</span></button>
+                  <button className="import-option" onClick={downloadSampleTemplate}><Download size={16} /><span>Download Template</span></button>
                 </div>
-                {importError && (
-                  <div className="import-error">
-                    {importError}
-                  </div>
-                )}
+                {importError && <div className="import-error">{importError}</div>}
               </div>
             )}
           </div>
-
-          <button 
-            className="btn-export"
-            onClick={exportToExcel}
-          >
-            <Download size={18} />
-            <span>Export Excel</span>
-          </button>
-
-          <button className="btn-icon" onClick={handleRefresh} title="Refresh">
-            <RefreshCw size={18} />
-          </button>
-          <button className="btn-add-student" onClick={handleAdd}>
-            <Plus size={20} />
-            <span>Add Student</span>
-          </button>
+          <button className="btn-export" onClick={exportToExcel}><Download size={18} /><span>Export Excel</span></button>
+          <button className="btn-icon" onClick={handleRefresh} title="Refresh"><RefreshCw size={18} /></button>
+          <button className="btn-add-student" onClick={handleAdd}><Plus size={20} /><span>Add Student</span></button>
         </div>
       </div>
 
@@ -878,91 +743,36 @@ const AdminStudents = () => {
       {showImportPreview && (
         <div className="modal-overlay" onClick={cancelImport}>
           <div className="modal-content modal-lg" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Import Preview</h2>
-              <button className="close-btn" onClick={cancelImport}>
-                <X size={20} />
-              </button>
-            </div>
+            <div className="modal-header"><h2>Import Preview</h2><button className="close-btn" onClick={cancelImport}><X size={20} /></button></div>
             <div className="modal-body">
               <div className="import-preview-info" style={{ background: '#fef3c7', padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>
                 <AlertCircle size={16} style={{ marginRight: '8px', color: '#f59e0b', verticalAlign: 'middle' }} />
-                <span><strong>Duplicate Detection:</strong> Students with existing <strong>Roll No</strong> or <strong>Email</strong> will be automatically skipped.</span>
+                <span><strong>Duplicate Detection:</strong> Students with existing <strong>Roll No</strong> or <strong>Email</strong> will be skipped.</span>
               </div>
-              <p style={{ marginBottom: '12px' }}>
-                Found <strong>{importPreview.length}</strong> records to import. Preview of first 5 rows:
-              </p>
+              <div style={{ background: '#dcfce7', padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>
+                <Key size={16} style={{ marginRight: '8px', color: '#059669', verticalAlign: 'middle' }} />
+                <span><strong>Default Password:</strong> <code>student@[rollNo]</code> (e.g., student@2024001)</span>
+              </div>
+              <p>Found <strong>{importPreview.length}</strong> records to import. Preview of first 5 rows:</p>
               <div className="import-preview-table">
                 <table>
                   <thead>
-                    <tr>
-                      {importPreview.length > 0 && Object.keys(importPreview[0]).map(key => (
-                        <th key={key}>{key}</th>
-                      ))}
-                    </tr>
+                    <tr>{importPreview.length > 0 && Object.keys(importPreview[0]).map(key => <th key={key}>{key}</th>)}</tr>
                   </thead>
-                  <tbody>
-                    {importPreview.map((row, index) => (
-                      <tr key={index}>
-                        {Object.values(row).map((value, i) => (
-                          <td key={i}>{String(value)}</td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
+                  <tbody>{importPreview.map((row, index) => (<tr key={index}>{Object.values(row).map((value, i) => <td key={i}>{String(value)}</td>)}</tr>))}</tbody>
                 </table>
               </div>
-              <div style={{ marginTop: '16px', padding: '12px', background: '#dcfce7', borderRadius: '8px', fontSize: '13px', color: '#166534' }}>
-                <strong>✅ Import Rules:</strong>
-                <ul style={{ marginTop: '8px', marginLeft: '20px' }}>
-                  <li>✓ Students with <strong>Roll No</strong> already in system → <strong>SKIPPED</strong></li>
-                  <li>✓ Students with <strong>Email</strong> already in system → <strong>SKIPPED</strong></li>
-                  <li>✓ All new students will be created with <strong>ACTIVE</strong> status</li>
-                </ul>
-              </div>
             </div>
-            <div className="modal-footer">
-              <button className="btn-secondary" onClick={cancelImport}>
-                Cancel
-              </button>
-              <button className="btn-primary" onClick={confirmImport}>
-                <Upload size={16} />
-                Confirm Import
-              </button>
-            </div>
+            <div className="modal-footer"><button className="btn-secondary" onClick={cancelImport}>Cancel</button><button className="btn-primary" onClick={confirmImport}><Upload size={16} />Confirm Import</button></div>
           </div>
         </div>
       )}
 
       {/* Stats Cards */}
       <div className="stats-grid">
-        <div className="stat-card blue">
-          <div className="stat-icon blue">
-            <Users size={24} />
-          </div>
-          <div className="stat-content">
-            <span className="stat-label">Total Students</span>
-            <span className="stat-value">{stats.totalStudents}</span>
-          </div>
-        </div>
-        <div className="stat-card green">
-          <div className="stat-icon green">
-            <UserCheck size={24} />
-          </div>
-          <div className="stat-content">
-            <span className="stat-label">Active Students</span>
-            <span className="stat-value">{stats.activeStudents}</span>
-          </div>
-        </div>
-        <div className="stat-card purple">
-          <div className="stat-icon purple">
-            <X size={24} />
-          </div>
-          <div className="stat-content">
-            <span className="stat-label">Inactive Students</span>
-            <span className="stat-value">{stats.inactiveStudents}</span>
-          </div>
-        </div>
+        <div className="stat-card blue"><div className="stat-icon blue"><Users size={24} /></div><div className="stat-content"><span className="stat-label">Total Students</span><span className="stat-value">{stats.totalStudents}</span></div></div>
+        <div className="stat-card green"><div className="stat-icon green"><UserCheck size={24} /></div><div className="stat-content"><span className="stat-label">Active Students</span><span className="stat-value">{stats.activeStudents}</span></div></div>
+        <div className="stat-card purple"><div className="stat-icon purple"><X size={24} /></div><div className="stat-content"><span className="stat-label">Inactive Students</span><span className="stat-value">{stats.inactiveStudents}</span></div></div>
       </div>
 
       {/* Search and Filter Section */}
@@ -970,86 +780,38 @@ const AdminStudents = () => {
         <div className="search-filter-bar">
           <div className="search-wrapper">
             <Search className="search-icon" size={18} />
-            <input
-              type="text"
-              className="search-input"
-              placeholder="Search by name, roll no, email..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            {searchTerm && (
-              <button className="search-clear" onClick={() => setSearchTerm('')}>
-                <X size={16} />
-              </button>
-            )}
+            <input type="text" className="search-input" placeholder="Search by name, roll no, email, batch..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            {searchTerm && <button className="search-clear" onClick={() => setSearchTerm('')}><X size={16} /></button>}
+          </div>
+
+          <div className="filter-dropdown">
+            <Building2 className="filter-icon" size={18} />
+            <select className="filter-select" value={departmentFilter} onChange={(e) => setDepartmentFilter(e.target.value)}>
+              <option value="all">All Departments</option>
+              {uniqueDepartments.map(dept => <option key={dept} value={dept}>{dept}</option>)}
+            </select>
+            <ChevronDown className="select-chevron" size={16} />
+          </div>
+
+          <div className="filter-dropdown">
+            <Library className="filter-icon" size={18} />
+            <select className="filter-select" value={courseFilter} onChange={(e) => setCourseFilter(e.target.value)}>
+              <option value="all">All Courses/Branches</option>
+              {uniqueCourses.map(course => <option key={course} value={course}>{course}</option>)}
+            </select>
+            <ChevronDown className="select-chevron" size={16} />
           </div>
         </div>
 
-        {/* Department Filter */}
-        <div className="filter-dropdown">
-          <Building2 className="filter-icon" size={18} />
-          <select
-            className="filter-select"
-            value={departmentFilter}
-            onChange={(e) => setDepartmentFilter(e.target.value)}
-          >
-            <option value="all">All Departments</option>
-            {uniqueDepartments.map(dept => (
-              <option key={dept} value={dept}>{dept}</option>
-            ))}
-          </select>
-          <ChevronDown className="select-chevron" size={16} />
-        </div>
-
-        {/* Course/Branch Filter */}
-        <div className="filter-dropdown">
-          <Library className="filter-icon" size={18} />
-          <select
-            className="filter-select"
-            value={courseFilter}
-            onChange={(e) => setCourseFilter(e.target.value)}
-          >
-            <option value="all">All Courses/Branches</option>
-            {uniqueCourses.map(course => (
-              <option key={course} value={course}>{course}</option>
-            ))}
-          </select>
-          <ChevronDown className="select-chevron" size={16} />
-        </div>
+        {(searchTerm || departmentFilter !== 'all' || courseFilter !== 'all') && (
+          <div className="active-filters">
+            {searchTerm && <span className="active-filter-tag">Search: "{searchTerm}"<button onClick={() => setSearchTerm('')}><X size={14} /></button></span>}
+            {departmentFilter !== 'all' && <span className="active-filter-tag">Department: {departmentFilter}<button onClick={() => setDepartmentFilter('all')}><X size={14} /></button></span>}
+            {courseFilter !== 'all' && <span className="active-filter-tag">Course: {courseFilter}<button onClick={() => setCourseFilter('all')}><X size={14} /></button></span>}
+            <button className="clear-all-btn" onClick={clearFilters}>Clear all</button>
+          </div>
+        )}
       </div>
-
-      {/* Active Filters Display */}
-      {(searchTerm || departmentFilter !== 'all' || courseFilter !== 'all') && (
-        <div className="active-filters">
-          {searchTerm && (
-            <span className="active-filter-tag">
-              Search: "{searchTerm}"
-              <button onClick={() => setSearchTerm('')}>
-                <X size={14} />
-              </button>
-            </span>
-          )}
-          {departmentFilter !== 'all' && (
-            <span className="active-filter-tag">
-              Department: {departmentFilter}
-              <button onClick={() => setDepartmentFilter('all')}>
-                <X size={14} />
-              </button>
-            </span>
-          )}
-          {courseFilter !== 'all' && (
-            <span className="active-filter-tag">
-              Course: {courseFilter}
-              <button onClick={() => setCourseFilter('all')}>
-                <X size={14} />
-              </button>
-            </span>
-          )}
-          <button className="clear-all-btn" onClick={clearFilters}>
-            Clear all
-          </button>
-        </div>
-      )}
 
       {/* Students Table */}
       <div className="table-container">
@@ -1061,150 +823,85 @@ const AdminStudents = () => {
               <th>Department</th>
               <th>Course/Branch</th>
               <th>Semester</th>
+              <th>Batch</th>
               <th>Contact</th>
               <th>Status</th>
               <th>Actions</th>
             </tr>
-            </thead>
+          </thead>
           <tbody>
             {filteredStudents.length > 0 ? (
               filteredStudents.map((student) => {
                 const isActive = student.user?.isActive !== false;
                 return (
                   <tr key={student.id}>
-                    <td>
-                      <div className="student-info">
-                        <div className="student-avatar">
-                          {student.name?.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                          <div className="student-name">{student.name}</div>
-                          <div className="student-email">{student.email}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <span className="roll-badge">{student.rollNo}</span>
-                    </td>
-                    <td>
-                      <span className="department-badge">{student.department || '—'}</span>
-                    </td>
-                    <td>
-                      <span className="course-badge">{student.course || '—'}</span>
-                    </td>
-                    <td>
-                      <span className="semester-badge">{student.semester || '—'}</span>
-                    </td>
-                    <td>
-                      {student.phone ? (
-                        <span className="contact-info">
-                          <Phone size={14} />
-                          {student.phone}
-                        </span>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td>
-                      <span className={`status-badge ${isActive ? 'active' : 'inactive'}`}>
-                        {isActive ? 'ACTIVE' : 'INACTIVE'}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="action-group">
-                        <button className="action-btn view" onClick={() => handleView(student)} title="View">
-                          <Eye size={18} />
-                        </button>
-                        <button className="action-btn edit" onClick={() => handleEdit(student)} title="Edit">
-                          <Edit size={18} />
-                        </button>
-                        <button className="action-btn delete" onClick={() => handleDelete(student)} title="Delete">
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    </td>
+                    <td><div className="student-info"><div className="student-avatar">{student.name?.charAt(0).toUpperCase()}</div><div><div className="student-name">{student.name}</div><div className="student-email">{student.email}</div></div></div></td>
+                    <td><span className="roll-badge">{student.rollNo}</span></td>
+                    <td><span className="department-badge">{student.department || '—'}</span></td>
+                    <td><span className="course-badge">{student.course || '—'}</span></td>
+                    <td><span className="semester-badge">{student.semester || '—'}</span></td>
+                    <td><span className="batch-badge">{student.batch || '—'}</span></td>
+                    <td>{student.phone ? <span className="contact-info"><Phone size={14} />{student.phone}</span> : '—'}</td>
+                    <td><span className={`status-badge ${isActive ? 'active' : 'inactive'}`}>{isActive ? 'ACTIVE' : 'INACTIVE'}</span></td>
+                    <td><div className="action-group"><button className="action-btn view" onClick={() => handleView(student)} title="View"><Eye size={18} /></button><button className="action-btn edit" onClick={() => handleEdit(student)} title="Edit"><Edit size={18} /></button><button className="action-btn delete" onClick={() => handleDelete(student)} title="Delete"><Trash2 size={18} /></button></div></td>
                   </tr>
                 );
               })
             ) : (
-              <tr>
-                <td colSpan="8" className="empty-state">
-                  {students.length === 0 ? (
-                    <>
-                      <Users size={48} />
-                      <h3>No Students Found</h3>
-                      <p>Click "Add Student" to create your first student record.</p>
-                      <button className="btn-primary" onClick={handleAdd}>
-                        <Plus size={16} /> Add Student
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <Search size={48} />
-                      <h3>No Matching Students</h3>
-                      <p>Try adjusting your search criteria.</p>
-                      <button className="btn-secondary" onClick={clearFilters}>
-                        Clear Filters
-                      </button>
-                    </>
-                  )}
-                </td>
-              </tr>
+              <tr><td colSpan="9" className="empty-state">{students.length === 0 ? <><Users size={48} /><h3>No Students Found</h3><p>Click "Add Student" to create your first student record.</p><button className="btn-primary" onClick={handleAdd}><Plus size={16} /> Add Student</button></> : <><Search size={48} /><h3>No Matching Students</h3><p>Try adjusting your search criteria.</p><button className="btn-secondary" onClick={clearFilters}>Clear Filters</button></>}</td></tr>
             )}
           </tbody>
         </table>
       </div>
 
-      {/* Add/Edit Student Modal */}
+      {/* Add/Edit Student Modal - WITH SINGLE SEARCHABLE DROPDOWN (NO DUPLICATE) */}
       {(modalType === 'add' || modalType === 'edit') && showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content modal-lg" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>{modalType === 'add' ? 'Add New Student' : 'Edit Student'}</h2>
-              <button className="close-btn" onClick={() => setShowModal(false)}>
-                <X size={20} />
-              </button>
+              <button className="close-btn" onClick={() => setShowModal(false)}><X size={20} /></button>
             </div>
-
             <form onSubmit={handleSubmit}>
               <div className="modal-body">
+                {/* Personal Information Section */}
                 <div className="form-section">
                   <h3>Personal Information</h3>
                   <div className="form-row">
                     <div className="form-group">
                       <label>Full Name *</label>
-                      <input
-                        type="text"
-                        name="name"
-                        value={formData.name}
-                        onChange={handleChange}
-                        placeholder="Enter student name"
-                        required
-                      />
+                      <input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Enter student name" required />
                     </div>
                     <div className="form-group">
                       <label>Email *</label>
-                      <input
-                        type="email"
-                        name="email"
-                        value={formData.email}
-                        onChange={handleChange}
-                        placeholder="Enter email address"
-                        required
-                      />
+                      <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="Enter email address" required />
                     </div>
                   </div>
-
+                  
+                  {modalType === 'add' ? (
+                    <div className="form-group">
+                      <label>Password *</label>
+                      <div className="password-wrapper">
+                        <Lock size={16} className="password-icon" />
+                        <input type="password" name="password" value={formData.password} onChange={handleChange} placeholder="Enter password (min. 6 characters)" required autoComplete="new-password" />
+                      </div>
+                      <small className="form-hint">Password must be at least 6 characters long</small>
+                    </div>
+                  ) : (
+                    <div className="form-group">
+                      <label>New Password (Optional)</label>
+                      <div className="password-wrapper">
+                        <Key size={16} className="password-icon" />
+                        <input type="password" name="password" value={formData.password} onChange={handleChange} placeholder="Leave blank to keep current password" autoComplete="new-password" />
+                      </div>
+                      <small className="form-hint">Only enter if you want to change the password</small>
+                    </div>
+                  )}
+                  
                   <div className="form-row">
                     <div className="form-group">
                       <label>Age</label>
-                      <input
-                        type="number"
-                        name="age"
-                        value={formData.age}
-                        onChange={handleChange}
-                        placeholder="Enter age"
-                      />
+                      <input type="number" name="age" value={formData.age} onChange={handleChange} placeholder="Enter age" />
                     </div>
                     <div className="form-group">
                       <label>Gender</label>
@@ -1216,67 +913,91 @@ const AdminStudents = () => {
                       </select>
                     </div>
                   </div>
-
+                  
                   <div className="form-group">
                     <label>Address</label>
-                    <input
-                      type="text"
-                      name="address"
-                      value={formData.address}
-                      onChange={handleChange}
-                      placeholder="Enter address"
-                    />
+                    <input type="text" name="address" value={formData.address} onChange={handleChange} placeholder="Enter address" />
                   </div>
                 </div>
 
+                {/* Academic Information Section */}
                 <div className="form-section">
                   <h3>Academic Information</h3>
+                  
                   <div className="form-row">
                     <div className="form-group">
                       <label>Roll Number *</label>
-                      <input
-                        type="text"
-                        name="rollNo"
-                        value={formData.rollNo}
-                        onChange={handleChange}
-                        placeholder="Enter roll number"
-                        required
-                      />
+                      <input type="text" name="rollNo" value={formData.rollNo} onChange={handleChange} placeholder="Enter roll number" required />
                     </div>
                     <div className="form-group">
                       <label>Enrollment Number</label>
-                      <input
-                        type="text"
-                        name="enrollmentNo"
-                        value={formData.enrollmentNo}
-                        onChange={handleChange}
-                        placeholder="Enter enrollment number"
-                      />
+                      <input type="text" name="enrollmentNo" value={formData.enrollmentNo} onChange={handleChange} placeholder="Enter enrollment number" />
                     </div>
                   </div>
-
+                  
                   <div className="form-row">
-                    <div className="form-group">
+                    {/* ONLY ONE SEARCHABLE DROPDOWN FOR DEPARTMENT - NO DUPLICATE SELECT */}
+                    <div className="form-group" ref={departmentSearchRef}>
                       <label>Department *</label>
-                      <select
-                        name="department"
-                        value={formData.department}
-                        onChange={handleChange}
-                        required
-                      >
-                        <option value="">Select Department</option>
-                        {departmentOptions.map(dept => (
-                          <option key={dept} value={dept}>{dept}</option>
-                        ))}
-                      </select>
+                      <div className="searchable-select">
+                        <div 
+                          className="searchable-select-input"
+                          onClick={() => setShowDepartmentDropdown(!showDepartmentDropdown)}
+                        >
+                          <input
+                            type="text"
+                            placeholder="Search and select department"
+                            value={departmentSearchTerm}
+                            onChange={(e) => {
+                              setDepartmentSearchTerm(e.target.value);
+                              setShowDepartmentDropdown(true);
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            required
+                          />
+                          <ChevronDown size={16} className="select-arrow" />
+                        </div>
+                        {showDepartmentDropdown && (
+                          <div className="searchable-select-dropdown">
+                            <div className="dropdown-search">
+                              <Search size={14} />
+                              <input
+                                type="text"
+                                placeholder="Search departments..."
+                                value={departmentSearchTerm}
+                                onChange={(e) => setDepartmentSearchTerm(e.target.value)}
+                                autoFocus
+                              />
+                            </div>
+                            <div className="dropdown-options">
+                              {filteredDepartments.length > 0 ? (
+                                filteredDepartments.map(dept => (
+                                  <div
+                                    key={dept}
+                                    className={`dropdown-option ${formData.department === dept ? 'selected' : ''}`}
+                                    onClick={() => handleDepartmentSelect(dept)}
+                                  >
+                                    {dept}
+                                    {formData.department === dept && <Check size={14} />}
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="dropdown-no-results">No departments found</div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <small className="form-hint">Searchable dropdown with all departments</small>
                     </div>
+                    
                     <div className="form-group">
                       <label>Course/Branch *</label>
-                      <select
-                        name="course"
-                        value={formData.course}
-                        onChange={handleChange}
-                        required
+                      <select 
+                        name="course" 
+                        value={formData.course} 
+                        onChange={handleChange} 
+                        required 
                         disabled={!formData.department}
                       >
                         <option value="">Select Course/Branch</option>
@@ -1291,7 +1012,7 @@ const AdminStudents = () => {
                       )}
                     </div>
                   </div>
-
+                  
                   <div className="form-row">
                     <div className="form-group">
                       <label>Semester</label>
@@ -1304,33 +1025,35 @@ const AdminStudents = () => {
                     </div>
                     <div className="form-group">
                       <label>Admission Year</label>
-                      <input
-                        type="text"
-                        name="admissionYear"
-                        value={formData.admissionYear}
-                        onChange={handleChange}
-                        placeholder="e.g., 2023"
-                      />
+                      <input type="text" name="admissionYear" value={formData.admissionYear} onChange={handleChange} placeholder="e.g., 2023" />
                     </div>
+                  </div>
+                  
+                  <div className="form-group">
+                    <label>Batch (e.g., 2019-2022 or 2019-2023)</label>
+                    <input 
+                      type="text" 
+                      name="batch" 
+                      value={formData.batch} 
+                      onChange={handleChange} 
+                      placeholder="Enter batch year range (e.g., 2019-2022)" 
+                    />
+                    <small className="form-hint">Format: Start Year - End Year (e.g., 2019-2023)</small>
                   </div>
                 </div>
 
-                <div className="form-group">
-                  <label>Phone Number</label>
-                  <input
-                    type="tel"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    placeholder="Enter phone number"
-                  />
+                {/* Contact Information Section */}
+                <div className="form-section">
+                  <h3>Contact Information</h3>
+                  <div className="form-group">
+                    <label>Phone Number</label>
+                    <input type="tel" name="phone" value={formData.phone} onChange={handleChange} placeholder="Enter phone number" />
+                  </div>
                 </div>
               </div>
-
+              
               <div className="modal-footer">
-                <button type="button" className="btn-secondary" onClick={() => setShowModal(false)}>
-                  Cancel
-                </button>
+                <button type="button" className="btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
                 <button type="submit" className="btn-primary">
                   <Save size={16} />
                   {modalType === 'add' ? 'Add Student' : 'Update Student'}
@@ -1345,86 +1068,25 @@ const AdminStudents = () => {
       {modalType === 'view' && selectedStudent && showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Student Details</h2>
-              <button className="close-btn" onClick={() => setShowModal(false)}>
-                <X size={20} />
-              </button>
-            </div>
-
+            <div className="modal-header"><h2>Student Details</h2><button className="close-btn" onClick={() => setShowModal(false)}><X size={20} /></button></div>
             <div className="modal-body">
-              <div className="profile-header">
-                <div className="profile-avatar">
-                  {selectedStudent.name?.charAt(0).toUpperCase()}
-                </div>
-                <div className="profile-info">
-                  <h3>{selectedStudent.name}</h3>
-                  <p>{selectedStudent.email}</p>
-                </div>
-              </div>
-
+              <div className="profile-header"><div className="profile-avatar">{selectedStudent.name?.charAt(0).toUpperCase()}</div><div className="profile-info"><h3>{selectedStudent.name}</h3><p>{selectedStudent.email}</p></div></div>
               <div className="details-grid">
-                <div className="detail-item">
-                  <span className="detail-label">Roll No</span>
-                  <span className="detail-value">{selectedStudent.rollNo}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-label">Enrollment No</span>
-                  <span className="detail-value">{selectedStudent.enrollmentNo || '—'}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-label">Department</span>
-                  <span className="detail-value">{selectedStudent.department || '—'}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-label">Course/Branch</span>
-                  <span className="detail-value">{selectedStudent.course || '—'}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-label">Semester</span>
-                  <span className="detail-value">{selectedStudent.semester || '—'}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-label">Admission Year</span>
-                  <span className="detail-value">{selectedStudent.admissionYear || '—'}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-label">Phone</span>
-                  <span className="detail-value">{selectedStudent.phone || '—'}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-label">Age</span>
-                  <span className="detail-value">{selectedStudent.age || '—'}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-label">Gender</span>
-                  <span className="detail-value">{selectedStudent.gender || '—'}</span>
-                </div>
-                <div className="detail-item full-width">
-                  <span className="detail-label">Address</span>
-                  <span className="detail-value">{selectedStudent.address || '—'}</span>
-                </div>
-                <div className="detail-item full-width">
-                  <span className="detail-label">Status</span>
-                  <span className={`status-badge ${selectedStudent.user?.isActive !== false ? 'active' : 'inactive'}`}>
-                    {selectedStudent.user?.isActive !== false ? 'ACTIVE' : 'INACTIVE'}
-                  </span>
-                </div>
+                <div className="detail-item"><span className="detail-label">Roll No</span><span className="detail-value">{selectedStudent.rollNo}</span></div>
+                <div className="detail-item"><span className="detail-label">Enrollment No</span><span className="detail-value">{selectedStudent.enrollmentNo || '—'}</span></div>
+                <div className="detail-item"><span className="detail-label">Department</span><span className="detail-value">{selectedStudent.department || '—'}</span></div>
+                <div className="detail-item"><span className="detail-label">Course/Branch</span><span className="detail-value">{selectedStudent.course || '—'}</span></div>
+                <div className="detail-item"><span className="detail-label">Semester</span><span className="detail-value">{selectedStudent.semester || '—'}</span></div>
+                <div className="detail-item"><span className="detail-label">Batch</span><span className="detail-value">{selectedStudent.batch || '—'}</span></div>
+                <div className="detail-item"><span className="detail-label">Admission Year</span><span className="detail-value">{selectedStudent.admissionYear || '—'}</span></div>
+                <div className="detail-item"><span className="detail-label">Phone</span><span className="detail-value">{selectedStudent.phone || '—'}</span></div>
+                <div className="detail-item"><span className="detail-label">Age</span><span className="detail-value">{selectedStudent.age || '—'}</span></div>
+                <div className="detail-item"><span className="detail-label">Gender</span><span className="detail-value">{selectedStudent.gender || '—'}</span></div>
+                <div className="detail-item full-width"><span className="detail-label">Address</span><span className="detail-value">{selectedStudent.address || '—'}</span></div>
+                <div className="detail-item full-width"><span className="detail-label">Status</span><span className={`status-badge ${selectedStudent.user?.isActive !== false ? 'active' : 'inactive'}`}>{selectedStudent.user?.isActive !== false ? 'ACTIVE' : 'INACTIVE'}</span></div>
               </div>
             </div>
-
-            <div className="modal-footer">
-              <button className="btn-secondary" onClick={() => setShowModal(false)}>
-                Close
-              </button>
-              <button className="btn-primary" onClick={() => {
-                setShowModal(false);
-                handleEdit(selectedStudent);
-              }}>
-                <Edit size={16} />
-                Edit Student
-              </button>
-            </div>
+            <div className="modal-footer"><button className="btn-secondary" onClick={() => setShowModal(false)}>Close</button><button className="btn-primary" onClick={() => { setShowModal(false); handleEdit(selectedStudent); }}><Edit size={16} />Edit Student</button></div>
           </div>
         </div>
       )}
@@ -1433,32 +1095,9 @@ const AdminStudents = () => {
       {modalType === 'delete' && selectedStudent && showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content modal-sm" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Delete Student</h2>
-              <button className="close-btn" onClick={() => setShowModal(false)}>
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="modal-body text-center">
-              <div className="delete-icon">
-                <Trash2 size={48} />
-              </div>
-              <p className="delete-message">
-                Are you sure you want to delete <strong>{selectedStudent.name}</strong>?
-              </p>
-              <p className="delete-warning">This action cannot be undone.</p>
-            </div>
-
-            <div className="modal-footer">
-              <button className="btn-secondary" onClick={() => setShowModal(false)}>
-                Cancel
-              </button>
-              <button className="btn-danger" onClick={confirmDelete}>
-                <Trash2 size={16} />
-                Delete Student
-              </button>
-            </div>
+            <div className="modal-header"><h2>Delete Student</h2><button className="close-btn" onClick={() => setShowModal(false)}><X size={20} /></button></div>
+            <div className="modal-body text-center"><div className="delete-icon"><Trash2 size={48} /></div><p className="delete-message">Are you sure you want to delete <strong>{selectedStudent.name}</strong>?</p><p className="delete-warning">This action cannot be undone.</p></div>
+            <div className="modal-footer"><button className="btn-secondary" onClick={() => setShowModal(false)}>Cancel</button><button className="btn-danger" onClick={confirmDelete}><Trash2 size={16} />Delete Student</button></div>
           </div>
         </div>
       )}

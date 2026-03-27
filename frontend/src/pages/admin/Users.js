@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Users as UsersIcon, 
   UserCheck, 
@@ -16,7 +16,9 @@ import {
   FileSpreadsheet,
   FileText,
   CheckCircle,
-  XCircle
+  XCircle,
+  Search,
+  Briefcase
 } from 'lucide-react';
 import { userApi, staffApi, studentApi } from '../../api/adminApi';
 import Spinner from '../../components/common/Spinner';
@@ -31,6 +33,7 @@ const UserManagement = () => {
   const [loading, setLoading] = useState(true);
   const [roleFilter, setRoleFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [selectedUser, setSelectedUser] = useState(null);
   const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
   const [newPassword, setNewPassword] = useState('');
@@ -39,10 +42,63 @@ const UserManagement = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
 
+  // Debug: Log available roles
+  useEffect(() => {
+    if (users.length > 0) {
+      const roles = [...new Set(users.map(u => u.role))];
+      console.log('📊 Available roles in users:', roles);
+      console.log('📊 Users with role TEACHER:', users.filter(u => u.role === 'TEACHER').length);
+      console.log('📊 Users with role STAFF:', users.filter(u => u.role === 'STAFF').length);
+      console.log('📊 Users with role STUDENT:', users.filter(u => u.role === 'STUDENT').length);
+      console.log('📊 Users with role ADMIN:', users.filter(u => u.role === 'ADMIN').length);
+    }
+  }, [users]);
+
   useEffect(() => {
     fetchUsers();
     fetchStats();
   }, [roleFilter, statusFilter]);
+
+  // Filter users based on search term and role filter
+  const filteredUsers = useMemo(() => {
+    let filtered = [...users];
+    
+    // Apply role filter - Check for both 'TEACHER' and 'STAFF' values
+    if (roleFilter) {
+      if (roleFilter === 'TEACHER' || roleFilter === 'STAFF') {
+        // Filter for STAFF/Teacher role - check both possible values
+        filtered = filtered.filter(user => 
+          user.role === 'TEACHER' || user.role === 'STAFF'
+        );
+      } else {
+        filtered = filtered.filter(user => user.role === roleFilter);
+      }
+    }
+    
+    // Apply status filter
+    if (statusFilter) {
+      if (statusFilter === 'active') {
+        filtered = filtered.filter(user => user.isActive === true);
+      } else if (statusFilter === 'inactive') {
+        filtered = filtered.filter(user => user.isActive === false);
+      }
+    }
+    
+    // Apply search term filter
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      filtered = filtered.filter(user =>
+        user.name?.toLowerCase().includes(searchLower) ||
+        user.email?.toLowerCase().includes(searchLower) ||
+        user.id?.toString().includes(searchLower) ||
+        user.role?.toLowerCase().includes(searchLower) ||
+        user.department?.toLowerCase().includes(searchLower) ||
+        user.course?.toLowerCase().includes(searchLower)
+      );
+    }
+    
+    return filtered;
+  }, [users, searchTerm, roleFilter, statusFilter]);
 
   const fetchUsers = async () => {
     try {
@@ -52,7 +108,8 @@ const UserManagement = () => {
       
       // Enhance user data with role-specific information
       const enhancedUsers = await Promise.all(usersData.map(async (user) => {
-        if (user.role === 'TEACHER') {
+        // Check for STAFF/Teacher role (both 'TEACHER' and 'STAFF')
+        if (user.role === 'TEACHER' || user.role === 'STAFF') {
           try {
             const staffData = await staffApi.getAll();
             const staffList = Array.isArray(staffData) ? staffData : (staffData?.data || []);
@@ -102,6 +159,14 @@ const UserManagement = () => {
       setStats(data);
     } catch (error) {
       console.error('Error fetching stats:', error);
+      // Fallback stats based on current users
+      const total = users.length;
+      const students = users.filter(u => u.role === 'STUDENT').length;
+      const staff = users.filter(u => u.role === 'TEACHER' || u.role === 'STAFF').length;
+      const admins = users.filter(u => u.role === 'ADMIN').length;
+      const active = users.filter(u => u.isActive).length;
+      const inactive = users.filter(u => !u.isActive).length;
+      setStats({ total, students, staff, admins, active, inactive });
     }
   };
 
@@ -156,16 +221,23 @@ const UserManagement = () => {
     }
   };
 
+  // Clear all filters
+  const clearFilters = () => {
+    setRoleFilter('');
+    setStatusFilter('');
+    setSearchTerm('');
+  };
+
   // Export to Excel
   const exportToExcel = () => {
     try {
-      const exportData = users.map(user => ({
+      const exportData = filteredUsers.map(user => ({
         'ID': user.id || '',
         'Email': user.email || '',
         'Name': user.name || '',
-        'Role': user.role || '',
+        'Role': (user.role === 'TEACHER' || user.role === 'STAFF') ? 'STAFF' : user.role || '',
         'Status': user.isActive ? 'ACTIVE' : 'INACTIVE',
-        'Department': user.department || '—',
+        'Department': user.department || user.course || '—',
         'Designation': user.designation || '—',
         'Course': user.course || '—',
         'Last Login': user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'Never'
@@ -180,9 +252,9 @@ const UserManagement = () => {
         { wch: 20 },  // Name
         { wch: 12 },  // Role
         { wch: 10 },  // Status
-        { wch: 18 },  // Department
+        { wch: 20 },  // Department
         { wch: 18 },  // Designation
-        { wch: 15 },  // Course
+        { wch: 20 },  // Course
         { wch: 12 }   // Last Login
       ];
       
@@ -205,7 +277,7 @@ const UserManagement = () => {
       doc.text('Users List', 14, 22);
       doc.setFontSize(11);
       doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 30);
-      doc.text(`Total Users: ${users.length}`, 14, 36);
+      doc.text(`Total Users: ${filteredUsers.length}`, 14, 36);
 
       const tableColumn = [
         'ID', 
@@ -216,11 +288,11 @@ const UserManagement = () => {
         'Department'
       ];
       
-      const tableRows = users.map(user => [
+      const tableRows = filteredUsers.map(user => [
         user.id || '',
         user.name || '',
         user.email || '',
-        user.role || '',
+        (user.role === 'TEACHER' || user.role === 'STAFF') ? 'STAFF' : user.role || '',
         user.isActive ? 'ACTIVE' : 'INACTIVE',
         user.department || user.course || '—'
       ]);
@@ -245,6 +317,13 @@ const UserManagement = () => {
     return <Spinner />;
   }
 
+  // Calculate counts for cards
+  const totalUsers = users.length;
+  const studentsCount = users.filter(u => u.role === 'STUDENT').length;
+  const staffCount = users.filter(u => u.role === 'TEACHER' || u.role === 'STAFF').length;
+  const activeCount = users.filter(u => u.isActive).length;
+  const inactiveCount = users.filter(u => !u.isActive).length;
+
   return (
     <div className="user-management">
       {/* Header */}
@@ -261,53 +340,63 @@ const UserManagement = () => {
         </div>
       )}
 
-      {/* Stats Cards */}
-      {stats && (
-        <div className="um-stats-grid">
-          <div className="um-stat-card">
-            <div className="stat-icon blue"><UsersIcon size={24} /></div>
-            <div className="stat-content">
-              <span className="stat-label">Total Users</span>
-              <span className="stat-value">{stats.total || users.length}</span>
-            </div>
-          </div>
-          <div className="um-stat-card">
-            <div className="stat-icon green"><GraduationCap size={24} /></div>
-            <div className="stat-content">
-              <span className="stat-label">Students</span>
-              <span className="stat-value">{stats.byRole?.students || users.filter(u => u.role === 'STUDENT').length}</span>
-            </div>
-          </div>
-          <div className="um-stat-card">
-            <div className="stat-icon purple"><UserCheck size={24} /></div>
-            <div className="stat-content">
-              <span className="stat-label">Teachers</span>
-              <span className="stat-value">{stats.byRole?.teachers || users.filter(u => u.role === 'TEACHER').length}</span>
-            </div>
-          </div>
-          <div className="um-stat-card">
-            <div className="stat-icon orange"><UserCog size={24} /></div>
-            <div className="stat-content">
-              <span className="stat-label">Admins</span>
-              <span className="stat-value">{stats.byRole?.admins || users.filter(u => u.role === 'ADMIN').length}</span>
-            </div>
-          </div>
-          <div className="um-stat-card">
-            <div className="stat-icon success"><CheckCircle size={24} /></div>
-            <div className="stat-content">
-              <span className="stat-label">Active Users</span>
-              <span className="stat-value">{stats.active || users.filter(u => u.isActive).length}</span>
-            </div>
-          </div>
-          <div className="um-stat-card">
-            <div className="stat-icon danger"><XCircle size={24} /></div>
-            <div className="stat-content">
-              <span className="stat-label">Inactive Users</span>
-              <span className="stat-value">{stats.inactive || users.filter(u => !u.isActive).length}</span>
-            </div>
+      {/* Stats Cards - 5 Cards */}
+      <div className="um-stats-grid">
+        <div className="um-stat-card">
+          <div className="stat-icon blue"><UsersIcon size={24} /></div>
+          <div className="stat-content">
+            <span className="stat-label">Total Users</span>
+            <span className="stat-value">{totalUsers}</span>
           </div>
         </div>
-      )}
+        <div className="um-stat-card">
+          <div className="stat-icon green"><GraduationCap size={24} /></div>
+          <div className="stat-content">
+            <span className="stat-label">Students</span>
+            <span className="stat-value">{studentsCount}</span>
+          </div>
+        </div>
+        <div className="um-stat-card">
+          <div className="stat-icon purple"><Briefcase size={24} /></div>
+          <div className="stat-content">
+            <span className="stat-label">Staff</span>
+            <span className="stat-value">{staffCount}</span>
+          </div>
+        </div>
+        <div className="um-stat-card">
+          <div className="stat-icon success"><CheckCircle size={24} /></div>
+          <div className="stat-content">
+            <span className="stat-label">Active Users</span>
+            <span className="stat-value">{activeCount}</span>
+          </div>
+        </div>
+        <div className="um-stat-card">
+          <div className="stat-icon danger"><XCircle size={24} /></div>
+          <div className="stat-content">
+            <span className="stat-label">Inactive Users</span>
+            <span className="stat-value">{inactiveCount}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Search Bar */}
+      <div className="um-search-bar">
+        <div className="um-search-wrapper">
+          <Search className="um-search-icon" size={18} />
+          <input
+            type="text"
+            className="um-search-input"
+            placeholder="Search by name, email, ID, role, department, or course..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          {searchTerm && (
+            <button className="um-search-clear" onClick={() => setSearchTerm('')}>
+              <X size={16} />
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Filters and Export */}
       <div className="um-filters">
@@ -320,7 +409,7 @@ const UserManagement = () => {
           >
             <option value="">All Roles</option>
             <option value="STUDENT">Student</option>
-            <option value="TEACHER">Teacher</option>
+            <option value="STAFF">Staff</option>
             <option value="ADMIN">Admin</option>
           </select>
         </div>
@@ -337,6 +426,13 @@ const UserManagement = () => {
             <option value="inactive">Inactive</option>
           </select>
         </div>
+
+        {(searchTerm || roleFilter || statusFilter) && (
+          <button className="um-btn um-btn-outline" onClick={clearFilters}>
+            <X size={14} />
+            Clear Filters
+          </button>
+        )}
 
         <button className="um-btn um-btn-outline" onClick={() => fetchUsers()}>
           <RefreshCw size={14} />
@@ -369,6 +465,25 @@ const UserManagement = () => {
         </div>
       </div>
 
+      {/* Results Count */}
+      {searchTerm && (
+        <div className="um-results-count">
+          Found <strong>{filteredUsers.length}</strong> {filteredUsers.length === 1 ? 'user' : 'users'} matching "{searchTerm}"
+        </div>
+      )}
+
+      {/* Active Filters Display */}
+      {roleFilter && (
+        <div className="um-active-filters">
+          <span className="um-active-filter">
+            Role: {roleFilter === 'STAFF' ? 'Staff' : roleFilter}
+            <button onClick={() => setRoleFilter('')}>
+              <X size={12} />
+            </button>
+          </span>
+        </div>
+      )}
+
       {/* Users Table */}
       <div className="um-table-wrapper">
         <table className="um-table">
@@ -378,65 +493,91 @@ const UserManagement = () => {
               <th>EMAIL</th>
               <th>NAME</th>
               <th>ROLE</th>
-              <th>DEPARTMENT</th>
+              <th>DEPARTMENT/COURSE</th>
               <th>STATUS</th>
               <th>LAST LOGIN</th>
               <th>ACTIONS</th>
-              </tr>
+            </tr>
             </thead>
           <tbody>
-            {users.length > 0 ? (
-              users.map((user) => (
-                <tr key={user.id} className={!user.isActive ? 'um-row-inactive' : ''}>
-                  <td>{user.id}</td>
-                  <td>{user.email}</td>
-                  <td>{user.name}</td>
-                  <td>
-                    <span className={`um-role-badge um-role-${user.role?.toLowerCase()}`}>
-                      {user.role}
-                    </span>
-                  </td>
-                  <td>
-                    {user.department || user.course || '—'}
-                  </td>
-                  <td>
-                    <span className={`um-status-badge um-status-${user.isActive ? 'active' : 'inactive'}`}>
-                      {user.isActive ? 'ACTIVE' : 'INACTIVE'}
-                    </span>
-                  </td>
-                  <td>{user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'Never'}</td>
-                  <td className="um-actions">
-                    {user.isActive ? (
-                      <button
-                        className="um-btn um-btn-warning um-btn-sm"
-                        onClick={() => handleDeactivate(user.id)}
-                      >
-                        DEACTIVATE
-                      </button>
-                    ) : (
-                      <button
-                        className="um-btn um-btn-success um-btn-sm"
-                        onClick={() => handleActivate(user.id)}
-                      >
-                        ACTIVATE
-                      </button>
-                    )}
-                    <button
-                      className="um-btn um-btn-info um-btn-sm"
-                      onClick={() => {
-                        setSelectedUser(user);
-                        setShowResetPasswordModal(true);
-                      }}
-                    >
-                      <Key size={12} />
-                      RESET PASS
-                    </button>
-                  </td>
-                </tr>
-              ))
+            {filteredUsers.length > 0 ? (
+              filteredUsers.map((user) => {
+                const displayRole = (user.role === 'TEACHER' || user.role === 'STAFF') ? 'STAFF' : user.role;
+                const departmentOrCourse = user.department || user.course || '—';
+                
+                return (
+                  <tr key={user.id} className={!user.isActive ? 'um-row-inactive' : ''}>
+                    <td className="um-id-cell">{user.id}</td>
+                    <td className="um-email-cell">{user.email}</td>
+                    <td className="um-name-cell">{user.name}</td>
+                    <td className="um-role-cell">
+                      <span className={`um-role-badge um-role-${(user.role === 'TEACHER' || user.role === 'STAFF') ? 'staff' : user.role?.toLowerCase()}`}>
+                        {displayRole}
+                      </span>
+                    </td>
+                    <td className="um-dept-cell">
+                      <span className="dept-text" title={departmentOrCourse}>
+                        {departmentOrCourse}
+                      </span>
+                    </td>
+                    <td className="um-status-cell">
+                      <span className={`um-status-badge um-status-${user.isActive ? 'active' : 'inactive'}`}>
+                        {user.isActive ? 'ACTIVE' : 'INACTIVE'}
+                      </span>
+                    </td>
+                    <td className="um-login-cell">
+                      {user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'Never'}
+                    </td>
+                    <td className="um-actions-cell">
+                      <div className="um-action-buttons">
+                        {user.isActive ? (
+                          <button
+                            className="um-btn um-btn-warning um-btn-sm"
+                            onClick={() => handleDeactivate(user.id)}
+                          >
+                            DEACTIVATE
+                          </button>
+                        ) : (
+                          <button
+                            className="um-btn um-btn-success um-btn-sm"
+                            onClick={() => handleActivate(user.id)}
+                          >
+                            ACTIVATE
+                          </button>
+                        )}
+                        <button
+                          className="um-btn um-btn-info um-btn-sm"
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setShowResetPasswordModal(true);
+                          }}
+                        >
+                          <Key size={12} />
+                          RESET
+                        </button>
+                      </div>
+                    </td>
+                   </tr>
+                );
+              })
             ) : (
               <tr>
-                <td colSpan="8" className="um-text-center">No users found</td>
+                <td colSpan="8" className="um-text-center">
+                  {searchTerm || roleFilter || statusFilter ? (
+                    <>
+                      <Search size={32} />
+                      <p>No users match your search criteria.</p>
+                      <button className="um-btn um-btn-outline" onClick={clearFilters}>
+                        Clear Filters
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <UsersIcon size={32} />
+                      <p>No users found.</p>
+                    </>
+                  )}
+                </td>
               </tr>
             )}
           </tbody>
@@ -456,7 +597,7 @@ const UserManagement = () => {
             <div className="um-modal-body">
               <p><strong>User:</strong> {selectedUser.name}</p>
               <p><strong>Email:</strong> {selectedUser.email}</p>
-              <p><strong>Role:</strong> {selectedUser.role}</p>
+              <p><strong>Role:</strong> {(selectedUser.role === 'TEACHER' || selectedUser.role === 'STAFF') ? 'STAFF' : selectedUser.role}</p>
               
               {resetError && <div className="um-error-message">{resetError}</div>}
               
