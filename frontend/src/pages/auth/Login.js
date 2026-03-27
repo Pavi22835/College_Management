@@ -77,7 +77,7 @@ const Login = () => {
           setError('Login succeeded but user data is missing');
         }
       } else {
-        setError(response?.message || 'Invalid email or password');
+        setError(response?.message || 'Account is Deactivated');
       }
     } catch (err) {
       console.error('❌ Login error:', err);
@@ -85,7 +85,7 @@ const Login = () => {
       if (err.message?.includes('Network Error')) {
         setError('Cannot connect to server. Please check if backend is running on port 3003.');
       } else if (err.response?.status === 401) {
-        setError('Invalid email or password');
+        setError('Account is Deactivated');
       } else if (err.response?.status === 500) {
         setError('Server error. Please try again later.');
       } else {
