@@ -49,36 +49,50 @@ model Student {
   previousPercentage Float?
   section            String?
   teacherId          Int?
+  mentorId           Int?
   attendances        Attendance[]
   enrollments        Enrollment[]
-  teacher            Staff?       @relation(fields: [teacherId], references: [id])
+  teacher            Staff?       @relation("TeacherStudents", fields: [teacherId], references: [id])
+  mentor             Staff?       @relation("MentorStudents", fields: [mentorId], references: [id])
   user               User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([email])
   @@index([rollNo])
   @@index([teacherId])
+  @@index([mentorId])
   @@index([course])
 }
 
 model Staff {
-  id          Int       @id @default(autoincrement())
-  userId      Int       @unique
-  employeeId  String    @unique
-  department  String
-  designation String
-  phone       String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
-  email       String    @unique
-  name        String
-  courses     Course[]
-  students    Student[]
+  id            Int          @id @default(autoincrement())
+  userId        Int          @unique
+  employeeId    String       @unique
+  department    String
+  designation   String
+  phone         String?
+  staffRole     StaffRole    @default(FACULTY)
+  appointedDate DateTime?
+  studentsCount Int?         @default(0)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  deletedAt     DateTime?
+  email         String       @unique
+  name          String
+  courses       Course[]
+  teacherStudents Student[]  @relation("TeacherStudents")  // Students where this staff is the teacher
+  mentorStudents Student[]   @relation("MentorStudents")   // Students where this staff is the mentor
   department_rel Department? @relation("DepartmentHOD")
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([email])
   @@index([department])
+  @@index([staffRole])
+}
+
+enum StaffRole {
+  HOD      // Head of Department
+  FACULTY  // Regular Faculty Member
+  MENTOR   // Student Mentor
 }
 
 model Admin {
@@ -95,14 +109,15 @@ model Admin {
 }
 
 model Department {
-  id           Int       @id @default(autoincrement())
-  code         String    @unique
-  name         String    @unique
-  hodId        Int?      @unique  // One staff member can be HOD of only one department
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  deletedAt    DateTime?
-  hod          Staff?    @relation("DepartmentHOD", fields: [hodId], references: [id])
+  id               Int       @id @default(autoincrement())
+  code             String    @unique
+  name             String    @unique
+  hodId            Int?      @unique
+  hodAppointedDate DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+  hod              Staff?    @relation("DepartmentHOD", fields: [hodId], references: [id])
 
   @@index([code])
   @@index([hodId])
@@ -118,8 +133,8 @@ model Course {
   semester    Int?
   teacherId   Int?
   status      String       @default("ACTIVE")
-  schedule    String?      // Added schedule field
-  room        String?      // Added room field
+  schedule    String?
+  room        String?
   deletedAt   DateTime?
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
