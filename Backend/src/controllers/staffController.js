@@ -2,15 +2,15 @@ import prisma from "../prisma/client.js";
 import bcrypt from "bcrypt";
 
 /* ========================================
-   ADMIN METHODS
+   ADMIN STAFF MANAGEMENT
    ======================================== */
 
 /* -----------------------------------------
-GET ALL TEACHERS (ADMIN)
+GET ALL STAFF
 ------------------------------------------*/
 export const getAllStaff = async (req, res) => {
   try {
-    const teachers = await prisma.staff.findMany({
+    const staff = await prisma.staff.findMany({
       where: { deletedAt: null },
       include: {
         user: {
@@ -36,26 +36,26 @@ export const getAllStaff = async (req, res) => {
 
     res.json({
       success: true,
-      data: teachers
+      data: staff
     });
 
   } catch (error) {
-    console.error("Get teachers error:", error);
+    console.error("Get staff error:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to fetch teachers"
+      message: "Failed to fetch staff"
     });
   }
 };
 
 /* -----------------------------------------
-GET TEACHER BY ID (ADMIN)
+GET STAFF BY ID
 ------------------------------------------*/
 export const getStaffById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const teacher = await prisma.staff.findUnique({
+    const staff = await prisma.staff.findUnique({
       where: { id: Number(id) },
       include: {
         user: {
@@ -81,33 +81,33 @@ export const getStaffById = async (req, res) => {
       }
     });
 
-    if (!teacher || teacher.deletedAt) {
+    if (!staff || staff.deletedAt) {
       return res.status(404).json({
         success: false,
-        message: "Teacher not found"
+        message: "Staff not found"
       });
     }
 
     res.json({
       success: true,
-      data: teacher
+      data: staff
     });
 
   } catch (error) {
-    console.error("Get teacher by ID error:", error);
+    console.error("Get staff by ID error:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to fetch teacher"
+      message: "Failed to fetch staff"
     });
   }
 };
 
 /* -----------------------------------------
-CREATE TEACHER (ADMIN)
+CREATE STAFF - REMOVED address field
 ------------------------------------------*/
 export const createStaff = async (req, res) => {
   try {
-    console.log("📥 Received teacher data:", JSON.stringify(req.body, null, 2));
+    console.log("📥 Received staff data:", JSON.stringify(req.body, null, 2));
 
     const {
       name,
@@ -115,8 +115,10 @@ export const createStaff = async (req, res) => {
       password,
       department,
       designation,
+      staffRole,
       phone,
-      employeeId
+      employeeId,
+      appointedDate
     } = req.body;
 
     // Validate required fields
@@ -128,7 +130,6 @@ export const createStaff = async (req, res) => {
     if (!designation) missingFields.push('designation');
 
     if (missingFields.length > 0) {
-      console.log("❌ Validation errors:", missingFields);
       return res.status(400).json({
         success: false,
         message: `Missing required fields: ${missingFields.join(', ')}`
@@ -160,61 +161,59 @@ export const createStaff = async (req, res) => {
     if (existingUser) {
       return res.status(400).json({
         success: false,
-        message: "User with this email already exists"
+        message: `User with email "${email}" already exists`
       });
     }
 
-    // Check if teacher with same employeeId exists (if provided)
+    // Check if staff with same employeeId exists
     if (employeeId) {
-      const existingTeacher = await prisma.staff.findUnique({
+      const existingStaff = await prisma.staff.findUnique({
         where: { employeeId }
       });
-      if (existingTeacher) {
+      if (existingStaff) {
         return res.status(400).json({
           success: false,
-          message: "Teacher with this employee ID already exists"
+          message: `Staff with employee ID "${employeeId}" already exists`
         });
       }
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
+    const finalEmployeeId = employeeId || `STAFF${Date.now().toString().slice(-6)}`;
+    const finalStaffRole = staffRole || 'FACULTY';
 
-    // Generate employeeId if not provided
-    const finalEmployeeId = employeeId || `TCH${Date.now().toString().slice(-6)}`;
-
-    console.log("Creating teacher with:", {
+    console.log("Creating staff with:", {
       name,
       email,
       department,
       designation,
-      finalEmployeeId
+      staffRole: finalStaffRole,
+      employeeId: finalEmployeeId
     });
 
-    // Use transaction to create both user and teacher
-    const result = await prisma.$transaction(async (prisma) => {
-      // Create user first
-      const user = await prisma.user.create({
+    // Create user and staff in transaction - REMOVED address field
+    const result = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
         data: {
           name,
           email,
           password: hashedPassword,
-          role: "TEACHER",
+          role: "STAFF",
           isActive: true
         }
       });
 
-      console.log("✅ User created:", user.id);
-
-      // Then create teacher linked to user
-      const teacher = await prisma.staff.create({
+      const staff = await tx.staff.create({
         data: {
           userId: user.id,
           name,
           email,
           department,
           designation,
+          staffRole: finalStaffRole,
           employeeId: finalEmployeeId,
-          phone: phone || null
+          phone: phone || null,
+          appointedDate: appointedDate ? new Date(appointedDate) : null
         },
         include: {
           user: {
@@ -228,52 +227,36 @@ export const createStaff = async (req, res) => {
         }
       });
 
-      console.log("✅ Teacher created:", teacher.id);
-      return teacher;
+      return staff;
     });
 
-    console.log("✅ Teacher created successfully:", result.id);
     res.status(201).json({
       success: true,
       data: result,
-      message: "Teacher created successfully"
+      message: `Staff (${result.staffRole}) created successfully`
     });
 
   } catch (error) {
-    console.error("❌ Create teacher error - FULL DETAILS:");
-    console.error("Error name:", error.name);
-    console.error("Error message:", error.message);
-    console.error("Error code:", error.code);
-    console.error("Error meta:", error.meta);
-    console.error("Error stack:", error.stack);
+    console.error("❌ Create staff error:", error.message);
     
-    // Handle specific Prisma errors
     if (error.code === 'P2002') {
-      const target = error.meta?.target?.[0] || 'field';
       return res.status(400).json({
         success: false,
-        message: `A teacher with this ${target} already exists`
-      });
-    }
-
-    if (error.code === 'P2003') {
-      return res.status(400).json({
-        success: false,
-        message: "Foreign key constraint failed"
+        message: `A staff with this ${error.meta?.target?.[0] || 'field'} already exists`
       });
     }
 
     res.status(500).json({
       success: false,
-      message: error.message || "Failed to create teacher"
+      message: error.message || "Failed to create staff"
     });
   }
 };
 
 /* -----------------------------------------
-UPDATE TEACHER (ADMIN)
+UPDATE STAFF - REMOVED address field
 ------------------------------------------*/
-export const updateTeacher = async (req, res) => {
+export const updateStaff = async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -281,685 +264,369 @@ export const updateTeacher = async (req, res) => {
       email,
       department,
       designation,
+      staffRole,
       phone,
       employeeId,
+      appointedDate,
       isActive
     } = req.body;
 
-    // Check if teacher exists
-    const existingTeacher = await prisma.staff.findUnique({
+    const existingStaff = await prisma.staff.findUnique({
       where: { id: Number(id) },
       include: { user: true }
     });
 
-    if (!existingTeacher) {
+    if (!existingStaff) {
       return res.status(404).json({
         success: false,
-        message: "Teacher not found"
+        message: "Staff not found"
       });
     }
 
-    // Check if email is being changed and already exists
-    if (email && email !== existingTeacher.email) {
-      const emailExists = await prisma.user.findUnique({
-        where: { email }
-      });
+    // Check email uniqueness
+    if (email && email !== existingStaff.email) {
+      const emailExists = await prisma.user.findUnique({ where: { email } });
       if (emailExists) {
-        return res.status(400).json({
-          success: false,
-          message: "Email already in use"
-        });
+        return res.status(400).json({ success: false, message: "Email already in use" });
       }
     }
 
-    // Check if employeeId is being changed and already exists
-    if (employeeId && employeeId !== existingTeacher.employeeId) {
-      const empIdExists = await prisma.staff.findUnique({
-        where: { employeeId }
-      });
+    // Check employeeId uniqueness
+    if (employeeId && employeeId !== existingStaff.employeeId) {
+      const empIdExists = await prisma.staff.findUnique({ where: { employeeId } });
       if (empIdExists) {
-        return res.status(400).json({
-          success: false,
-          message: "Employee ID already in use"
-        });
+        return res.status(400).json({ success: false, message: "Employee ID already in use" });
       }
     }
 
-    // Update teacher and user in transaction
-    const result = await prisma.$transaction(async (prisma) => {
-      // Update teacher
-      const teacher = await prisma.staff.update({
+    const result = await prisma.$transaction(async (tx) => {
+      const staff = await tx.staff.update({
         where: { id: Number(id) },
         data: {
-          name,
-          email,
-          department,
-          designation,
-          employeeId,
-          phone
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              email: true,
-              name: true,
-              isActive: true
-            }
+          name: name || existingStaff.name,
+          email: email || existingStaff.email,
+          department: department || existingStaff.department,
+          designation: designation || existingStaff.designation,
+          staffRole: staffRole || existingStaff.staffRole,
+          employeeId: employeeId || existingStaff.employeeId,
+          phone: phone !== undefined ? phone : existingStaff.phone,
+          appointedDate: appointedDate ? new Date(appointedDate) : existingStaff.appointedDate
+        }
+      });
+
+      if (name || email || isActive !== undefined) {
+        await tx.user.update({
+          where: { id: existingStaff.userId },
+          data: {
+            name: name || existingStaff.name,
+            email: email || existingStaff.email,
+            isActive: isActive !== undefined ? isActive : existingStaff.user.isActive
           }
-        }
-      });
+        });
+      }
 
-      // Update user
-      await prisma.user.update({
-        where: { id: existingTeacher.userId },
-        data: {
-          name,
-          email,
-          isActive: isActive !== undefined ? isActive : existingTeacher.user.isActive
-        }
-      });
-
-      return teacher;
+      return staff;
     });
 
     res.json({
       success: true,
       data: result,
-      message: "Teacher updated successfully"
+      message: "Staff updated successfully"
     });
 
   } catch (error) {
-    console.error("Update teacher error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to update teacher"
-    });
+    console.error("Update staff error:", error);
+    res.status(500).json({ success: false, message: "Failed to update staff" });
   }
 };
 
 /* -----------------------------------------
-DELETE TEACHER (SOFT DELETE) - ADMIN
+DELETE STAFF (SOFT DELETE)
 ------------------------------------------*/
 export const deleteStaff = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const teacher = await prisma.staff.findUnique({
+    const staff = await prisma.staff.findUnique({
       where: { id: Number(id) },
       include: { user: true }
     });
 
-    if (!teacher) {
-      return res.status(404).json({
-        success: false,
-        message: "Teacher not found"
-      });
+    if (!staff) {
+      return res.status(404).json({ success: false, message: "Staff not found" });
     }
 
-    // Soft delete teacher and deactivate user
     await prisma.$transaction([
-      prisma.staff.update({
-        where: { id: Number(id) },
-        data: { deletedAt: new Date() }
-      }),
-      prisma.user.update({
-        where: { id: teacher.userId },
-        data: { isActive: false }
-      })
+      prisma.staff.update({ where: { id: Number(id) }, data: { deletedAt: new Date() } }),
+      prisma.user.update({ where: { id: staff.userId }, data: { isActive: false } })
     ]);
+
+    res.json({ success: true, message: "Staff deleted successfully" });
+
+  } catch (error) {
+    console.error("Delete staff error:", error);
+    res.status(500).json({ success: false, message: "Failed to delete staff" });
+  }
+};
+
+/* -----------------------------------------
+GET HODs ONLY
+------------------------------------------*/
+export const getHODs = async (req, res) => {
+  try {
+    const hods = await prisma.staff.findMany({
+      where: { staffRole: 'HOD', deletedAt: null },
+      include: {
+        user: { select: { id: true, email: true, name: true, isActive: true, lastLogin: true } },
+        courses: { select: { id: true, code: true, name: true } }
+      },
+      orderBy: { department: "asc" }
+    });
+
+    res.json({ success: true, data: hods });
+  } catch (error) {
+    console.error("Get HODs error:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch HODs" });
+  }
+};
+
+/* -----------------------------------------
+GET FACULTY ONLY
+------------------------------------------*/
+export const getFaculty = async (req, res) => {
+  try {
+    const faculty = await prisma.staff.findMany({
+      where: { staffRole: 'FACULTY', deletedAt: null },
+      include: {
+        user: { select: { id: true, email: true, name: true, isActive: true, lastLogin: true } },
+        courses: { select: { id: true, code: true, name: true } }
+      },
+      orderBy: { department: "asc" }
+    });
+
+    res.json({ success: true, data: faculty });
+  } catch (error) {
+    console.error("Get Faculty error:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch faculty" });
+  }
+};
+
+/* -----------------------------------------
+GET MENTORS ONLY
+------------------------------------------*/
+export const getMentors = async (req, res) => {
+  try {
+    const mentors = await prisma.staff.findMany({
+      where: { staffRole: 'MENTOR', deletedAt: null },
+      include: {
+        user: { select: { id: true, email: true, name: true, isActive: true, lastLogin: true } }
+      },
+      orderBy: { department: "asc" }
+    });
+
+    res.json({ success: true, data: mentors });
+  } catch (error) {
+    console.error("Get Mentors error:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch mentors" });
+  }
+};
+
+/* -----------------------------------------
+GET STAFF STATISTICS
+------------------------------------------*/
+export const getStaffStats = async (req, res) => {
+  try {
+    const totalStaff = await prisma.staff.count({ where: { deletedAt: null } });
+    const activeStaff = await prisma.staff.count({ where: { deletedAt: null, user: { isActive: true } } });
+    const inactiveStaff = await prisma.staff.count({ where: { deletedAt: null, user: { isActive: false } } });
+    const hodsCount = await prisma.staff.count({ where: { staffRole: 'HOD', deletedAt: null } });
+    const facultyCount = await prisma.staff.count({ where: { staffRole: 'FACULTY', deletedAt: null } });
+    const mentorsCount = await prisma.staff.count({ where: { staffRole: 'MENTOR', deletedAt: null } });
+    
+    const departments = await prisma.staff.groupBy({
+      by: ['department'],
+      where: { deletedAt: null },
+      _count: true
+    });
 
     res.json({
       success: true,
-      message: "Teacher deleted successfully"
+      data: {
+        total: totalStaff,
+        active: activeStaff,
+        inactive: inactiveStaff,
+        byRole: { HOD: hodsCount, FACULTY: facultyCount, MENTOR: mentorsCount },
+        departments: departments.map(d => ({ name: d.department, count: d._count }))
+      }
     });
-
   } catch (error) {
-    console.error("Delete teacher error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to delete teacher"
-    });
+    console.error("Get staff stats error:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch staff statistics" });
   }
 };
 
 /* ========================================
-   TEACHER METHODS (Self)
+   STAFF SELF METHODS
    ======================================== */
 
-/* -----------------------------------------
-GET TEACHER PROFILE (SELF)
-------------------------------------------*/
-export const getTeacherProfile = async (req, res) => {
+export const getStaffProfile = async (req, res) => {
   try {
     const userId = req.user.id;
-
-    const teacher = await prisma.staff.findUnique({
+    const staff = await prisma.staff.findUnique({
       where: { userId: userId },
       include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            isActive: true,
-            lastLogin: true
-          }
-        },
-        courses: {
-          where: { deletedAt: null },
-          select: {
-            id: true,
-            code: true,
-            name: true,
-            semester: true,
-            department: true,
-            status: true
-          }
-        }
+        user: { select: { id: true, email: true, name: true, isActive: true, lastLogin: true } },
+        courses: { where: { deletedAt: null }, select: { id: true, code: true, name: true, semester: true, department: true, status: true } }
       }
     });
 
-    if (!teacher) {
-      return res.status(404).json({
-        success: false,
-        message: "Teacher profile not found"
-      });
-    }
-
-    res.json({
-      success: true,
-      data: teacher
-    });
-
+    if (!staff) return res.status(404).json({ success: false, message: "Staff profile not found" });
+    res.json({ success: true, data: staff });
   } catch (error) {
-    console.error("Get teacher profile error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch teacher profile"
-    });
+    console.error("Get staff profile error:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch staff profile" });
   }
 };
 
-/* -----------------------------------------
-UPDATE TEACHER PROFILE (SELF)
-------------------------------------------*/
-export const updateTeacherProfile = async (req, res) => {
+export const updateStaffProfile = async (req, res) => {
   try {
     const userId = req.user.id;
-    const {
-      name,
-      phone,
-      department,
-      designation
-    } = req.body;
+    const { name, phone, department, designation } = req.body;
 
-    const teacher = await prisma.staff.findUnique({
-      where: { userId: userId }
-    });
+    const staff = await prisma.staff.findUnique({ where: { userId: userId } });
+    if (!staff) return res.status(404).json({ success: false, message: "Staff not found" });
 
-    if (!teacher) {
-      return res.status(404).json({
-        success: false,
-        message: "Teacher not found"
-      });
-    }
-
-    // Update teacher
-    const updatedTeacher = await prisma.staff.update({
-      where: { id: teacher.id },
+    const updatedStaff = await prisma.staff.update({
+      where: { id: staff.id },
       data: {
-        name,
-        phone,
-        department,
-        designation
+        name: name || staff.name,
+        phone: phone !== undefined ? phone : staff.phone,
+        department: department || staff.department,
+        designation: designation || staff.designation
       },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            isActive: true
-          }
-        }
-      }
+      include: { user: { select: { id: true, email: true, name: true, isActive: true } } }
     });
 
-    // Update user name if provided
-    if (name) {
-      await prisma.user.update({
-        where: { id: userId },
-        data: { name }
-      });
-    }
-
-    res.json({
-      success: true,
-      data: updatedTeacher,
-      message: "Profile updated successfully"
-    });
-
+    if (name) await prisma.user.update({ where: { id: userId }, data: { name } });
+    res.json({ success: true, data: updatedStaff, message: "Profile updated successfully" });
   } catch (error) {
-    console.error("Update teacher profile error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to update profile"
-    });
+    console.error("Update staff profile error:", error);
+    res.status(500).json({ success: false, message: "Failed to update profile" });
   }
 };
 
-/* -----------------------------------------
-GET STAFF DASHBOARD STATS - FIXED (No duplicate counting)
-------------------------------------------*/
-export const getStaffDashboardStats = async (req, res) => {
-  try {
-    const userId = req.user.id;
-    console.log("📊 Fetching dashboard stats for teacher:", userId);
-
-    const teacher = await prisma.staff.findUnique({
-      where: { userId: userId }
-    });
-
-    if (!teacher) {
-      console.log("❌ Teacher not found for user:", userId);
-      return res.status(404).json({
-        success: false,
-        message: "Teacher not found"
-      });
-    }
-
-    console.log("✅ Teacher found:", teacher.id, teacher.name);
-
-    // Get courses count
-    const coursesCount = await prisma.course.count({
-      where: {
-        teacherId: teacher.id,
-        deletedAt: null
-      }
-    });
-
-    // Get students directly assigned via teacherId
-    const directlyAssignedStudents = await prisma.student.findMany({
-      where: {
-        teacherId: teacher.id,
-        deletedAt: null
-      },
-      select: { id: true }
-    });
-
-    const directlyAssignedIds = new Set(directlyAssignedStudents.map(s => s.id));
-    console.log(`👥 Directly assigned students: ${directlyAssignedIds.size}`);
-
-    // Get students from course enrollments
-    const courses = await prisma.course.findMany({
-      where: {
-        teacherId: teacher.id,
-        deletedAt: null
-      },
-      select: { id: true }
-    });
-
-    const courseIds = courses.map(c => c.id);
-    
-    let enrolledStudentIds = new Set();
-    if (courseIds.length > 0) {
-      const enrollments = await prisma.enrollment.findMany({
-        where: {
-          courseId: { in: courseIds },
-          student: { deletedAt: null }
-        },
-        select: { studentId: true }
-      });
-      
-      enrollments.forEach(e => enrolledStudentIds.add(e.studentId));
-    }
-    
-    console.log(`👥 Students from enrollments: ${enrolledStudentIds.size}`);
-
-    // Combine both sets (remove duplicates)
-    const allStudentIds = new Set([...directlyAssignedIds, ...enrolledStudentIds]);
-    const totalStudents = allStudentIds.size;
-    
-    console.log(`✅ Total unique students: ${totalStudents}`);
-    console.log('📋 Student IDs:', Array.from(allStudentIds));
-
-    // Get today's attendance
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    let todayAttendance = 0;
-    if (courseIds.length > 0) {
-      todayAttendance = await prisma.attendance.count({
-        where: {
-          courseId: { in: courseIds },
-          date: {
-            gte: today,
-            lt: tomorrow
-          }
-        }
-      });
-    }
-
-    const averageAttendance = totalStudents > 0 ? Math.round((todayAttendance / totalStudents) * 100) : 0;
-
-    res.json({
-      success: true,
-      data: {
-        stats: {
-          totalCourses: coursesCount,
-          totalStudents: totalStudents,
-          todayAttendance,
-          averageAttendance
-        }
-      }
-    });
-
-  } catch (error) {
-    console.error("❌ Get staff dashboard stats error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch dashboard stats"
-    });
-  }
-};
-
-/* -----------------------------------------
-GET TEACHER COURSES
-------------------------------------------*/
-export const getTeacherCourses = async (req, res) => {
-  try {
-    const userId = req.user.id;
-
-    const teacher = await prisma.staff.findUnique({
-      where: { userId: userId }
-    });
-
-    if (!teacher) {
-      return res.status(404).json({
-        success: false,
-        message: "Teacher not found"
-      });
-    }
-
-    const courses = await prisma.course.findMany({
-      where: {
-        teacherId: teacher.id,
-        deletedAt: null
-      },
-      include: {
-        enrollments: {
-          where: {
-            student: { deletedAt: null }
-          },
-          select: { studentId: true }
-        }
-      },
-      orderBy: [
-        { semester: "asc" },
-        { name: "asc" }
-      ]
-    });
-
-    const coursesWithCount = courses.map(course => ({
-      ...course,
-      studentsCount: course.enrollments.length
-    }));
-
-    res.json({
-      success: true,
-      data: coursesWithCount
-    });
-
-  } catch (error) {
-    console.error("Get teacher courses error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch courses"
-    });
-  }
-};
-
-/* -----------------------------------------
-GET TEACHER STUDENTS - FIXED (No duplicates)
-------------------------------------------*/
-export const getTeacherStudents = async (req, res) => {
-  try {
-    const userId = req.user.id;
-    console.log("👥 Fetching students for teacher user ID:", userId);
-
-    // Get teacher details
-    const teacher = await prisma.staff.findUnique({
-      where: { userId: userId }
-    });
-
-    if (!teacher) {
-      console.log("❌ Teacher not found for user:", userId);
-      return res.status(404).json({
-        success: false,
-        message: "Teacher not found"
-      });
-    }
-
-    console.log("✅ Teacher found:", teacher.id, teacher.name, teacher.department);
-
-    // Get students directly assigned via teacherId
-    const directlyAssignedStudents = await prisma.student.findMany({
-      where: {
-        teacherId: teacher.id,
-        deletedAt: null
-      },
-      include: {
-        user: {
-          select: {
-            email: true,
-            name: true
-          }
-        }
-      }
-    });
-
-    console.log(`👥 Found ${directlyAssignedStudents.length} students directly assigned`);
-
-    // Get students from courses taught by this teacher
-    const teacherCourses = await prisma.course.findMany({
-      where: {
-        teacherId: teacher.id,
-        deletedAt: null
-      },
-      select: { id: true, name: true, code: true }
-    });
-
-    const courseIds = teacherCourses.map(c => c.id);
-    
-    let enrolledStudents = [];
-    if (courseIds.length > 0) {
-      const enrollments = await prisma.enrollment.findMany({
-        where: {
-          courseId: { in: courseIds },
-          student: {
-            deletedAt: null
-          }
-        },
-        include: {
-          student: {
-            include: {
-              user: {
-                select: {
-                  email: true,
-                  name: true
-                }
-              }
-            }
-          }
-        }
-      });
-
-      enrolledStudents = enrollments.map(e => e.student);
-      console.log(`👥 Found ${enrolledStudents.length} students from course enrollments`);
-    }
-
-    // Combine using Map to ensure uniqueness by student ID
-    const studentsMap = new Map();
-    
-    // Add directly assigned students
-    directlyAssignedStudents.forEach(student => {
-      studentsMap.set(student.id, {
-        id: student.id,
-        name: student.name || '',
-        email: student.email || student.user?.email || '',
-        rollNo: student.rollNo || '',
-        phone: student.phone || '',
-        course: student.course || '',
-        semester: student.semester || null,
-        batch: student.batch || '',
-        section: student.section || '',
-        attendance: student.attendance || 0,
-        teacherId: student.teacherId
-      });
-    });
-
-    // Add enrolled students (will overwrite if same ID, but that's fine)
-    enrolledStudents.forEach(student => {
-      studentsMap.set(student.id, {
-        id: student.id,
-        name: student.name || '',
-        email: student.email || student.user?.email || '',
-        rollNo: student.rollNo || '',
-        phone: student.phone || '',
-        course: student.course || '',
-        semester: student.semester || null,
-        batch: student.batch || '',
-        section: student.section || '',
-        attendance: student.attendance || 0,
-        teacherId: student.teacherId
-      });
-    });
-
-    const allStudents = Array.from(studentsMap.values());
-    console.log(`✅ Total unique students for teacher: ${allStudents.length}`);
-
-    res.json({
-      success: true,
-      data: allStudents
-    });
-
-  } catch (error) {
-    console.error("❌ Get teacher students error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch students"
-    });
-  }
-};
-
-/* -----------------------------------------
-GET TEACHER TODAY'S SCHEDULE
-------------------------------------------*/
-export const getTeacherTodaySchedule = async (req, res) => {
-  try {
-    const userId = req.user.id;
-
-    const teacher = await prisma.staff.findUnique({
-      where: { userId: userId }
-    });
-
-    if (!teacher) {
-      return res.status(404).json({
-        success: false,
-        message: "Teacher not found"
-      });
-    }
-
-    const today = new Date();
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const dayOfWeek = days[today.getDay()];
-
-    const courses = await prisma.course.findMany({
-      where: {
-        teacherId: teacher.id,
-        deletedAt: null,
-        schedule: {
-          contains: dayOfWeek
-        }
-      },
-      orderBy: { schedule: "asc" }
-    });
-
-    res.json({
-      success: true,
-      data: courses
-    });
-
-  } catch (error) {
-    console.error("Get teacher schedule error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch schedule"
-    });
-  }
-};
-
-/* -----------------------------------------
-UPDATE TEACHER PASSWORD (SELF)
-------------------------------------------*/
-export const updateTeacherPassword = async (req, res) => {
+export const updateStaffPassword = async (req, res) => {
   try {
     const userId = req.user.id;
     const { currentPassword, newPassword } = req.body;
 
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({
-        success: false,
-        message: "Current password and new password are required"
-      });
-    }
+    if (!currentPassword || !newPassword) return res.status(400).json({ success: false, message: "Current and new password required" });
+    if (newPassword.length < 6) return res.status(400).json({ success: false, message: "New password must be at least 6 characters" });
 
-    if (newPassword.length < 6) {
-      return res.status(400).json({
-        success: false,
-        message: "New password must be at least 6 characters long"
-      });
-    }
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
 
-    const user = await prisma.user.findUnique({
-      where: { id: userId }
-    });
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found"
-      });
-    }
-
-    const isValidPassword = await bcrypt.compare(currentPassword, user.password);
-    if (!isValidPassword) {
-      return res.status(401).json({
-        success: false,
-        message: "Current password is incorrect"
-      });
-    }
+    const isValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isValid) return res.status(401).json({ success: false, message: "Current password is incorrect" });
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-    await prisma.user.update({
-      where: { id: userId },
-      data: { password: hashedPassword }
-    });
-
-    res.json({
-      success: true,
-      message: "Password updated successfully"
-    });
-
+    await prisma.user.update({ where: { id: userId }, data: { password: hashedPassword } });
+    res.json({ success: true, message: "Password updated successfully" });
   } catch (error) {
-    console.error("Update teacher password error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to update password"
+    console.error("Update staff password error:", error);
+    res.status(500).json({ success: false, message: "Failed to update password" });
+  }
+};
+
+export const getStaffDashboardStats = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const staff = await prisma.staff.findUnique({ where: { userId: userId } });
+    if (!staff) return res.status(404).json({ success: false, message: "Staff not found" });
+
+    const coursesCount = await prisma.course.count({ where: { teacherId: staff.id, deletedAt: null } });
+    const directlyAssignedStudents = await prisma.student.findMany({ where: { teacherId: staff.id, deletedAt: null }, select: { id: true } });
+    const directlyAssignedIds = new Set(directlyAssignedStudents.map(s => s.id));
+    const courses = await prisma.course.findMany({ where: { teacherId: staff.id, deletedAt: null }, select: { id: true } });
+    const courseIds = courses.map(c => c.id);
+    let enrolledStudentIds = new Set();
+    if (courseIds.length > 0) {
+      const enrollments = await prisma.enrollment.findMany({ where: { courseId: { in: courseIds }, student: { deletedAt: null } }, select: { studentId: true } });
+      enrollments.forEach(e => enrolledStudentIds.add(e.studentId));
+    }
+    const totalStudents = new Set([...directlyAssignedIds, ...enrolledStudentIds]).size;
+
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+    let todayAttendance = 0;
+    if (courseIds.length > 0) {
+      todayAttendance = await prisma.attendance.count({ where: { courseId: { in: courseIds }, date: { gte: today, lt: tomorrow } } });
+    }
+
+    res.json({ success: true, data: { stats: { totalCourses: coursesCount, totalStudents, todayAttendance, averageAttendance: totalStudents > 0 ? Math.round((todayAttendance / totalStudents) * 100) : 0 } } });
+  } catch (error) {
+    console.error("Get staff dashboard stats error:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch dashboard stats" });
+  }
+};
+
+export const getStaffCourses = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const staff = await prisma.staff.findUnique({ where: { userId: userId } });
+    if (!staff) return res.status(404).json({ success: false, message: "Staff not found" });
+
+    const courses = await prisma.course.findMany({
+      where: { teacherId: staff.id, deletedAt: null },
+      include: { enrollments: { where: { student: { deletedAt: null } }, select: { studentId: true } } },
+      orderBy: [{ semester: "asc" }, { name: "asc" }]
     });
+
+    res.json({ success: true, data: courses.map(c => ({ ...c, studentsCount: c.enrollments.length })) });
+  } catch (error) {
+    console.error("Get staff courses error:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch courses" });
+  }
+};
+
+export const getStaffStudents = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const staff = await prisma.staff.findUnique({ where: { userId: userId } });
+    if (!staff) return res.status(404).json({ success: false, message: "Staff not found" });
+
+    const directlyAssignedStudents = await prisma.student.findMany({ where: { teacherId: staff.id, deletedAt: null }, include: { user: { select: { email: true, name: true } } } });
+    const staffCourses = await prisma.course.findMany({ where: { teacherId: staff.id, deletedAt: null }, select: { id: true } });
+    const courseIds = staffCourses.map(c => c.id);
+    let enrolledStudents = [];
+    if (courseIds.length > 0) {
+      const enrollments = await prisma.enrollment.findMany({ where: { courseId: { in: courseIds }, student: { deletedAt: null } }, include: { student: { include: { user: { select: { email: true, name: true } } } } } });
+      enrolledStudents = enrollments.map(e => e.student);
+    }
+
+    const studentsMap = new Map();
+    directlyAssignedStudents.forEach(s => studentsMap.set(s.id, { id: s.id, name: s.name || '', email: s.email || s.user?.email || '', rollNo: s.rollNo || '', phone: s.phone || '', course: s.course || '', semester: s.semester || null, batch: s.batch || '', section: s.section || '', teacherId: s.teacherId }));
+    enrolledStudents.forEach(s => studentsMap.set(s.id, { id: s.id, name: s.name || '', email: s.email || s.user?.email || '', rollNo: s.rollNo || '', phone: s.phone || '', course: s.course || '', semester: s.semester || null, batch: s.batch || '', section: s.section || '', teacherId: s.teacherId }));
+
+    res.json({ success: true, data: Array.from(studentsMap.values()) });
+  } catch (error) {
+    console.error("Get staff students error:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch students" });
+  }
+};
+
+export const getStaffTodaySchedule = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const staff = await prisma.staff.findUnique({ where: { userId: userId } });
+    if (!staff) return res.status(404).json({ success: false, message: "Staff not found" });
+
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayOfWeek = days[new Date().getDay()];
+    const courses = await prisma.course.findMany({ where: { teacherId: staff.id, deletedAt: null, schedule: { contains: dayOfWeek } }, orderBy: { schedule: "asc" } });
+    res.json({ success: true, data: courses });
+  } catch (error) {
+    console.error("Get staff schedule error:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch schedule" });
   }
 };
