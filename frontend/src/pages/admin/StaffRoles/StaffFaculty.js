@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Users, 
   Plus, 
@@ -16,23 +16,33 @@ import {
   Award,
   Save,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Lock,
+  EyeOff,
+  Archive,
+  RotateCcw
 } from 'lucide-react';
 import { staffApi } from '../../../api/adminApi';
 import './StaffFaculty.css';
 
 const StaffFaculty = () => {
   const [facultyStaff, setFacultyStaff] = useState([]);
+  const [deletedStaff, setDeletedStaff] = useState([]);
   const [filteredStaff, setFilteredStaff] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [designationFilter, setDesignationFilter] = useState('all');
+  const [activeTab, setActiveTab] = useState('active');
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState('');
   const [selectedStaff, setSelectedStaff] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showDepartmentDropdown, setShowDepartmentDropdown] = useState(false);
+  const [departmentSearchTerm, setDepartmentSearchTerm] = useState('');
+  const departmentSearchRef = useRef(null);
 
   // Form data for add/edit
   const [formData, setFormData] = useState({
@@ -65,6 +75,11 @@ const StaffFaculty = () => {
     "Business Administration"
   ];
 
+  // Filter departments based on search term
+  const filteredDepartments = departmentOptions.filter(dept =>
+    dept.toLowerCase().includes(departmentSearchTerm.toLowerCase())
+  );
+
   // Designation options for Faculty
   const designationOptions = [
     "Professor",
@@ -79,9 +94,20 @@ const StaffFaculty = () => {
     fetchFacultyStaff();
   }, []);
 
+  // Click outside handler for department dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (departmentSearchRef.current && !departmentSearchRef.current.contains(event.target)) {
+        setShowDepartmentDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // Filter staff based on search term
   useEffect(() => {
-    let filtered = facultyStaff;
+    let filtered = activeTab === 'active' ? facultyStaff : deletedStaff;
 
     if (searchTerm) {
       filtered = filtered.filter(staff =>
@@ -101,7 +127,7 @@ const StaffFaculty = () => {
     }
 
     setFilteredStaff(filtered);
-  }, [searchTerm, departmentFilter, designationFilter, facultyStaff]);
+  }, [searchTerm, departmentFilter, designationFilter, facultyStaff, deletedStaff, activeTab]);
 
   const fetchFacultyStaff = async () => {
     try {
@@ -115,15 +141,20 @@ const StaffFaculty = () => {
       }
       
       // Filter faculty members (exclude HODs and Mentors)
-      const faculty = staffData.filter(staff => 
+      const allFaculty = staffData.filter(staff => 
         staff.staffRole === 'FACULTY' || 
         (staff.designation && 
          !staff.designation.toLowerCase().includes('head') &&
          !staff.designation.toLowerCase().includes('hod') &&
          !staff.designation.toLowerCase().includes('mentor'))
       );
-      setFacultyStaff(faculty);
-      setFilteredStaff(faculty);
+      
+      const active = allFaculty.filter(staff => staff.isDeleted !== true && staff.status !== 'deleted');
+      const deleted = allFaculty.filter(staff => staff.isDeleted === true || staff.status === 'deleted');
+      
+      setFacultyStaff(active);
+      setDeletedStaff(deleted);
+      setFilteredStaff(active);
     } catch (error) {
       console.error('Error fetching faculty staff:', error);
       setError('Failed to load faculty data');
@@ -156,6 +187,8 @@ const StaffFaculty = () => {
       qualification: '',
       joiningDate: ''
     });
+    setDepartmentSearchTerm('');
+    setShowPassword(false);
     setSelectedStaff(null);
     setModalType('add');
     setShowModal(true);
@@ -176,6 +209,8 @@ const StaffFaculty = () => {
       qualification: staff.qualification || '',
       joiningDate: staff.joiningDate?.split('T')[0] || ''
     });
+    setDepartmentSearchTerm(staff.department || '');
+    setShowPassword(false);
     setModalType('edit');
     setShowModal(true);
   };
@@ -187,24 +222,66 @@ const StaffFaculty = () => {
     setShowModal(true);
   };
 
-  // Handle Delete button click
-  const handleDelete = (staff) => {
+  // Soft Delete - Move to trash
+  const handleSoftDelete = async (staff) => {
     setSelectedStaff(staff);
-    setModalType('delete');
+    setModalType('softDelete');
     setShowModal(true);
   };
 
-  // Confirm Delete
-  const confirmDelete = async () => {
+  // Confirm Soft Delete
+  const confirmSoftDelete = async () => {
     try {
-      await staffApi.delete(selectedStaff.id);
-      setSuccessMessage(`${selectedStaff.name} deleted successfully`);
+      if (staffApi.softDelete) {
+        await staffApi.softDelete(selectedStaff.id);
+      } else {
+        await staffApi.update(selectedStaff.id, { ...selectedStaff, isDeleted: true, status: 'deleted' });
+      }
+      setSuccessMessage(`${selectedStaff.name} moved to trash successfully`);
       setTimeout(() => setSuccessMessage(''), 3000);
       setShowModal(false);
       fetchFacultyStaff();
     } catch (err) {
-      console.error('Error deleting staff:', err);
-      alert('Failed to delete staff');
+      console.error('Error soft deleting staff:', err);
+      alert('Failed to move to trash');
+    }
+  };
+
+  // Restore from trash
+  const handleRestore = async (staff) => {
+    if (!window.confirm(`Are you sure you want to restore ${staff.name}?`)) return;
+    
+    try {
+      if (staffApi.restore) {
+        await staffApi.restore(staff.id);
+      } else {
+        await staffApi.update(staff.id, { ...staff, isDeleted: false, status: 'active' });
+      }
+      setSuccessMessage(`${staff.name} restored successfully`);
+      setTimeout(() => setSuccessMessage(''), 3000);
+      fetchFacultyStaff();
+    } catch (err) {
+      console.error('Error restoring staff:', err);
+      alert('Failed to restore');
+    }
+  };
+
+  // Permanent Delete
+  const handlePermanentDelete = async (staff) => {
+    if (!window.confirm(`Are you sure you want to permanently delete ${staff.name}? This action cannot be undone.`)) return;
+    
+    try {
+      if (staffApi.permanentDelete) {
+        await staffApi.permanentDelete(staff.id);
+      } else {
+        await staffApi.delete(staff.id);
+      }
+      setSuccessMessage(`${staff.name} permanently deleted`);
+      setTimeout(() => setSuccessMessage(''), 3000);
+      fetchFacultyStaff();
+    } catch (err) {
+      console.error('Error permanently deleting staff:', err);
+      alert('Failed to permanently delete');
     }
   };
 
@@ -214,6 +291,16 @@ const StaffFaculty = () => {
       ...formData,
       [e.target.name]: e.target.value
     });
+  };
+
+  // Handle department selection from searchable dropdown
+  const handleDepartmentSelect = (dept) => {
+    setFormData(prev => ({
+      ...prev,
+      department: dept
+    }));
+    setDepartmentSearchTerm(dept);
+    setShowDepartmentDropdown(false);
   };
 
   // Handle form submit
@@ -226,11 +313,11 @@ const StaffFaculty = () => {
       }
 
       const staffData = {
-        name: formData.name,
-        email: formData.email,
+        name: formData.name.trim(),
+        email: formData.email.trim().toLowerCase(),
         department: formData.department,
         designation: formData.designation,
-        staffRole: 'FACULTY',  // Set role as FACULTY
+        staffRole: 'FACULTY',
         phone: formData.phone || null,
         employeeId: formData.employeeId || null,
         address: formData.address || null,
@@ -262,13 +349,15 @@ const StaffFaculty = () => {
 
   // Get unique departments for filter
   const getUniqueDepartments = () => {
-    const depts = facultyStaff.map(s => s.department).filter(Boolean);
+    const allStaff = [...facultyStaff, ...deletedStaff];
+    const depts = allStaff.map(s => s.department).filter(Boolean);
     return [...new Set(depts)].sort();
   };
 
   // Get unique designations for filter
   const getUniqueDesignations = () => {
-    const designations = facultyStaff.map(s => s.designation).filter(Boolean);
+    const allStaff = [...facultyStaff, ...deletedStaff];
+    const designations = allStaff.map(s => s.designation).filter(Boolean);
     return [...new Set(designations)].sort();
   };
 
@@ -310,12 +399,17 @@ const StaffFaculty = () => {
       {/* Header */}
       <div className="page-header">
         <div>
-          <h1 className="page-title">
-            Faculty Members
-          </h1>
+          <h1 className="page-title">Faculty Members</h1>
           <p className="page-description">Manage teaching faculty and their assignments</p>
         </div>
         <div className="header-actions">
+          <button 
+            className={`btn-icon ${activeTab === 'deleted' ? 'active-trash' : ''}`} 
+            onClick={() => setActiveTab(activeTab === 'active' ? 'deleted' : 'active')}
+            title={activeTab === 'active' ? "View Trash" : "View Active Faculty"}
+          >
+            <Archive size={18} />
+          </button>
           <button className="btn-icon" onClick={handleRefresh} title="Refresh">
             <RefreshCw size={18} />
           </button>
@@ -333,8 +427,17 @@ const StaffFaculty = () => {
             <Users size={24} />
           </div>
           <div className="stat-content">
-            <span className="stat-label">Total Faculty</span>
+            <span className="stat-label">Active Faculty</span>
             <span className="stat-value">{facultyStaff.length}</span>
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon purple">
+            <Archive size={24} />
+          </div>
+          <div className="stat-content">
+            <span className="stat-label">Trash</span>
+            <span className="stat-value">{deletedStaff.length}</span>
           </div>
         </div>
         <div className="stat-card">
@@ -346,15 +449,26 @@ const StaffFaculty = () => {
             <span className="stat-value">{uniqueDepartments.length}</span>
           </div>
         </div>
-        <div className="stat-card">
-          <div className="stat-icon purple">
-            <Award size={24} />
-          </div>
-          <div className="stat-content">
-            <span className="stat-label">Designations</span>
-            <span className="stat-value">{uniqueDesignations.length}</span>
-          </div>
-        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="tabs-container">
+        <button 
+          className={`tab-btn ${activeTab === 'active' ? 'active' : ''}`}
+          onClick={() => setActiveTab('active')}
+        >
+          <Users size={16} />
+          <span>Active Faculty</span>
+          <span className="tab-count">{facultyStaff.length}</span>
+        </button>
+        <button 
+          className={`tab-btn ${activeTab === 'deleted' ? 'active' : ''}`}
+          onClick={() => setActiveTab('deleted')}
+        >
+          <Archive size={16} />
+          <span>Trash</span>
+          <span className="tab-count">{deletedStaff.length}</span>
+        </button>
       </div>
 
       {/* Search and Filter Section */}
@@ -364,7 +478,7 @@ const StaffFaculty = () => {
           <input
             type="text"
             className="search-input"
-            placeholder="Search faculty by name, email, department..."
+            placeholder={activeTab === 'active' ? "Search faculty by name, email, department..." : "Search deleted faculty..."}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -423,7 +537,7 @@ const StaffFaculty = () => {
           <tbody>
             {filteredStaff.length > 0 ? (
               filteredStaff.map((faculty) => (
-                <tr key={faculty.id}>
+                <tr key={faculty.id} className={activeTab === 'deleted' ? 'deleted-row' : ''}>
                   <td>
                     <div className="staff-info">
                       <div className="staff-avatar">
@@ -434,7 +548,7 @@ const StaffFaculty = () => {
                         <div className="staff-email">{faculty.email}</div>
                       </div>
                     </div>
-                  </td>
+                   </td>
                   <td>
                     <span className="department-badge">{faculty.department}</span>
                   </td>
@@ -463,12 +577,25 @@ const StaffFaculty = () => {
                       <button className="action-btn view" onClick={() => handleView(faculty)} title="View">
                         <Eye size={18} />
                       </button>
-                      <button className="action-btn edit" onClick={() => handleEdit(faculty)} title="Edit">
-                        <Edit size={18} />
-                      </button>
-                      <button className="action-btn delete" onClick={() => handleDelete(faculty)} title="Delete">
-                        <Trash2 size={18} />
-                      </button>
+                      {activeTab === 'active' ? (
+                        <>
+                          <button className="action-btn edit" onClick={() => handleEdit(faculty)} title="Edit">
+                            <Edit size={18} />
+                          </button>
+                          <button className="action-btn delete" onClick={() => handleSoftDelete(faculty)} title="Move to Trash">
+                            <Trash2 size={18} />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button className="action-btn restore" onClick={() => handleRestore(faculty)} title="Restore">
+                            <RotateCcw size={18} />
+                          </button>
+                          <button className="action-btn permanent-delete" onClick={() => handlePermanentDelete(faculty)} title="Permanently Delete">
+                            <Trash2 size={18} />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -476,23 +603,31 @@ const StaffFaculty = () => {
             ) : (
               <tr>
                 <td colSpan="7" className="empty-state">
-                  {facultyStaff.length === 0 ? (
-                    <>
-                      <Users size={48} />
-                      <h3>No Faculty Found</h3>
-                      <p>Click "Add Faculty" to create a new faculty member.</p>
-                      <button className="btn-primary" onClick={handleAdd}>
-                        <Plus size={16} /> Add Faculty
-                      </button>
-                    </>
+                  {activeTab === 'active' ? (
+                    facultyStaff.length === 0 ? (
+                      <>
+                        <Users size={48} />
+                        <h3>No Faculty Found</h3>
+                        <p>Click "Add Faculty" to create a new faculty member.</p>
+                        <button className="btn-primary" onClick={handleAdd}>
+                          <Plus size={16} /> Add Faculty
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <Search size={48} />
+                        <h3>No Matching Faculty</h3>
+                        <p>Try adjusting your search criteria.</p>
+                        <button className="btn-secondary" onClick={clearFilters}>
+                          Clear Filters
+                        </button>
+                      </>
+                    )
                   ) : (
                     <>
-                      <Search size={48} />
-                      <h3>No Matching Faculty</h3>
-                      <p>Try adjusting your search criteria.</p>
-                      <button className="btn-secondary" onClick={clearFilters}>
-                        Clear Filters
-                      </button>
+                      <Archive size={48} />
+                      <h3>Trash is Empty</h3>
+                      <p>No deleted faculty found.</p>
                     </>
                   )}
                 </td>
@@ -536,6 +671,7 @@ const StaffFaculty = () => {
                       onChange={handleChange}
                       placeholder="Enter email address"
                       required
+                      autoComplete="off"
                     />
                   </div>
                 </div>
@@ -544,14 +680,25 @@ const StaffFaculty = () => {
                   <div className="form-row">
                     <div className="form-group">
                       <label>Password *</label>
-                      <input
-                        type="password"
-                        name="password"
-                        value={formData.password}
-                        onChange={handleChange}
-                        placeholder="Enter password"
-                        required
-                      />
+                      <div className="password-field-wrapper">
+                        <Lock className="password-lock-icon" size={18} />
+                        <input
+                          type={showPassword ? "text" : "password"}
+                          name="password"
+                          value={formData.password}
+                          onChange={handleChange}
+                          placeholder="Enter password (min 6 characters)"
+                          required
+                          autoComplete="new-password"
+                        />
+                        <button
+                          type="button"
+                          className="password-eye-toggle"
+                          onClick={() => setShowPassword(!showPassword)}
+                        >
+                          {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
                     </div>
                     <div className="form-group">
                       <label>Employee ID</label>
@@ -561,25 +708,66 @@ const StaffFaculty = () => {
                         value={formData.employeeId}
                         onChange={handleChange}
                         placeholder="e.g., FAC001"
+                        autoComplete="off"
                       />
                     </div>
                   </div>
                 )}
 
                 <div className="form-row">
-                  <div className="form-group">
+                  <div className="form-group" ref={departmentSearchRef}>
                     <label>Department *</label>
-                    <select
-                      name="department"
-                      value={formData.department}
-                      onChange={handleChange}
-                      required
-                    >
-                      <option value="">Select Department</option>
-                      {departmentOptions.map(dept => (
-                        <option key={dept} value={dept}>{dept}</option>
-                      ))}
-                    </select>
+                    <div className="searchable-select">
+                      <div 
+                        className="searchable-select-input"
+                        onClick={() => setShowDepartmentDropdown(!showDepartmentDropdown)}
+                      >
+                        <input
+                          type="text"
+                          placeholder="Search and select department"
+                          value={departmentSearchTerm}
+                          onChange={(e) => {
+                            setDepartmentSearchTerm(e.target.value);
+                            setShowDepartmentDropdown(true);
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          required
+                          autoComplete="off"
+                        />
+                        <ChevronDown size={16} className="select-arrow" />
+                      </div>
+                      {showDepartmentDropdown && (
+                        <div className="searchable-select-dropdown">
+                          <div className="dropdown-search">
+                            <Search size={14} />
+                            <input
+                              type="text"
+                              placeholder="Search departments..."
+                              value={departmentSearchTerm}
+                              onChange={(e) => setDepartmentSearchTerm(e.target.value)}
+                              autoFocus
+                              autoComplete="off"
+                            />
+                          </div>
+                          <div className="dropdown-options">
+                            {filteredDepartments.length > 0 ? (
+                              filteredDepartments.map(dept => (
+                                <div
+                                  key={dept}
+                                  className={`dropdown-option ${formData.department === dept ? 'selected' : ''}`}
+                                  onClick={() => handleDepartmentSelect(dept)}
+                                >
+                                  {dept}
+                                  {formData.department === dept && <CheckCircle size={14} />}
+                                </div>
+                              ))
+                            ) : (
+                              <div className="dropdown-no-results">No departments found</div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="form-group">
                     <label>Designation *</label>
@@ -606,6 +794,7 @@ const StaffFaculty = () => {
                       value={formData.phone}
                       onChange={handleChange}
                       placeholder="Enter phone number"
+                      autoComplete="off"
                     />
                   </div>
                   <div className="form-group">
@@ -616,6 +805,7 @@ const StaffFaculty = () => {
                       value={formData.qualification}
                       onChange={handleChange}
                       placeholder="e.g., Ph.D., M.Tech"
+                      autoComplete="off"
                     />
                   </div>
                 </div>
@@ -731,24 +921,26 @@ const StaffFaculty = () => {
               <button className="btn-secondary" onClick={() => setShowModal(false)}>
                 Close
               </button>
-              <button className="btn-primary" onClick={() => {
-                setShowModal(false);
-                handleEdit(selectedStaff);
-              }}>
-                <Edit size={16} />
-                Edit Faculty
-              </button>
+              {!selectedStaff.isDeleted && (
+                <button className="btn-primary" onClick={() => {
+                  setShowModal(false);
+                  handleEdit(selectedStaff);
+                }}>
+                  <Edit size={16} />
+                  Edit Faculty
+                </button>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
-      {modalType === 'delete' && selectedStaff && showModal && (
+      {/* Soft Delete Confirmation Modal */}
+      {modalType === 'softDelete' && selectedStaff && showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content modal-sm" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Delete Faculty</h2>
+              <h2>Move to Trash</h2>
               <button className="close-btn" onClick={() => setShowModal(false)}>
                 <X size={20} />
               </button>
@@ -756,21 +948,21 @@ const StaffFaculty = () => {
 
             <div className="modal-body text-center">
               <div className="delete-icon">
-                <Trash2 size={48} />
+                <Archive size={48} />
               </div>
               <p className="delete-message">
-                Are you sure you want to delete <strong>{selectedStaff.name}</strong>?
+                Are you sure you want to move <strong>{selectedStaff.name}</strong> to trash?
               </p>
-              <p className="delete-warning">This action cannot be undone.</p>
+              <p className="delete-warning">You can restore this faculty from trash later.</p>
             </div>
 
             <div className="modal-footer">
               <button className="btn-secondary" onClick={() => setShowModal(false)}>
                 Cancel
               </button>
-              <button className="btn-danger" onClick={confirmDelete}>
-                <Trash2 size={16} />
-                Delete Faculty
+              <button className="btn-warning" onClick={confirmSoftDelete}>
+                <Archive size={16} />
+                Move to Trash
               </button>
             </div>
           </div>

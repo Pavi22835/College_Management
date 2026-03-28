@@ -1,4 +1,4 @@
-/* AdminStaff.css */
+/* AdminStaff.css - Complete Updated Version */
 
 /* ===== RESET & BASE STYLES ===== */
 * {
@@ -105,6 +105,18 @@
   color: #1e293b;
 }
 
+/* Trash Icon Active State */
+.btn-icon.active-trash {
+  background: #fef3c7;
+  color: #b45309;
+  border-color: #fde68a;
+}
+
+.btn-icon.active-trash:hover {
+  background: #fde68a;
+  color: #92400e;
+}
+
 .btn-import, .btn-export {
   display: flex;
   align-items: center;
@@ -176,7 +188,7 @@
   border-top: 1px solid #fecaca;
 }
 
-/* ===== STATS CARDS - FIXED ALIGNMENT ===== */
+/* ===== STATS CARDS ===== */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -265,6 +277,56 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* ===== TABS CONTAINER ===== */
+.tabs-container {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  background: white;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  width: fit-content;
+}
+
+.tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tab-btn:hover {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.tab-btn.active {
+  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+  color: white;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.2);
+}
+
+.tab-count {
+  background: rgba(0, 0, 0, 0.1);
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.tab-btn.active .tab-count {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 /* ===== SEARCH AND FILTER ===== */
@@ -408,6 +470,16 @@
 
 .staff-table tr:last-child td {
   border-bottom: none;
+}
+
+/* Deleted Row Styling */
+.deleted-row {
+  background: #fef9e3;
+  opacity: 0.85;
+}
+
+.deleted-row:hover {
+  background: #fef3c7;
 }
 
 /* ===== STAFF INFO ===== */
@@ -586,6 +658,30 @@
   color: #b91c1c;
 }
 
+/* Restore Button */
+.action-btn.restore {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.action-btn.restore:hover {
+  background: #fde68a;
+  color: #92400e;
+  transform: scale(1.05);
+}
+
+/* Permanent Delete Button */
+.action-btn.permanent-delete {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.action-btn.permanent-delete:hover {
+  background: #fecaca;
+  color: #b91c1c;
+  transform: scale(1.05);
+}
+
 /* ===== MODAL STYLES ===== */
 .modal-overlay {
   position: fixed;
@@ -720,6 +816,7 @@
   transition: all 0.2s;
   background: white;
   text-align: left;
+  box-sizing: border-box;
 }
 
 .form-group input:focus,
@@ -733,6 +830,215 @@
 .address-textarea {
   resize: vertical;
   min-height: 80px;
+}
+
+/* Password Field with Proper Alignment */
+.password-field-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.password-lock-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.password-field-wrapper input {
+  width: 100%;
+  padding: 10px 40px 10px 40px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: all 0.2s;
+  background: white;
+  box-sizing: border-box;
+}
+
+.password-field-wrapper input:focus {
+  outline: none;
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.password-eye-toggle {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  z-index: 2;
+}
+
+.password-eye-toggle:hover {
+  color: #4f46e5;
+  background: #f1f5f9;
+}
+
+/* Searchable Select Dropdown */
+.searchable-select {
+  position: relative;
+  width: 100%;
+}
+
+.searchable-select-input {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.searchable-select-input input {
+  width: 100%;
+  padding: 10px 32px 10px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: all 0.2s;
+  background: white;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.searchable-select-input input:focus {
+  outline: none;
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.select-arrow {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.searchable-select-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 100;
+  max-height: 280px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.dropdown-search {
+  padding: 8px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: white;
+  position: sticky;
+  top: 0;
+}
+
+.dropdown-search svg {
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.dropdown-search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 13px;
+  padding: 6px 0;
+  background: transparent;
+}
+
+.dropdown-search input::placeholder {
+  color: #94a3b8;
+}
+
+.dropdown-options {
+  overflow-y: auto;
+  max-height: 220px;
+}
+
+.dropdown-option {
+  padding: 10px 12px;
+  font-size: 13px;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dropdown-option:hover {
+  background: #f1f5f9;
+}
+
+.dropdown-option.selected {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.dropdown-no-results {
+  padding: 20px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+/* Info Note */
+.info-note {
+  background: #dcfce7;
+  padding: 12px;
+  border-radius: 8px;
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #166534;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* Warning Button */
+.btn-warning {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 20px;
+  background: #f59e0b;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  height: 38px;
+  transition: all 0.2s;
+}
+
+.btn-warning:hover {
+  background: #d97706;
+  transform: translateY(-1px);
 }
 
 /* ===== PROFILE HEADER ===== */
@@ -1115,6 +1421,15 @@
   .modal-content {
     width: 95%;
   }
+  
+  .tabs-container {
+    width: 100%;
+  }
+  
+  .tab-btn {
+    flex: 1;
+    justify-content: center;
+  }
 }
 
 @media (max-width: 640px) {
@@ -1176,7 +1491,8 @@
 
   .btn-primary,
   .btn-secondary,
-  .btn-danger {
+  .btn-danger,
+  .btn-warning {
     width: 100%;
     justify-content: center;
   }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   UserCheck, 
   Plus, 
@@ -16,24 +16,35 @@ import {
   Calendar,
   Save,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  EyeOff,
+  Lock,
+  Archive,
+  RotateCcw,
+  Users
 } from 'lucide-react';
 import { staffApi } from '../../../api/adminApi';
 import './StaffHOD.css';
 
 const StaffHOD = () => {
   const [hodStaff, setHodStaff] = useState([]);
+  const [deletedStaff, setDeletedStaff] = useState([]);
   const [filteredStaff, setFilteredStaff] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('all');
+  const [activeTab, setActiveTab] = useState('active'); // 'active' or 'deleted'
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState('');
   const [selectedStaff, setSelectedStaff] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showDepartmentDropdown, setShowDepartmentDropdown] = useState(false);
+  const [departmentSearchTerm, setDepartmentSearchTerm] = useState('');
+  const departmentSearchRef = useRef(null);
 
-  // Form data for add/edit - REMOVED address field
+  // Form data for add/edit
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -62,6 +73,11 @@ const StaffHOD = () => {
     "Business Administration"
   ];
 
+  // Filter departments based on search term
+  const filteredDepartments = departmentOptions.filter(dept =>
+    dept.toLowerCase().includes(departmentSearchTerm.toLowerCase())
+  );
+
   // Designation options for HOD
   const designationOptions = [
     "Head of Department",
@@ -74,9 +90,20 @@ const StaffHOD = () => {
     fetchHODStaff();
   }, []);
 
-  // Filter staff based on search term and department
+  // Click outside handler for department dropdown
   useEffect(() => {
-    let filtered = hodStaff;
+    const handleClickOutside = (event) => {
+      if (departmentSearchRef.current && !departmentSearchRef.current.contains(event.target)) {
+        setShowDepartmentDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Filter staff based on search term, department, and active tab
+  useEffect(() => {
+    let filtered = activeTab === 'active' ? hodStaff : deletedStaff;
 
     if (searchTerm) {
       filtered = filtered.filter(staff =>
@@ -91,7 +118,7 @@ const StaffHOD = () => {
     }
 
     setFilteredStaff(filtered);
-  }, [searchTerm, departmentFilter, hodStaff]);
+  }, [searchTerm, departmentFilter, hodStaff, deletedStaff, activeTab]);
 
   const fetchHODStaff = async () => {
     try {
@@ -99,7 +126,6 @@ const StaffHOD = () => {
       setError(null);
       
       const response = await staffApi.getAll();
-      console.log('📊 API Response:', response);
       
       let staffData = [];
       if (response?.success && response?.data) {
@@ -110,19 +136,20 @@ const StaffHOD = () => {
         staffData = response.data;
       }
       
-      console.log('📊 All staff data:', staffData);
-      
-      // Filter only HODs - check both staffRole and designation
-      const hods = staffData.filter(staff => 
+      // Filter HODs - active and deleted
+      const allHODs = staffData.filter(staff => 
         staff.staffRole === 'HOD' ||
         staff.designation?.toLowerCase().includes('head') || 
         staff.designation?.toLowerCase().includes('hod')
       );
       
-      console.log('📊 Filtered HODs:', hods);
+      // Separate active and deleted (check both isDeleted and status fields)
+      const active = allHODs.filter(staff => staff.isDeleted !== true && staff.status !== 'deleted');
+      const deleted = allHODs.filter(staff => staff.isDeleted === true || staff.status === 'deleted');
       
-      setHodStaff(hods);
-      setFilteredStaff(hods);
+      setHodStaff(active);
+      setDeletedStaff(deleted);
+      setFilteredStaff(active);
     } catch (error) {
       console.error('Error fetching HOD staff:', error);
       const errorMsg = error.response?.data?.message || error.message || 'Unknown error';
@@ -141,7 +168,6 @@ const StaffHOD = () => {
     setDepartmentFilter('all');
   };
 
-  // Handle Add button click
   const handleAdd = () => {
     setFormData({
       name: '',
@@ -153,13 +179,14 @@ const StaffHOD = () => {
       employeeId: '',
       appointedDate: ''
     });
+    setDepartmentSearchTerm('');
+    setShowPassword(false);
     setSelectedStaff(null);
     setModalType('add');
     setShowModal(true);
     setError(null);
   };
 
-  // Handle Edit button click
   const handleEdit = (staff) => {
     setSelectedStaff(staff);
     setFormData({
@@ -172,41 +199,91 @@ const StaffHOD = () => {
       employeeId: staff.employeeId || '',
       appointedDate: staff.appointedDate || staff.createdAt?.split('T')[0] || ''
     });
+    setDepartmentSearchTerm(staff.department || '');
+    setShowPassword(false);
     setModalType('edit');
     setShowModal(true);
     setError(null);
   };
 
-  // Handle View button click
   const handleView = (staff) => {
     setSelectedStaff(staff);
     setModalType('view');
     setShowModal(true);
   };
 
-  // Handle Delete button click
-  const handleDelete = (staff) => {
+  // Soft Delete - Move to trash
+  const handleSoftDelete = async (staff) => {
     setSelectedStaff(staff);
-    setModalType('delete');
+    setModalType('softDelete');
     setShowModal(true);
   };
 
-  // Confirm Delete
-  const confirmDelete = async () => {
+  // Confirm Soft Delete
+  const confirmSoftDelete = async () => {
     try {
-      await staffApi.delete(selectedStaff.id);
-      setSuccessMessage(`${selectedStaff.name} deleted successfully`);
+      if (staffApi.softDelete) {
+        await staffApi.softDelete(selectedStaff.id);
+      } else {
+        // Fallback: use update method with isDeleted flag
+        await staffApi.update(selectedStaff.id, { ...selectedStaff, isDeleted: true, status: 'deleted' });
+      }
+      setSuccessMessage(`${selectedStaff.name} moved to trash successfully`);
       setTimeout(() => setSuccessMessage(''), 3000);
       setShowModal(false);
       fetchHODStaff();
     } catch (err) {
-      console.error('Error deleting staff:', err);
-      const errorMsg = err.response?.data?.message || err.message || 'Unknown error';
-      alert(`Failed to delete staff: ${errorMsg}`);
+      console.error('Error soft deleting staff:', err);
+      const errorMsg = err.response?.data?.message || err.message || 'Failed to delete HOD';
+      setError(errorMsg);
+      alert(errorMsg);
     }
   };
 
-  // Handle form input change
+  // Restore from trash
+  const handleRestore = async (staff) => {
+    if (!window.confirm(`Are you sure you want to restore ${staff.name}?`)) return;
+    
+    try {
+      if (staffApi.restore) {
+        await staffApi.restore(staff.id);
+      } else {
+        // Fallback: use update method to remove isDeleted flag
+        await staffApi.update(staff.id, { ...staff, isDeleted: false, status: 'active' });
+      }
+      setSuccessMessage(`${staff.name} restored successfully`);
+      setTimeout(() => setSuccessMessage(''), 3000);
+      fetchHODStaff();
+    } catch (err) {
+      console.error('Error restoring staff:', err);
+      const errorMsg = err.response?.data?.message || err.message || 'Failed to restore HOD';
+      setError(errorMsg);
+      alert(errorMsg);
+    }
+  };
+
+  // Permanent Delete
+  const handlePermanentDelete = async (staff) => {
+    if (!window.confirm(`Are you sure you want to permanently delete ${staff.name}? This action cannot be undone.`)) return;
+    
+    try {
+      if (staffApi.permanentDelete) {
+        await staffApi.permanentDelete(staff.id);
+      } else {
+        // Fallback: use delete method
+        await staffApi.delete(staff.id);
+      }
+      setSuccessMessage(`${staff.name} permanently deleted`);
+      setTimeout(() => setSuccessMessage(''), 3000);
+      fetchHODStaff();
+    } catch (err) {
+      console.error('Error permanently deleting staff:', err);
+      const errorMsg = err.response?.data?.message || err.message || 'Failed to permanently delete HOD';
+      setError(errorMsg);
+      alert(errorMsg);
+    }
+  };
+
   const handleChange = (e) => {
     setFormData({
       ...formData,
@@ -214,7 +291,15 @@ const StaffHOD = () => {
     });
   };
 
-  // Handle form submit - REMOVED address field
+  const handleDepartmentSelect = (dept) => {
+    setFormData(prev => ({
+      ...prev,
+      department: dept
+    }));
+    setDepartmentSearchTerm(dept);
+    setShowDepartmentDropdown(false);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -225,20 +310,17 @@ const StaffHOD = () => {
         return;
       }
 
-      // Validate email format
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(formData.email)) {
         alert('Please enter a valid email address');
         return;
       }
 
-      // Validate password for new staff
       if (modalType === 'add' && (!formData.password || formData.password.length < 6)) {
         alert('Password is required and must be at least 6 characters');
         return;
       }
 
-      // Prepare staff data with HOD role - REMOVED address
       const staffData = {
         name: formData.name.trim(),
         email: formData.email.trim().toLowerCase(),
@@ -247,22 +329,19 @@ const StaffHOD = () => {
         staffRole: 'HOD',
         phone: formData.phone || null,
         employeeId: formData.employeeId || null,
-        appointedDate: formData.appointedDate || null
+        appointedDate: formData.appointedDate || null,
+        isActive: true,
+        status: 'active'
       };
 
-      console.log('📤 Submitting HOD data:', staffData);
-
-      let response;
       if (modalType === 'add') {
         staffData.password = formData.password;
-        response = await staffApi.create(staffData);
+        await staffApi.create(staffData);
         setSuccessMessage(`✅ HOD "${formData.name}" added successfully!`);
       } else if (modalType === 'edit') {
-        response = await staffApi.update(selectedStaff.id, staffData);
+        await staffApi.update(selectedStaff.id, staffData);
         setSuccessMessage(`✅ HOD "${formData.name}" updated successfully!`);
       }
-      
-      console.log('✅ Response:', response);
       
       setTimeout(() => setSuccessMessage(''), 3000);
       setShowModal(false);
@@ -275,9 +354,9 @@ const StaffHOD = () => {
     }
   };
 
-  // Get unique departments for filter
   const getUniqueDepartments = () => {
-    const depts = hodStaff.map(s => s.department).filter(Boolean);
+    const allStaff = [...hodStaff, ...deletedStaff];
+    const depts = allStaff.map(s => s.department).filter(Boolean);
     return [...new Set(depts)].sort();
   };
 
@@ -290,7 +369,7 @@ const StaffHOD = () => {
     );
   }
 
-  if (error && !hodStaff.length) {
+  if (error && !hodStaff.length && !deletedStaff.length) {
     return (
       <div className="error-container">
         <div className="error-icon">!</div>
@@ -307,31 +386,34 @@ const StaffHOD = () => {
 
   return (
     <div className="staff-hod">
-      {/* Error Message */}
       {error && (
-        <div className="error-message" style={{ background: '#fee2e2', border: '1px solid #fecaca', borderRadius: '8px', padding: '12px 16px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px', color: '#b91c1c' }}>
+        <div className="error-message">
           <AlertCircle size={16} />
           <span>{error}</span>
         </div>
       )}
 
-      {/* Success Message */}
       {successMessage && (
-        <div className="success-message" style={{ background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '12px 16px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px', color: '#166534' }}>
+        <div className="success-message">
           <CheckCircle size={16} />
           <span>{successMessage}</span>
         </div>
       )}
 
-      {/* Header */}
       <div className="page-header">
         <div>
-          <h1 className="page-title">
-            Head of Departments (HOD)
-          </h1>
+          <h1 className="page-title">Head of Departments (HOD)</h1>
           <p className="page-description">Manage department heads and their responsibilities</p>
         </div>
         <div className="header-actions">
+          {/* Trash icon near refresh */}
+          <button 
+            className={`btn-icon ${activeTab === 'deleted' ? 'active-trash' : ''}`} 
+            onClick={() => setActiveTab(activeTab === 'active' ? 'deleted' : 'active')}
+            title={activeTab === 'active' ? "View Trash" : "View Active HODs"}
+          >
+            <Archive size={18} />
+          </button>
           <button className="btn-icon" onClick={handleRefresh} title="Refresh">
             <RefreshCw size={18} />
           </button>
@@ -349,7 +431,7 @@ const StaffHOD = () => {
             <UserCheck size={24} />
           </div>
           <div className="stat-content">
-            <span className="stat-label">Total HODs</span>
+            <span className="stat-label">Active HODs</span>
             <span className="stat-value">{hodStaff.length}</span>
           </div>
         </div>
@@ -362,6 +444,35 @@ const StaffHOD = () => {
             <span className="stat-value">{uniqueDepartments.length}</span>
           </div>
         </div>
+        <div className="stat-card">
+          <div className="stat-icon purple">
+            <Archive size={24} />
+          </div>
+          <div className="stat-content">
+            <span className="stat-label">Trash</span>
+            <span className="stat-value">{deletedStaff.length}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs - Now optional since we have trash icon */}
+      <div className="tabs-container">
+        <button 
+          className={`tab-btn ${activeTab === 'active' ? 'active' : ''}`}
+          onClick={() => setActiveTab('active')}
+        >
+          <Users size={16} />
+          <span>Active HODs</span>
+          <span className="tab-count">{hodStaff.length}</span>
+        </button>
+        <button 
+          className={`tab-btn ${activeTab === 'deleted' ? 'active' : ''}`}
+          onClick={() => setActiveTab('deleted')}
+        >
+          <Archive size={16} />
+          <span>Trash</span>
+          <span className="tab-count">{deletedStaff.length}</span>
+        </button>
       </div>
 
       {/* Search and Filter Section */}
@@ -371,7 +482,7 @@ const StaffHOD = () => {
           <input
             type="text"
             className="search-input"
-            placeholder="Search HOD by name, email, department..."
+            placeholder={activeTab === 'active' ? "Search HOD by name, email, department..." : "Search deleted HODs..."}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -410,11 +521,11 @@ const StaffHOD = () => {
               <th>Since</th>
               <th>Actions</th>
             </tr>
-            </thead>
+          </thead>
           <tbody>
             {filteredStaff.length > 0 ? (
               filteredStaff.map((hod) => (
-                <tr key={hod.id}>
+                <tr key={hod.id} className={activeTab === 'deleted' ? 'deleted-row' : ''}>
                   <td>
                     <div className="staff-info">
                       <div className="staff-avatar">
@@ -450,12 +561,25 @@ const StaffHOD = () => {
                       <button className="action-btn view" onClick={() => handleView(hod)} title="View">
                         <Eye size={18} />
                       </button>
-                      <button className="action-btn edit" onClick={() => handleEdit(hod)} title="Edit">
-                        <Edit size={18} />
-                      </button>
-                      <button className="action-btn delete" onClick={() => handleDelete(hod)} title="Delete">
-                        <Trash2 size={18} />
-                      </button>
+                      {activeTab === 'active' ? (
+                        <>
+                          <button className="action-btn edit" onClick={() => handleEdit(hod)} title="Edit">
+                            <Edit size={18} />
+                          </button>
+                          <button className="action-btn delete" onClick={() => handleSoftDelete(hod)} title="Move to Trash">
+                            <Trash2 size={18} />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button className="action-btn restore" onClick={() => handleRestore(hod)} title="Restore">
+                            <RotateCcw size={18} />
+                          </button>
+                          <button className="action-btn permanent-delete" onClick={() => handlePermanentDelete(hod)} title="Permanently Delete">
+                            <Trash2 size={18} />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -463,23 +587,31 @@ const StaffHOD = () => {
             ) : (
               <tr>
                 <td colSpan="6" className="empty-state">
-                  {hodStaff.length === 0 ? (
-                    <>
-                      <UserCheck size={48} />
-                      <h3>No HODs Found</h3>
-                      <p>Click "Add HOD" to assign a department head.</p>
-                      <button className="btn-primary" onClick={handleAdd}>
-                        <Plus size={16} /> Add HOD
-                      </button>
-                    </>
+                  {activeTab === 'active' ? (
+                    hodStaff.length === 0 ? (
+                      <>
+                        <UserCheck size={48} />
+                        <h3>No HODs Found</h3>
+                        <p>Click "Add HOD" to assign a department head.</p>
+                        <button className="btn-primary" onClick={handleAdd}>
+                          <Plus size={16} /> Add HOD
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <Search size={48} />
+                        <h3>No Matching HODs</h3>
+                        <p>Try adjusting your search criteria.</p>
+                        <button className="btn-secondary" onClick={clearFilters}>
+                          Clear Filters
+                        </button>
+                      </>
+                    )
                   ) : (
                     <>
-                      <Search size={48} />
-                      <h3>No Matching HODs</h3>
-                      <p>Try adjusting your search criteria.</p>
-                      <button className="btn-secondary" onClick={clearFilters}>
-                        Clear Filters
-                      </button>
+                      <Archive size={48} />
+                      <h3>Trash is Empty</h3>
+                      <p>No deleted HODs found.</p>
                     </>
                   )}
                 </td>
@@ -523,6 +655,7 @@ const StaffHOD = () => {
                       onChange={handleChange}
                       placeholder="Enter email address"
                       required
+                      autoComplete="off"
                     />
                   </div>
                 </div>
@@ -531,14 +664,25 @@ const StaffHOD = () => {
                   <div className="form-row">
                     <div className="form-group">
                       <label>Password *</label>
-                      <input
-                        type="password"
-                        name="password"
-                        value={formData.password}
-                        onChange={handleChange}
-                        placeholder="Enter password (min 6 characters)"
-                        required
-                      />
+                      <div className="password-field-wrapper">
+                        <input
+                          type={showPassword ? "text" : "password"}
+                          name="password"
+                          value={formData.password}
+                          onChange={handleChange}
+                          placeholder="Enter password (min 6 characters)"
+                          required
+                          autoComplete="new-password"
+                        />
+                        <Lock className="password-lock-icon" size={18} />
+                        <button
+                          type="button"
+                          className="password-eye-toggle"
+                          onClick={() => setShowPassword(!showPassword)}
+                        >
+                          {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
                     </div>
                     <div className="form-group">
                       <label>Employee ID</label>
@@ -548,25 +692,80 @@ const StaffHOD = () => {
                         value={formData.employeeId}
                         onChange={handleChange}
                         placeholder="e.g., HOD001"
+                        autoComplete="off"
                       />
                     </div>
                   </div>
                 )}
 
-                <div className="form-row">
+                {modalType === 'edit' && (
                   <div className="form-group">
-                    <label>Department *</label>
-                    <select
-                      name="department"
-                      value={formData.department}
+                    <label>Employee ID</label>
+                    <input
+                      type="text"
+                      name="employeeId"
+                      value={formData.employeeId}
                       onChange={handleChange}
-                      required
-                    >
-                      <option value="">Select Department</option>
-                      {departmentOptions.map(dept => (
-                        <option key={dept} value={dept}>{dept}</option>
-                      ))}
-                    </select>
+                      placeholder="e.g., HOD001"
+                      autoComplete="off"
+                    />
+                  </div>
+                )}
+
+                <div className="form-row">
+                  <div className="form-group" ref={departmentSearchRef}>
+                    <label>Department *</label>
+                    <div className="searchable-select">
+                      <div 
+                        className="searchable-select-input"
+                        onClick={() => setShowDepartmentDropdown(!showDepartmentDropdown)}
+                      >
+                        <input
+                          type="text"
+                          placeholder="Search and select department"
+                          value={departmentSearchTerm}
+                          onChange={(e) => {
+                            setDepartmentSearchTerm(e.target.value);
+                            setShowDepartmentDropdown(true);
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          required
+                          autoComplete="off"
+                        />
+                        <ChevronDown size={16} className="select-arrow" />
+                      </div>
+                      {showDepartmentDropdown && (
+                        <div className="searchable-select-dropdown">
+                          <div className="dropdown-search">
+                            <Search size={14} />
+                            <input
+                              type="text"
+                              placeholder="Search departments..."
+                              value={departmentSearchTerm}
+                              onChange={(e) => setDepartmentSearchTerm(e.target.value)}
+                              autoFocus
+                              autoComplete="off"
+                            />
+                          </div>
+                          <div className="dropdown-options">
+                            {filteredDepartments.length > 0 ? (
+                              filteredDepartments.map(dept => (
+                                <div
+                                  key={dept}
+                                  className={`dropdown-option ${formData.department === dept ? 'selected' : ''}`}
+                                  onClick={() => handleDepartmentSelect(dept)}
+                                >
+                                  {dept}
+                                  {formData.department === dept && <CheckCircle size={14} />}
+                                </div>
+                              ))
+                            ) : (
+                              <div className="dropdown-no-results">No departments found</div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="form-group">
                     <label>Designation *</label>
@@ -593,6 +792,7 @@ const StaffHOD = () => {
                       value={formData.phone}
                       onChange={handleChange}
                       placeholder="Enter phone number"
+                      autoComplete="off"
                     />
                   </div>
                   <div className="form-group">
@@ -607,13 +807,9 @@ const StaffHOD = () => {
                 </div>
 
                 {modalType === 'add' && (
-                  <div className="form-group" style={{ background: '#dcfce7', padding: '12px', borderRadius: '8px', marginTop: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <CheckCircle size={16} color="#166534" />
-                      <span style={{ color: '#166534', fontSize: '13px', fontWeight: '500' }}>
-                        Staff will be created with HOD role and ACTIVE status
-                      </span>
-                    </div>
+                  <div className="info-note">
+                    <CheckCircle size={16} />
+                    <span>Staff will be created with HOD role and ACTIVE status</span>
                   </div>
                 )}
               </div>
@@ -684,24 +880,26 @@ const StaffHOD = () => {
               <button className="btn-secondary" onClick={() => setShowModal(false)}>
                 Close
               </button>
-              <button className="btn-primary" onClick={() => {
-                setShowModal(false);
-                handleEdit(selectedStaff);
-              }}>
-                <Edit size={16} />
-                Edit HOD
-              </button>
+              {!selectedStaff.isDeleted && (
+                <button className="btn-primary" onClick={() => {
+                  setShowModal(false);
+                  handleEdit(selectedStaff);
+                }}>
+                  <Edit size={16} />
+                  Edit HOD
+                </button>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
-      {modalType === 'delete' && selectedStaff && showModal && (
+      {/* Soft Delete Confirmation Modal */}
+      {modalType === 'softDelete' && selectedStaff && showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content modal-sm" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Delete HOD</h2>
+              <h2>Move to Trash</h2>
               <button className="close-btn" onClick={() => setShowModal(false)}>
                 <X size={20} />
               </button>
@@ -709,21 +907,21 @@ const StaffHOD = () => {
 
             <div className="modal-body text-center">
               <div className="delete-icon">
-                <Trash2 size={48} />
+                <Archive size={48} />
               </div>
               <p className="delete-message">
-                Are you sure you want to delete <strong>{selectedStaff.name}</strong>?
+                Are you sure you want to move <strong>{selectedStaff.name}</strong> to trash?
               </p>
-              <p className="delete-warning">This action cannot be undone.</p>
+              <p className="delete-warning">You can restore this HOD from trash later.</p>
             </div>
 
             <div className="modal-footer">
               <button className="btn-secondary" onClick={() => setShowModal(false)}>
                 Cancel
               </button>
-              <button className="btn-danger" onClick={confirmDelete}>
-                <Trash2 size={16} />
-                Delete HOD
+              <button className="btn-warning" onClick={confirmSoftDelete}>
+                <Archive size={16} />
+                Move to Trash
               </button>
             </div>
           </div>

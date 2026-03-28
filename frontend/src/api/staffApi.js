@@ -251,20 +251,96 @@ const staffApi = {
     }
   },
 
-  // Delete staff member (Admin) - soft delete to trash
-  deleteStaff: async (id) => {
+  // Soft delete staff member - move to trash (Admin)
+  softDeleteStaff: async (id) => {
     try {
-      const response = await axiosInstance.delete(`/admin/staff/${id}`);
-      console.log(`🗑️ Delete staff (ID: ${id}) response:`, response.data);
+      const response = await axiosInstance.patch(`/admin/staff/${id}/soft-delete`);
+      console.log(`🗑️ Soft delete staff (ID: ${id}) moved to trash response:`, response.data);
       
       if (response.data?.success) {
         return response.data;
       }
-      throw new Error(response.data?.message || "Failed to delete staff");
+      throw new Error(response.data?.message || "Failed to move staff to trash");
     } catch (error) {
-      console.error("❌ Error deleting staff:", error);
-      throw error;
+      console.error("❌ Error soft deleting staff:", error);
+      // Fallback: try using update with isDeleted flag
+      try {
+        console.log("🔄 Attempting fallback soft delete using update...");
+        const staffData = await staffApi.getStaffById(id);
+        const response = await staffApi.updateStaff(id, {
+          ...staffData,
+          isDeleted: true,
+          status: 'deleted',
+          deletedAt: new Date().toISOString()
+        });
+        console.log("✅ Fallback soft delete successful:", response);
+        return { success: true, data: response };
+      } catch (fallbackError) {
+        console.error("❌ Fallback soft delete failed:", fallbackError);
+        throw error;
+      }
     }
+  },
+
+  // Restore staff from trash (Admin)
+  restoreStaff: async (id) => {
+    try {
+      const response = await axiosInstance.patch(`/admin/staff/${id}/restore`);
+      console.log(`🔄 Restore staff (ID: ${id}) from trash response:`, response.data);
+      
+      if (response.data?.success) {
+        return response.data;
+      }
+      throw new Error(response.data?.message || "Failed to restore staff");
+    } catch (error) {
+      console.error("❌ Error restoring staff:", error);
+      // Fallback: try using update with isDeleted flag removed
+      try {
+        console.log("🔄 Attempting fallback restore using update...");
+        const staffData = await staffApi.getStaffById(id);
+        const response = await staffApi.updateStaff(id, {
+          ...staffData,
+          isDeleted: false,
+          status: 'active',
+          deletedAt: null
+        });
+        console.log("✅ Fallback restore successful:", response);
+        return { success: true, data: response };
+      } catch (fallbackError) {
+        console.error("❌ Fallback restore failed:", fallbackError);
+        throw error;
+      }
+    }
+  },
+
+  // Permanently delete staff member (Admin)
+  permanentDeleteStaff: async (id) => {
+    try {
+      const response = await axiosInstance.delete(`/admin/staff/${id}/permanent`);
+      console.log(`🗑️ Permanent delete staff (ID: ${id}) response:`, response.data);
+      
+      if (response.data?.success) {
+        return response.data;
+      }
+      throw new Error(response.data?.message || "Failed to permanently delete staff");
+    } catch (error) {
+      console.error("❌ Error permanently deleting staff:", error);
+      // Fallback: try using regular delete
+      try {
+        console.log("🔄 Attempting fallback permanent delete using regular delete...");
+        const response = await axiosInstance.delete(`/admin/staff/${id}`);
+        console.log("✅ Fallback permanent delete successful:", response);
+        return { success: true, data: response.data };
+      } catch (fallbackError) {
+        console.error("❌ Fallback permanent delete failed:", fallbackError);
+        throw error;
+      }
+    }
+  },
+
+  // Delete staff member (Admin) - alias for soft delete
+  deleteStaff: async (id) => {
+    return staffApi.softDeleteStaff(id);
   },
 
   // ========== STAFF DASHBOARD METHODS ==========
@@ -356,7 +432,7 @@ const staffApi = {
     }
   },
 
-  // ========== TRASH & RESTORE METHODS ==========
+  // ========== TRASH & RESTORE METHODS (Aliases) ==========
 
   // Get trashed staff (Admin)
   getTrashedStaff: async () => {
@@ -372,31 +448,18 @@ const staffApi = {
       return [];
     } catch (error) {
       console.error("❌ Error fetching trashed staff:", error);
-      throw error;
-    }
-  },
-
-  // Restore staff from trash (Admin)
-  restoreStaff: async (id) => {
-    try {
-      const response = await axiosInstance.post(`/admin/staff/${id}/restore`);
-      console.log(`✅ Restore staff (ID: ${id}) response:`, response.data);
-      return response.data;
-    } catch (error) {
-      console.error("❌ Error restoring staff:", error);
-      throw error;
-    }
-  },
-
-  // Permanently delete staff (Admin)
-  permanentDeleteStaff: async (id) => {
-    try {
-      const response = await axiosInstance.delete(`/admin/staff/${id}/permanent`);
-      console.log(`🗑️ Permanent delete staff (ID: ${id}) response:`, response.data);
-      return response.data;
-    } catch (error) {
-      console.error("❌ Error permanently deleting staff:", error);
-      throw error;
+      // Fallback: filter from all staff
+      try {
+        const allStaff = await staffApi.getStaff();
+        const trashed = allStaff.filter(staff => 
+          staff.isDeleted === true || staff.status === 'deleted'
+        );
+        console.log("📊 Fallback trashed staff filtered:", trashed.length);
+        return trashed;
+      } catch (fallbackError) {
+        console.error("❌ Fallback error fetching trashed staff:", fallbackError);
+        throw error;
+      }
     }
   },
 
@@ -455,7 +518,7 @@ const staffApi = {
     return staffApi.updateStaff(id, data);
   },
 
-  // Alias for deleteStaff
+  // Alias for deleteStaff (soft delete)
   delete: async (id) => {
     return staffApi.deleteStaff(id);
   },
@@ -463,6 +526,21 @@ const staffApi = {
   // Alias for getStaffById
   getById: async (id) => {
     return staffApi.getStaffById(id);
+  },
+
+  // Alias for softDeleteStaff
+  softDelete: async (id) => {
+    return staffApi.softDeleteStaff(id);
+  },
+
+  // Alias for restoreStaff
+  restore: async (id) => {
+    return staffApi.restoreStaff(id);
+  },
+
+  // Alias for permanentDeleteStaff
+  permanentDelete: async (id) => {
+    return staffApi.permanentDeleteStaff(id);
   }
 };
 
