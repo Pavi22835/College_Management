@@ -22,7 +22,8 @@ export const getAllStudents = async (req, res) => {
             id: true,
             email: true,
             name: true,
-            isActive: true
+            isActive: true,
+            status: true
           }
         },
         teacher: {
@@ -92,6 +93,9 @@ export const getStudentById = async (req, res) => {
             email: true,
             name: true,
             isActive: true,
+            status: true,
+            deactivatedAt: true,
+            deactivatedReason: true,
             lastLogin: true
           }
         },
@@ -279,7 +283,7 @@ export const createStudent = async (req, res) => {
         });
       }
 
-      const teacher = await prisma.teacher.findUnique({
+      const teacher = await prisma.staff.findUnique({
         where: { id: parsedTeacherId }
       });
       if (!teacher) {
@@ -324,7 +328,8 @@ export const createStudent = async (req, res) => {
           email,
           password: hashedPassword,
           role: "STUDENT",
-          isActive: true
+          isActive: true,
+          status: "active"
         }
       });
 
@@ -362,7 +367,8 @@ export const createStudent = async (req, res) => {
               id: true,
               email: true,
               name: true,
-              isActive: true
+              isActive: true,
+              status: true
             }
           },
           teacher: {
@@ -498,7 +504,7 @@ export const updateStudent = async (req, res) => {
 
     // Check if teacher exists if teacherId is provided
     if (updateData.teacherId) {
-      const teacher = await prisma.teacher.findUnique({
+      const teacher = await prisma.staff.findUnique({
         where: { id: parseInt(updateData.teacherId) }
       });
       if (!teacher) {
@@ -565,7 +571,8 @@ export const updateStudent = async (req, res) => {
               id: true,
               email: true,
               name: true,
-              isActive: true
+              isActive: true,
+              status: true
             }
           },
           teacher: {
@@ -639,7 +646,7 @@ export const updateStudent = async (req, res) => {
 
 /*
 ---------------------------------------
-DELETE STUDENT (SOFT DELETE) - ADMIN
+DELETE STUDENT (SOFT DELETE) - ADMIN - UPDATED WITH DEACTIVATION
 ---------------------------------------
 */
 export const deleteStudent = async (req, res) => {
@@ -666,13 +673,19 @@ export const deleteStudent = async (req, res) => {
       }),
       prisma.user.update({
         where: { id: student.userId },
-        data: { isActive: false }
+        data: { 
+          isActive: false,
+          status: "deactivated",
+          deactivatedAt: new Date(),
+          deactivatedReason: "Student moved to trash",
+          deactivatedBy: req.user.id
+        }
       })
     ]);
 
     res.json({
       success: true,
-      message: "Student deleted successfully"
+      message: "Student moved to trash successfully"
     });
 
   } catch (error) {
@@ -680,6 +693,99 @@ export const deleteStudent = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to delete student"
+    });
+  }
+};
+
+/*
+---------------------------------------
+ACTIVATE STUDENT (ADMIN)
+---------------------------------------
+*/
+export const activateStudent = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const student = await prisma.student.findUnique({
+      where: { id: Number(id) },
+      include: { user: true }
+    });
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: "Student not found"
+      });
+    }
+
+    await prisma.user.update({
+      where: { id: student.userId },
+      data: {
+        isActive: true,
+        status: "active",
+        deactivatedAt: null,
+        deactivatedReason: null,
+        activatedAt: new Date()
+      }
+    });
+
+    res.json({
+      success: true,
+      message: "Student activated successfully"
+    });
+
+  } catch (error) {
+    console.error("Activate student error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to activate student"
+    });
+  }
+};
+
+/*
+---------------------------------------
+DEACTIVATE STUDENT (ADMIN)
+---------------------------------------
+*/
+export const deactivateStudent = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    const student = await prisma.student.findUnique({
+      where: { id: Number(id) },
+      include: { user: true }
+    });
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: "Student not found"
+      });
+    }
+
+    await prisma.user.update({
+      where: { id: student.userId },
+      data: {
+        isActive: false,
+        status: "deactivated",
+        deactivatedAt: new Date(),
+        deactivatedReason: reason || "Deactivated by admin",
+        deactivatedBy: req.user.id
+      }
+    });
+
+    res.json({
+      success: true,
+      message: "Student deactivated successfully"
+    });
+
+  } catch (error) {
+    console.error("Deactivate student error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to deactivate student"
     });
   }
 };
@@ -709,7 +815,8 @@ export const getStudentDashboard = async (req, res) => {
             id: true,
             email: true,
             name: true,
-            isActive: true
+            isActive: true,
+            status: true
           }
         },
         teacher: {
@@ -1145,7 +1252,8 @@ export const getStudentsByTeacher = async (req, res) => {
             id: true,
             email: true,
             name: true,
-            isActive: true
+            isActive: true,
+            status: true
           }
         },
         enrollments: {
@@ -1187,7 +1295,7 @@ export const getStudentsByCourse = async (req, res) => {
     const teacherId = req.user.id;
     const { courseId } = req.params;
 
-    const teacher = await prisma.teacher.findUnique({
+    const teacher = await prisma.staff.findUnique({
       where: { userId: teacherId }
     });
 
@@ -1264,7 +1372,7 @@ export const getStudentsByCourse = async (req, res) => {
         course: enrollment.student.course,
         semester: enrollment.student.semester,
         batch: enrollment.student.batch,
-        guardianName: enrollment.student.guardianName,
+        guardianName: enrollment.student.fatherName || enrollment.student.guardianName,
         guardianPhone: enrollment.student.guardianPhone,
         attendanceStats: {
           total: totalClasses,
@@ -1308,7 +1416,7 @@ export const getTeacherAllStudents = async (req, res) => {
   try {
     const teacherId = req.user.id;
 
-    const teacher = await prisma.teacher.findUnique({
+    const teacher = await prisma.staff.findUnique({
       where: { userId: teacherId }
     });
 
@@ -1432,7 +1540,7 @@ export const getStudentAttendanceForTeacher = async (req, res) => {
     const teacherId = req.user.id;
     const { studentId } = req.params;
 
-    const teacher = await prisma.teacher.findUnique({
+    const teacher = await prisma.staff.findUnique({
       where: { userId: teacherId }
     });
 
@@ -1528,7 +1636,9 @@ export const getTrashedStudents = async (req, res) => {
           select: {
             id: true,
             email: true,
-            name: true
+            name: true,
+            isActive: true,
+            status: true
           }
         },
         teacher: {
@@ -1558,22 +1668,41 @@ export const getTrashedStudents = async (req, res) => {
 
 /*
 ---------------------------------------
-RESTORE STUDENT FROM TRASH (ADMIN)
+RESTORE STUDENT FROM TRASH (ADMIN) - UPDATED
 ---------------------------------------
 */
 export const restoreStudent = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const student = await prisma.student.update({
+    const student = await prisma.student.findUnique({
       where: { id: Number(id) },
-      data: { deletedAt: null }
+      include: { user: true }
     });
 
-    await prisma.user.update({
-      where: { id: student.userId },
-      data: { isActive: true }
-    });
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: "Student not found"
+      });
+    }
+
+    await prisma.$transaction([
+      prisma.student.update({
+        where: { id: Number(id) },
+        data: { deletedAt: null }
+      }),
+      prisma.user.update({
+        where: { id: student.userId },
+        data: { 
+          isActive: true,
+          status: "active",
+          deactivatedAt: null,
+          deactivatedReason: null,
+          activatedAt: new Date()
+        }
+      })
+    ]);
 
     res.json({
       success: true,

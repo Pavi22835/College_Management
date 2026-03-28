@@ -78,7 +78,8 @@ export const register = async (req, res) => {
         email,
         password: hashedPassword,
         role: userRole,
-        isActive: true
+        isActive: true,
+        status: "active"
       }
     });
 
@@ -106,12 +107,11 @@ export const register = async (req, res) => {
           userId: user.id,
           name: name,
           email: email,
-          employeeId: `EMP${Date.now()}`, // This is correct
+          employeeId: `EMP${Date.now()}`,
           department: department || "General",
           designation: designation || "Staff",
           joiningDate: new Date(),
           phone: phone || null,
-          // Add these optional fields if they exist in your schema
           qualification: null,
           address: null,
           dateOfBirth: null,
@@ -137,6 +137,8 @@ export const register = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        isActive: user.isActive,
+        status: user.status,
         profile: profile || null
       }
     });
@@ -161,7 +163,7 @@ export const register = async (req, res) => {
 };
 
 /* ========================================
-   LOGIN USER
+   LOGIN USER - UPDATED WITH DEACTIVATED CHECK
    POST /api/auth/login
 ======================================== */
 export const login = async (req, res) => {
@@ -192,10 +194,18 @@ export const login = async (req, res) => {
       });
     }
 
-    if (!user.isActive) {
-      return res.status(401).json({
+    // CHECK IF ACCOUNT IS DEACTIVATED - UPDATED
+    // Check both isActive flag and status field
+    const isDeactivated = !user.isActive || user.status === 'deactivated' || user.status === 'inactive';
+    
+    if (isDeactivated) {
+      console.log(`⚠️ Deactivated login attempt: ${email} (Status: ${user.status}, isActive: ${user.isActive})`);
+      return res.status(403).json({
         success: false,
-        error: "Account is deactivated. Please contact admin."
+        error: "Account is Deactivated",
+        code: "ACCOUNT_DEACTIVATED",
+        deactivatedAt: user.deactivatedAt,
+        deactivatedReason: user.deactivatedReason
       });
     }
 
@@ -226,7 +236,9 @@ export const login = async (req, res) => {
       id: user.id,
       name: user.name,
       email: user.email,
-      role: user.role
+      role: user.role,
+      isActive: user.isActive,
+      status: user.status
     };
 
     // Add role-specific data
@@ -236,6 +248,7 @@ export const login = async (req, res) => {
         rollNo: user.student.rollNo,
         course: user.student.course,
         semester: user.student.semester,
+        batch: user.student.batch,
         phone: user.student.phone
       };
     }
@@ -246,6 +259,7 @@ export const login = async (req, res) => {
         employeeId: user.staff.employeeId,
         department: user.staff.department,
         designation: user.staff.designation,
+        staffRole: user.staff.staffRole,
         phone: user.staff.phone
       };
     }
@@ -303,6 +317,7 @@ export const getMe = async (req, res) => {
       email: user.email,
       role: user.role,
       isActive: user.isActive,
+      status: user.status,
       lastLogin: user.lastLogin
     };
 

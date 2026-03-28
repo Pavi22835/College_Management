@@ -3,6 +3,7 @@ import prisma from "../utils/prisma.js";
 
 /**
  * Protect routes - Verify JWT token and attach user to request
+ * UPDATED: Now checks for deactivated accounts
  */
 export const protect = async (req, res, next) => {
   try {
@@ -54,6 +55,9 @@ export const protect = async (req, res, next) => {
         name: true,
         role: true,
         isActive: true,
+        status: true,
+        deactivatedAt: true,
+        deactivatedReason: true,
         lastLogin: true,
       }
     });
@@ -70,16 +74,21 @@ export const protect = async (req, res, next) => {
     console.log("   - ID:", user.id);
     console.log("   - Email:", user.email);
     console.log("   - Name:", user.name);
-    console.log("   - Role from DB:", user.role);
-    console.log("   - Role type:", typeof user.role);
-    console.log("   - Role length:", user.role?.length);
-    console.log("   - Role char codes:", user.role?.split('').map(c => c.charCodeAt(0)));
+    console.log("   - Role:", user.role);
+    console.log("   - isActive:", user.isActive);
+    console.log("   - status:", user.status);
 
-    if (!user.isActive) {
-      console.log("❌ Account is deactivated");
+    // CHECK IF ACCOUNT IS DEACTIVATED - UPDATED
+    const isDeactivated = !user.isActive || user.status === 'deactivated' || user.status === 'inactive';
+    
+    if (isDeactivated) {
+      console.log(`❌ Account is deactivated: ${user.email} (Status: ${user.status}, isActive: ${user.isActive})`);
       return res.status(403).json({ 
         success: false,
-        error: "Account is deactivated. Please contact admin." 
+        error: "Account is Deactivated. Please contact admin.",
+        code: "ACCOUNT_DEACTIVATED",
+        deactivatedAt: user.deactivatedAt,
+        deactivatedReason: user.deactivatedReason
       });
     }
 
@@ -105,7 +114,6 @@ export const protect = async (req, res, next) => {
 
 /**
  * Authorize roles - Restrict access to specific roles
- * FIXED: Now handles case sensitivity and whitespace issues with detailed debug
  */
 export const authorize = (...roles) => {
   return (req, res, next) => {
@@ -120,43 +128,8 @@ export const authorize = (...roles) => {
       });
     }
 
-    console.log("2. User object:", {
-      id: req.user.id,
-      email: req.user.email,
-      role: req.user.role,
-      roleType: typeof req.user.role
-    });
-
-    console.log("3. Raw user role from DB:", JSON.stringify(req.user.role));
-    console.log("4. Role type:", typeof req.user.role);
-    console.log("5. Role length:", req.user.role?.length);
-    console.log("6. Role characters:", req.user.role?.split('').map(c => ({
-      char: c,
-      code: c.charCodeAt(0)
-    })));
-
-    // Check for hidden characters
-    const hasHiddenChars = req.user.role?.split('').some(c => c.charCodeAt(0) < 32 || c.charCodeAt(0) > 126);
-    console.log("7. Has hidden characters?", hasHiddenChars);
-
-    // Normalize the user role and allowed roles for comparison
-    // This fixes issues with case sensitivity and hidden whitespace
     const userRole = req.user.role?.trim().toUpperCase();
     const allowedRoles = roles.map(role => role.trim().toUpperCase());
-
-    console.log("8. Original allowed roles:", roles);
-    console.log("9. Normalized user role:", userRole);
-    console.log("10. Normalized allowed roles:", allowedRoles);
-    console.log("11. Does user role match allowed roles?", allowedRoles.includes(userRole));
-    
-    // Try different comparison methods for debugging
-    console.log("12. Alternative checks:");
-    console.log("    - Direct includes:", roles.includes(req.user.role));
-    console.log("    - Trim only:", roles.map(r => r.trim()).includes(req.user.role?.trim()));
-    console.log("    - Uppercase only:", roles.map(r => r.toUpperCase()).includes(req.user.role?.toUpperCase()));
-    console.log("    - Trim + Uppercase:", allowedRoles.includes(userRole));
-    
-    console.log("==========================================\n");
 
     if (!allowedRoles.includes(userRole)) {
       return res.status(403).json({ 
@@ -190,10 +163,11 @@ export const optionalAuth = async (req, res, next) => {
             name: true,
             role: true,
             isActive: true,
+            status: true,
           }
         });
 
-        if (user && user.isActive) {
+        if (user && (user.isActive !== false && user.status !== 'deactivated')) {
           req.user = user;
           req.userId = user.id;
           req.userRole = user.role;
@@ -302,12 +276,12 @@ export const refreshToken = async (req, res, next) => {
     // Verify refresh token
     const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
 
-    // Check if user exists
+    // Check if user exists and is active
     const user = await prisma.user.findUnique({
       where: { id: decoded.id }
     });
 
-    if (!user || !user.isActive) {
+    if (!user || !user.isActive || user.status === 'deactivated') {
       return res.status(401).json({ 
         success: false,
         error: "Invalid refresh token" 
