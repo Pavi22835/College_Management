@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   User, 
   Mail, 
@@ -31,7 +31,15 @@ import {
   Lock,
   EyeOff,
   Archive,
-  RotateCcw
+  RotateCcw,
+  AlertTriangle,
+  Trash2 as TrashIcon,
+  FolderOpen,
+  FileJson,
+  Undo2,
+  HardDrive,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { staffApi, userApi } from '../../../api/adminApi';
 import * as XLSX from 'xlsx';
@@ -61,6 +69,13 @@ const AdminStaff = () => {
   const [showDepartmentDropdown, setShowDepartmentDropdown] = useState(false);
   const [departmentSearchTerm, setDepartmentSearchTerm] = useState('');
   const departmentSearchRef = useRef(null);
+  
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [selectedRows, setSelectedRows] = useState([]);
+  const [selectAll, setSelectAll] = useState(false);
+  
   const [stats, setStats] = useState({
     totalStaff: 0,
     totalDepartments: 0,
@@ -114,6 +129,101 @@ const AdminStaff = () => {
     "Teaching Assistant"
   ];
 
+  // Pagination calculations
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = filteredStaff.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredStaff.length / itemsPerPage);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+    setSelectedRows([]);
+    setSelectAll(false);
+  }, [searchTerm, departmentFilter, statusFilter, activeTab]);
+
+  // Handle individual row selection - FIXED
+  const handleRowSelect = (id) => {
+    setSelectedRows(prev => {
+      let newSelected;
+      if (prev.includes(id)) {
+        newSelected = prev.filter(rowId => rowId !== id);
+      } else {
+        newSelected = [...prev, id];
+      }
+      return newSelected;
+    });
+  };
+
+  // Update selectAll when selectedRows changes
+  useEffect(() => {
+    if (currentItems.length > 0) {
+      const allSelected = currentItems.every(item => selectedRows.includes(item.id));
+      if (allSelected !== selectAll) {
+        setSelectAll(allSelected);
+      }
+    } else {
+      if (selectAll) setSelectAll(false);
+    }
+  }, [selectedRows, currentItems]);
+
+  // Handle select all checkbox click - FIXED
+  const handleSelectAllChange = (e) => {
+    const checked = e.target.checked;
+    setSelectAll(checked);
+    if (checked) {
+      const allIds = currentItems.map(item => item.id);
+      setSelectedRows(allIds);
+    } else {
+      setSelectedRows([]);
+    }
+  };
+
+  // Handle bulk delete/move to trash
+  const handleBulkAction = async (action) => {
+    if (selectedRows.length === 0) {
+      setError('Please select at least one staff member');
+      setTimeout(() => setError(null), 3000);
+      return;
+    }
+
+    const confirmMessage = action === 'delete' 
+      ? `Are you sure you want to move ${selectedRows.length} staff member(s) to trash?`
+      : `Are you sure you want to permanently delete ${selectedRows.length} staff member(s)? This action cannot be undone.`;
+
+    if (!window.confirm(confirmMessage)) return;
+
+    try {
+      setLoading(true);
+      let successCount = 0;
+      
+      for (const id of selectedRows) {
+        try {
+          if (action === 'delete') {
+            await staffApi.delete(id);
+          } else if (action === 'permanent') {
+            await staffApi.permanentDelete(id);
+          }
+          successCount++;
+        } catch (err) {
+          console.error(`Failed to ${action} staff ${id}:`, err);
+        }
+      }
+      
+      setSuccessMessage(`Successfully ${action === 'delete' ? 'moved' : 'permanently deleted'} ${successCount} staff member(s)`);
+      setTimeout(() => setSuccessMessage(''), 3000);
+      setSelectedRows([]);
+      setSelectAll(false);
+      fetchStaff();
+    } catch (err) {
+      console.error(`Error during bulk ${action}:`, err);
+      setError(`Failed to ${action} staff members`);
+      setTimeout(() => setError(null), 3000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchStaff();
   }, []);
@@ -133,7 +243,6 @@ const AdminStaff = () => {
   useEffect(() => {
     let filtered = activeTab === 'active' ? staff : deletedStaff;
 
-    // Apply search filter
     if (searchTerm) {
       filtered = filtered.filter(member =>
         member.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -145,14 +254,12 @@ const AdminStaff = () => {
       );
     }
 
-    // Apply department filter
     if (departmentFilter !== 'all') {
       filtered = filtered.filter(member => 
         member.department === departmentFilter
       );
     }
 
-    // Apply status filter (only for active tab)
     if (activeTab === 'active' && statusFilter !== 'all') {
       const isActive = statusFilter === 'active';
       filtered = filtered.filter(member => {
@@ -180,15 +287,23 @@ const AdminStaff = () => {
         staffData = response.data;
       }
 
-      // Separate active and deleted staff
-      const active = staffData.filter(member => member.isDeleted !== true && member.status !== 'deleted');
-      const deleted = staffData.filter(member => member.isDeleted === true || member.status === 'deleted');
+      const active = staffData.filter(member => 
+        !member.isDeleted && 
+        member.status !== 'deleted' &&
+        member.deletedAt === null &&
+        member.trashed !== true
+      );
       
-      // Sort staff by ID in ascending order
+      const deleted = staffData.filter(member => 
+        member.isDeleted === true || 
+        member.status === 'deleted' ||
+        member.deletedAt !== null ||
+        member.trashed === true
+      );
+      
       const sortedActive = [...active].sort((a, b) => (a.id || 0) - (b.id || 0));
       const sortedDeleted = [...deleted].sort((a, b) => (a.id || 0) - (b.id || 0));
       
-      // Ensure each staff has user.isActive defaulting to true if not set
       const normalizedActive = sortedActive.map(member => ({
         ...member,
         user: {
@@ -202,7 +317,8 @@ const AdminStaff = () => {
         user: {
           ...member.user,
           isActive: false
-        }
+        },
+        deletedAt: member.deletedAt || new Date().toISOString()
       }));
       
       setStaff(normalizedActive);
@@ -229,70 +345,117 @@ const AdminStaff = () => {
     }
   };
 
-  // Soft Delete - Move to trash
   const handleSoftDelete = async (member) => {
     setSelectedStaff(member);
     setModalType('softDelete');
     setShowModal(true);
   };
 
-  // Confirm Soft Delete
   const confirmSoftDelete = async () => {
     try {
-      if (staffApi.softDelete) {
-        await staffApi.softDelete(selectedStaff.id);
-      } else {
-        await staffApi.update(selectedStaff.id, { ...selectedStaff, isDeleted: true, status: 'deleted' });
-      }
+      setLoading(true);
+      await staffApi.delete(selectedStaff.id);
+      
+      const updatedStaff = staff.filter(s => s.id !== selectedStaff.id);
+      const deletedStaffWithDate = {
+        ...selectedStaff,
+        isDeleted: true,
+        status: 'deleted',
+        deletedAt: new Date().toISOString()
+      };
+      
+      setStaff(updatedStaff);
+      setDeletedStaff([deletedStaffWithDate, ...deletedStaff]);
+      setFilteredStaff(updatedStaff);
+      
+      setStats(prev => ({
+        ...prev,
+        totalStaff: prev.totalStaff - 1,
+        trashedStaff: prev.trashedStaff + 1,
+        activeStaff: prev.activeStaff - (selectedStaff.user?.isActive !== false ? 1 : 0)
+      }));
+      
       setSuccessMessage(`${selectedStaff.name} moved to trash successfully`);
       setTimeout(() => setSuccessMessage(''), 3000);
       setShowModal(false);
-      fetchStaff();
     } catch (err) {
       console.error('Error soft deleting staff:', err);
-      alert('Failed to move to trash');
+      setError('Failed to move to trash: ' + (err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 3000);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Restore from trash
   const handleRestore = async (member) => {
     if (!window.confirm(`Are you sure you want to restore ${member.name}?`)) return;
     
     try {
-      if (staffApi.restore) {
-        await staffApi.restore(member.id);
-      } else {
-        await staffApi.update(member.id, { ...member, isDeleted: false, status: 'active' });
-      }
+      setLoading(true);
+      
+      await staffApi.restore(member.id);
+      
+      const updatedDeleted = deletedStaff.filter(s => s.id !== member.id);
+      const restoredStaff = {
+        ...member,
+        isDeleted: false,
+        status: 'active',
+        deletedAt: null,
+        user: {
+          ...member.user,
+          isActive: true
+        }
+      };
+      
+      setDeletedStaff(updatedDeleted);
+      setStaff([restoredStaff, ...staff]);
+      setFilteredStaff(activeTab === 'active' ? [restoredStaff, ...staff] : updatedDeleted);
+      
+      setStats(prev => ({
+        ...prev,
+        totalStaff: prev.totalStaff + 1,
+        trashedStaff: prev.trashedStaff - 1,
+        activeStaff: prev.activeStaff + 1
+      }));
+      
       setSuccessMessage(`${member.name} restored successfully`);
       setTimeout(() => setSuccessMessage(''), 3000);
-      fetchStaff();
     } catch (err) {
       console.error('Error restoring staff:', err);
-      alert('Failed to restore');
+      setError('Failed to restore: ' + (err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 3000);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Permanent Delete
   const handlePermanentDelete = async (member) => {
-    if (!window.confirm(`Are you sure you want to permanently delete ${member.name}? This action cannot be undone.`)) return;
+    if (!window.confirm(`⚠️ Are you sure you want to permanently delete ${member.name}? This action cannot be undone.`)) return;
     
     try {
-      if (staffApi.permanentDelete) {
-        await staffApi.permanentDelete(member.id);
-      } else {
-        await staffApi.delete(member.id);
-      }
+      setLoading(true);
+      await staffApi.permanentDelete(member.id);
+      
+      const updatedDeleted = deletedStaff.filter(s => s.id !== member.id);
+      setDeletedStaff(updatedDeleted);
+      setFilteredStaff(updatedDeleted);
+      
+      setStats(prev => ({
+        ...prev,
+        trashedStaff: prev.trashedStaff - 1
+      }));
+      
       setSuccessMessage(`${member.name} permanently deleted`);
       setTimeout(() => setSuccessMessage(''), 3000);
-      fetchStaff();
     } catch (err) {
       console.error('Error permanently deleting staff:', err);
-      alert('Failed to permanently delete');
+      setError('Failed to permanently delete: ' + (err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 3000);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Toggle staff active status (sync with user management)
   const handleToggleStatus = async (member) => {
     try {
       const currentStatus = member.user?.isActive !== false;
@@ -310,7 +473,8 @@ const AdminStaff = () => {
       fetchStaff();
     } catch (err) {
       console.error('Error toggling staff status:', err);
-      alert('Failed to update staff status');
+      setError('Failed to update staff status');
+      setTimeout(() => setError(null), 3000);
     }
   };
 
@@ -356,25 +520,6 @@ const AdminStaff = () => {
     setShowModal(true);
   };
 
-  const handleDelete = (member) => {
-    setSelectedStaff(member);
-    setModalType('delete');
-    setShowModal(true);
-  };
-
-  const confirmDelete = async () => {
-    try {
-      await staffApi.delete(selectedStaff.id);
-      setSuccessMessage(`${selectedStaff.name} deleted successfully`);
-      setTimeout(() => setSuccessMessage(''), 3000);
-      setShowModal(false);
-      fetchStaff();
-    } catch (err) {
-      console.error('Error deleting staff:', err);
-      alert('Failed to delete staff');
-    }
-  };
-
   const handleChange = (e) => {
     setFormData({
       ...formData,
@@ -395,7 +540,8 @@ const AdminStaff = () => {
     e.preventDefault();
     try {
       if (!formData.name || !formData.email || !formData.department || !formData.designation) {
-        alert('Please fill in all required fields');
+        setError('Please fill in all required fields');
+        setTimeout(() => setError(null), 3000);
         return;
       }
 
@@ -411,23 +557,46 @@ const AdminStaff = () => {
 
       if (modalType === 'add') {
         if (!formData.password) {
-          alert('Password is required for new staff');
+          setError('Password is required for new staff');
+          setTimeout(() => setError(null), 3000);
           return;
         }
         staffData.password = formData.password;
-        await staffApi.create(staffData);
+        const response = await staffApi.create(staffData);
+        
+        const newStaff = {
+          ...response.data,
+          ...staffData,
+          id: response.data?.id || Date.now(),
+          user: { isActive: true }
+        };
+        setStaff([newStaff, ...staff]);
+        setFilteredStaff([newStaff, ...filteredStaff]);
+        setStats(prev => ({
+          ...prev,
+          totalStaff: prev.totalStaff + 1,
+          activeStaff: prev.activeStaff + 1
+        }));
+        
         setSuccessMessage(`✅ Staff "${formData.name}" added successfully with ACTIVE status!`);
       } else if (modalType === 'edit') {
         await staffApi.update(selectedStaff.id, staffData);
+        
+        const updatedStaff = staff.map(s => 
+          s.id === selectedStaff.id ? { ...s, ...staffData } : s
+        );
+        setStaff(updatedStaff);
+        setFilteredStaff(updatedStaff);
+        
         setSuccessMessage(`✅ Staff "${formData.name}" updated successfully!`);
       }
       
       setTimeout(() => setSuccessMessage(''), 3000);
       setShowModal(false);
-      fetchStaff();
     } catch (err) {
       console.error('Error saving staff:', err);
-      alert(err.message || 'Failed to save staff');
+      setError(err.message || 'Failed to save staff');
+      setTimeout(() => setError(null), 3000);
     }
   };
 
@@ -447,10 +616,9 @@ const AdminStaff = () => {
     return [...new Set(depts)].sort();
   };
 
-  // Export to Excel
   const exportToExcel = () => {
     try {
-      const exportData = filteredStaff.map(member => ({
+      const exportData = currentItems.map(member => ({
         'ID': member.id || '',
         'Name': member.name || '',
         'Email': member.email || '',
@@ -459,7 +627,7 @@ const AdminStaff = () => {
         'Phone': member.phone || '',
         'Employee ID': member.employeeId || '',
         'Address': member.address || '',
-        'Status': member.user?.isActive !== false ? 'Active' : 'Inactive'
+        'Status': activeTab === 'deleted' ? 'Deleted' : (member.user?.isActive !== false ? 'Active' : 'Inactive')
       }));
 
       const wb = XLSX.utils.book_new();
@@ -476,7 +644,8 @@ const AdminStaff = () => {
       setShowExportMenu(false);
     } catch (err) {
       console.error('Error exporting to Excel:', err);
-      alert('Failed to export to Excel');
+      setError('Failed to export to Excel');
+      setTimeout(() => setError(null), 3000);
     }
   };
 
@@ -564,7 +733,6 @@ const AdminStaff = () => {
 
           for (let i = 0; i < jsonData.length; i++) {
             const row = jsonData[i];
-            const rowNumber = i + 2;
 
             try {
               const name = String(row['Name'] || row['name'] || '').trim();
@@ -608,7 +776,8 @@ const AdminStaff = () => {
           }
 
           if (newCount === 0) {
-            alert(`No new staff to import.\n${skippedCount} already exist.\n${errorCount} errors.`);
+            setError(`No new staff to import.\n${skippedCount} already exist.\n${errorCount} errors.`);
+            setTimeout(() => setError(null), 5000);
             setShowImportPreview(false);
             setImportFile(null);
             setLoading(false);
@@ -623,14 +792,30 @@ const AdminStaff = () => {
           let importedCount = 0;
           for (const staff of newStaff) {
             try {
-              await staffApi.create(staff);
+              const response = await staffApi.create(staff);
               importedCount++;
+              
+              const newStaffMember = {
+                ...response.data,
+                ...staff,
+                id: response.data?.id || Date.now() + importedCount,
+                user: { isActive: true }
+              };
+              setStaff(prev => [newStaffMember, ...prev]);
+              
             } catch (err) {
               console.error(`Failed to import ${staff.email}:`, err);
             }
           }
 
-          alert(`✅ Successfully imported ${importedCount} staff members!`);
+          setStats(prev => ({
+            ...prev,
+            totalStaff: prev.totalStaff + importedCount,
+            activeStaff: prev.activeStaff + importedCount
+          }));
+          
+          setSuccessMessage(`✅ Successfully imported ${importedCount} staff members!`);
+          setTimeout(() => setSuccessMessage(''), 5000);
           
           setShowImportPreview(false);
           setImportFile(null);
@@ -639,11 +824,10 @@ const AdminStaff = () => {
             fileInputRef.current.value = '';
           }
           
-          fetchStaff();
-          
         } catch (err) {
           console.error('Import error:', err);
-          alert('Failed to process import');
+          setError('Failed to process import');
+          setTimeout(() => setError(null), 3000);
         } finally {
           setLoading(false);
         }
@@ -653,7 +837,8 @@ const AdminStaff = () => {
       
     } catch (err) {
       console.error('File reader error:', err);
-      alert('Failed to read file');
+      setError('Failed to read file');
+      setTimeout(() => setError(null), 3000);
       setLoading(false);
     }
   };
@@ -711,19 +896,6 @@ const AdminStaff = () => {
     );
   }
 
-  if (error) {
-    return (
-      <div className="error-container">
-        <div className="error-icon">!</div>
-        <h3>Error Loading Staff</h3>
-        <p>{error}</p>
-        <button className="btn-retry" onClick={handleRefresh}>
-          <RefreshCw size={16} /> Try Again
-        </button>
-      </div>
-    );
-  }
-
   const uniqueDepartments = getUniqueDepartments();
 
   return (
@@ -743,10 +915,17 @@ const AdminStaff = () => {
         </div>
       )}
 
+      {error && (
+        <div className="error-message">
+          <AlertTriangle size={16} />
+          <span>{error}</span>
+        </div>
+      )}
+
       <div className="page-header">
         <div className="header-left">
-          <h1 className="page-title">Staff</h1>
-          <p className="page-description">Manage staff records and assignments</p>
+          <h1 className="page-title">Staff Management</h1>
+          <p className="page-description">Manage staff records, assignments, and permissions</p>
         </div>
         
         <div className="header-right">
@@ -777,8 +956,13 @@ const AdminStaff = () => {
             <span>Export Excel</span>
           </button>
 
-          <button className="btn-icon" onClick={() => setActiveTab(activeTab === 'active' ? 'deleted' : 'active')} title="Trash">
+          <button 
+            className={`btn-icon ${activeTab === 'deleted' ? 'active' : ''}`} 
+            onClick={() => setActiveTab(activeTab === 'active' ? 'deleted' : 'active')} 
+            title={activeTab === 'active' ? "View Trash" : "View Active Staff"}
+          >
             <Archive size={18} />
+            {stats.trashedStaff > 0 && <span className="badge-icon">{stats.trashedStaff}</span>}
           </button>
           
           <button className="btn-icon" onClick={handleRefresh} title="Refresh">
@@ -855,7 +1039,7 @@ const AdminStaff = () => {
           </div>
         </div>
         <div className="stat-card">
-          <div className="stat-icon gray"><Archive size={24} /></div>
+          <div className="stat-icon gray"><TrashIcon size={24} /></div>
           <div className="stat-content">
             <span className="stat-label">TRASH</span>
             <span className="stat-value">{stats.trashedStaff}</span>
@@ -866,10 +1050,14 @@ const AdminStaff = () => {
       {/* Tabs */}
       <div className="tabs-container">
         <button className={`tab-btn ${activeTab === 'active' ? 'active' : ''}`} onClick={() => setActiveTab('active')}>
-          <Users size={16} /><span>Active Staff</span><span className="tab-count">{staff.length}</span>
+          <Users size={16} />
+          <span>Active Staff</span>
+          <span className="tab-count">{staff.length}</span>
         </button>
         <button className={`tab-btn ${activeTab === 'deleted' ? 'active' : ''}`} onClick={() => setActiveTab('deleted')}>
-          <Archive size={16} /><span>Trash</span><span className="tab-count">{deletedStaff.length}</span>
+          <TrashIcon size={16} />
+          <span>Trash</span>
+          <span className="tab-count">{deletedStaff.length}</span>
         </button>
       </div>
 
@@ -908,12 +1096,44 @@ const AdminStaff = () => {
           </div>
         )}
       </div>
+
+      {/* Table Actions Bar */}
+      {selectedRows.length > 0 && (
+        <div className="table-actions-bar">
+          <span className="selected-count">{selectedRows.length} item(s) selected</span>
+          <div className="bulk-actions">
+            <button 
+              className="btn-bulk-delete" 
+              onClick={() => handleBulkAction('delete')}
+              title="Move selected to trash"
+            >
+              <Archive size={16} /> Move to Trash
+            </button>
+            {activeTab === 'deleted' && (
+              <button 
+                className="btn-bulk-permanent-delete" 
+                onClick={() => handleBulkAction('permanent')}
+                title="Permanently delete selected"
+              >
+                <Trash2 size={16} /> Permanently Delete
+              </button>
+            )}
+          </div>
+        </div>
+      )}
       
       {/* Staff Table */}
       <div className="table-container">
         <table className="staff-table">
           <thead>
             <tr>
+              <th style={{ width: '40px' }}>
+                <input
+                  type="checkbox"
+                  checked={selectAll}
+                  onChange={handleSelectAllChange}
+                />
+              </th>
               <th>ID</th>
               <th>STAFF</th>
               <th>DEPARTMENT</th>
@@ -926,18 +1146,31 @@ const AdminStaff = () => {
             </tr>
           </thead>
           <tbody>
-            {filteredStaff.length > 0 ? (
-              filteredStaff.map((member) => {
+            {currentItems.length > 0 ? (
+              currentItems.map((member) => {
                 const isActive = member.user?.isActive !== false;
+                const isDeleted = activeTab === 'deleted';
+                const deletedDate = member.deletedAt ? new Date(member.deletedAt).toLocaleDateString() : null;
+                
                 return (
-                  <tr key={member.id} className={activeTab === 'deleted' ? 'deleted-row' : ''}>
-                    <td><span className="staff-id">{member.id}</span></td>
+                  <tr key={member.id} className={isDeleted ? 'deleted-row' : ''}>
+                    <td style={{ textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedRows.includes(member.id)}
+                        onChange={() => handleRowSelect(member.id)}
+                      />
+                    </td>
+                    <td><span className="staff-id">#{member.id}</span></td>
                     <td>
                       <div className="staff-info">
                         <div className="staff-avatar">{member.name?.charAt(0).toUpperCase()}</div>
                         <div className="staff-details">
                           <div className="staff-name">{member.name}</div>
                           <div className="staff-email">{member.email}</div>
+                          {isDeleted && deletedDate && (
+                            <div className="deleted-date">Deleted: {deletedDate}</div>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -950,25 +1183,39 @@ const AdminStaff = () => {
                     </td>
                     <td>
                       {activeTab === 'active' ? (
-                        <button className={`status-toggle ${isActive ? 'active' : 'inactive'}`} onClick={() => handleToggleStatus(member)}>
+                        <button 
+                          className={`status-toggle ${isActive ? 'active' : 'inactive'}`} 
+                          onClick={() => handleToggleStatus(member)}
+                          title={isActive ? "Deactivate Staff" : "Activate Staff"}
+                        >
                           {isActive ? 'ACTIVE' : 'INACTIVE'}
                         </button>
                       ) : (
-                        <span className="status-toggle inactive">DELETED</span>
+                        <span className="status-toggle deleted">DELETED</span>
                       )}
                     </td>
                     <td>
                       <div className="action-group">
-                        <button className="action-btn view" onClick={() => handleView(member)} title="View"><Eye size={18} /></button>
+                        <button className="action-btn view" onClick={() => handleView(member)} title="View Details">
+                          <Eye size={18} />
+                        </button>
                         {activeTab === 'active' ? (
                           <>
-                            <button className="action-btn edit" onClick={() => handleEdit(member)} title="Edit"><Edit size={18} /></button>
-                            <button className="action-btn delete" onClick={() => handleSoftDelete(member)} title="Move to Trash"><Trash2 size={18} /></button>
+                            <button className="action-btn edit" onClick={() => handleEdit(member)} title="Edit Staff">
+                              <Edit size={18} />
+                            </button>
+                            <button className="action-btn delete" onClick={() => handleSoftDelete(member)} title="Move to Trash">
+                              <Archive size={18} />
+                            </button>
                           </>
                         ) : (
                           <>
-                            <button className="action-btn restore" onClick={() => handleRestore(member)} title="Restore"><RotateCcw size={18} /></button>
-                            <button className="action-btn permanent-delete" onClick={() => handlePermanentDelete(member)} title="Permanently Delete"><Trash2 size={18} /></button>
+                            <button className="action-btn restore" onClick={() => handleRestore(member)} title="Restore Staff">
+                              <Undo2 size={18} />
+                            </button>
+                            <button className="action-btn permanent-delete" onClick={() => handlePermanentDelete(member)} title="Permanently Delete">
+                              <Trash2 size={18} />
+                            </button>
                           </>
                         )}
                       </div>
@@ -978,15 +1225,31 @@ const AdminStaff = () => {
               })
             ) : (
               <tr>
-                <td colSpan="9" className="empty-state">
+                <td colSpan="10" className="empty-state">
                   {activeTab === 'active' ? (
                     staff.length === 0 ? (
-                      <><Users size={48} /><h3>No Staff Found</h3><p>Click "Add Staff" to create your first staff record.</p><button className="btn-primary" onClick={handleAdd}><Plus size={16} /> Add Staff</button></>
+                      <>
+                        <FolderOpen size={48} />
+                        <h3>No Staff Found</h3>
+                        <p>Click "Add Staff" to create your first staff record.</p>
+                        <button className="btn-primary" onClick={handleAdd}>
+                          <Plus size={16} /> Add Staff
+                        </button>
+                      </>
                     ) : (
-                      <><Search size={48} /><h3>No Matching Staff</h3><p>Try adjusting your search criteria.</p><button className="btn-secondary" onClick={clearFilters}>Clear Filters</button></>
+                      <>
+                        <Search size={48} />
+                        <h3>No Matching Staff</h3>
+                        <p>Try adjusting your search criteria or clear filters.</p>
+                        <button className="btn-secondary" onClick={clearFilters}>Clear Filters</button>
+                      </>
                     )
                   ) : (
-                    <><Archive size={48} /><h3>Trash is Empty</h3><p>No deleted staff found.</p></>
+                    <>
+                      <TrashIcon size={48} />
+                      <h3>Trash is Empty</h3>
+                      <p>No deleted staff found. Deleted staff will appear here for restoration.</p>
+                    </>
                   )}
                 </td>
               </tr>
@@ -994,6 +1257,67 @@ const AdminStaff = () => {
           </tbody>
         </table>
       </div>
+
+      {/* Pagination */}
+      {filteredStaff.length > 0 && (
+        <div className="pagination-container">
+          <div className="pagination-info">
+            <span>Show</span>
+            <select 
+              value={itemsPerPage} 
+              onChange={(e) => {
+                setItemsPerPage(Number(e.target.value));
+                setCurrentPage(1);
+                setSelectedRows([]);
+                setSelectAll(false);
+              }}
+              className="pagination-select"
+            >
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+            </select>
+            <span>entries</span>
+            <span className="pagination-total">
+              Total: {filteredStaff.length}
+            </span>
+          </div>
+          <div className="pagination-controls">
+            <button
+              className="pagination-btn"
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+            >
+              First
+            </button>
+            <button
+              className="pagination-btn"
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft size={16} /> Prev
+            </button>
+            <span className="pagination-page">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button
+              className="pagination-btn"
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+            >
+              Next <ChevronRight size={16} />
+            </button>
+            <button
+              className="pagination-btn"
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+            >
+              Last
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Add/Edit Staff Modal */}
       {(modalType === 'add' || modalType === 'edit') && showModal && (
@@ -1111,7 +1435,10 @@ const AdminStaff = () => {
 
               <div className="modal-footer">
                 <button type="button" className="btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
-                <button type="submit" className="btn-primary"><Save size={16} />{modalType === 'add' ? 'Add Staff' : 'Update Staff'}</button>
+                <button type="submit" className="btn-primary">
+                  <Save size={16} />
+                  {modalType === 'add' ? 'Add Staff' : 'Update Staff'}
+                </button>
               </div>
             </form>
           </div>
@@ -1122,23 +1449,55 @@ const AdminStaff = () => {
       {modalType === 'view' && selectedStaff && showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header"><h2>Staff Details</h2><button className="close-btn" onClick={() => setShowModal(false)}><X size={20} /></button></div>
+            <div className="modal-header">
+              <h2>Staff Details</h2>
+              <button className="close-btn" onClick={() => setShowModal(false)}><X size={20} /></button>
+            </div>
             <div className="modal-body">
               <div className="profile-header">
                 <div className="profile-avatar">{selectedStaff.name?.charAt(0).toUpperCase()}</div>
-                <div className="profile-info"><h3>{selectedStaff.name}</h3><p>{selectedStaff.email}</p></div>
+                <div className="profile-info">
+                  <h3>{selectedStaff.name}</h3>
+                  <p>{selectedStaff.email}</p>
+                  {selectedStaff.deletedAt && (
+                    <p className="deleted-info">Deleted on: {new Date(selectedStaff.deletedAt).toLocaleString()}</p>
+                  )}
+                </div>
               </div>
               <div className="details-grid">
-                <div className="detail-item"><span className="detail-label">Department</span><span className="detail-value">{selectedStaff.department}</span></div>
-                <div className="detail-item"><span className="detail-label">Designation</span><span className="detail-value">{selectedStaff.designation}</span></div>
-                <div className="detail-item"><span className="detail-label">Employee ID</span><span className="detail-value">{selectedStaff.employeeId || '—'}</span></div>
-                <div className="detail-item"><span className="detail-label">Phone</span><span className="detail-value">{selectedStaff.phone || '—'}</span></div>
-                <div className="detail-item full-width"><span className="detail-label">Address</span><span className="detail-value address-value">{selectedStaff.address || '—'}</span></div>
+                <div className="detail-item">
+                  <span className="detail-label">Department</span>
+                  <span className="detail-value">{selectedStaff.department}</span>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-label">Designation</span>
+                  <span className="detail-value">{selectedStaff.designation}</span>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-label">Employee ID</span>
+                  <span className="detail-value">{selectedStaff.employeeId || '—'}</span>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-label">Phone</span>
+                  <span className="detail-value">{selectedStaff.phone || '—'}</span>
+                </div>
+                <div className="detail-item full-width">
+                  <span className="detail-label">Address</span>
+                  <span className="detail-value address-value">{selectedStaff.address || '—'}</span>
+                </div>
               </div>
             </div>
             <div className="modal-footer">
               <button className="btn-secondary" onClick={() => setShowModal(false)}>Close</button>
-              {!selectedStaff.isDeleted && <button className="btn-primary" onClick={() => { setShowModal(false); handleEdit(selectedStaff); }}><Edit size={16} />Edit Staff</button>}
+              {selectedStaff.deletedAt ? (
+                <button className="btn-primary" onClick={() => { setShowModal(false); handleRestore(selectedStaff); }}>
+                  <Undo2 size={16} />Restore Staff
+                </button>
+              ) : (
+                <button className="btn-primary" onClick={() => { setShowModal(false); handleEdit(selectedStaff); }}>
+                  <Edit size={16} />Edit Staff
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1148,33 +1507,20 @@ const AdminStaff = () => {
       {modalType === 'softDelete' && selectedStaff && showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content modal-sm" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header"><h2>Move to Trash</h2><button className="close-btn" onClick={() => setShowModal(false)}><X size={20} /></button></div>
+            <div className="modal-header">
+              <h2>Move to Trash</h2>
+              <button className="close-btn" onClick={() => setShowModal(false)}><X size={20} /></button>
+            </div>
             <div className="modal-body text-center">
-              <div className="delete-icon"><Archive size={48} /></div>
+              <div className="delete-icon warning"><Archive size={48} /></div>
               <p className="delete-message">Are you sure you want to move <strong>{selectedStaff.name}</strong> to trash?</p>
               <p className="delete-warning">You can restore this staff from trash later.</p>
             </div>
             <div className="modal-footer">
               <button className="btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
-              <button className="btn-warning" onClick={confirmSoftDelete}><Archive size={16} />Move to Trash</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Confirmation Modal */}
-      {modalType === 'delete' && selectedStaff && showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal-content modal-sm" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header"><h2>Delete Staff</h2><button className="close-btn" onClick={() => setShowModal(false)}><X size={20} /></button></div>
-            <div className="modal-body text-center">
-              <div className="delete-icon"><Trash2 size={48} /></div>
-              <p className="delete-message">Are you sure you want to delete <strong>{selectedStaff.name}</strong>?</p>
-              <p className="delete-warning">This action cannot be undone.</p>
-            </div>
-            <div className="modal-footer">
-              <button className="btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
-              <button className="btn-danger" onClick={confirmDelete}><Trash2 size={16} />Delete Staff</button>
+              <button className="btn-warning" onClick={confirmSoftDelete}>
+                <Archive size={16} />Move to Trash
+              </button>
             </div>
           </div>
         </div>

@@ -6,12 +6,21 @@ import bcrypt from "bcrypt";
    ======================================== */
 
 /* -----------------------------------------
-GET ALL STAFF
+GET ALL STAFF (WITH OPTION TO INCLUDE TRASHED)
 ------------------------------------------*/
 export const getAllStaff = async (req, res) => {
   try {
+    const { includeTrashed } = req.query;
+    
+    let whereCondition = {};
+    
+    // If includeTrashed is false or not provided, exclude deleted staff
+    if (includeTrashed !== 'true') {
+      whereCondition = { deletedAt: null };
+    }
+    
     const staff = await prisma.staff.findMany({
-      where: { deletedAt: null },
+      where: whereCondition,
       include: {
         user: {
           select: {
@@ -20,10 +29,13 @@ export const getAllStaff = async (req, res) => {
             name: true,
             isActive: true,
             status: true,
-            lastLogin: true
+            lastLogin: true,
+            deactivatedAt: true,
+            deactivatedReason: true
           }
         },
         courses: {
+          where: { deletedAt: null },
           select: {
             id: true,
             code: true,
@@ -50,6 +62,55 @@ export const getAllStaff = async (req, res) => {
 };
 
 /* -----------------------------------------
+GET TRASHED STAFF (DELETED STAFF)
+------------------------------------------*/
+export const getTrashedStaff = async (req, res) => {
+  try {
+    const staff = await prisma.staff.findMany({
+      where: {
+        deletedAt: { not: null }
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            isActive: true,
+            status: true,
+            lastLogin: true,
+            deactivatedAt: true,
+            deactivatedReason: true
+          }
+        },
+        courses: {
+          where: { deletedAt: null },
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            semester: true
+          }
+        }
+      },
+      orderBy: { deletedAt: "desc" }
+    });
+
+    res.json({
+      success: true,
+      data: staff
+    });
+
+  } catch (error) {
+    console.error("Get trashed staff error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch trashed staff"
+    });
+  }
+};
+
+/* -----------------------------------------
 GET STAFF BY ID
 ------------------------------------------*/
 export const getStaffById = async (req, res) => {
@@ -66,7 +127,9 @@ export const getStaffById = async (req, res) => {
             name: true,
             isActive: true,
             status: true,
-            lastLogin: true
+            lastLogin: true,
+            deactivatedAt: true,
+            deactivatedReason: true
           }
         },
         courses: {
@@ -83,7 +146,7 @@ export const getStaffById = async (req, res) => {
       }
     });
 
-    if (!staff || staff.deletedAt) {
+    if (!staff) {
       return res.status(404).json({
         success: false,
         message: "Staff not found"
@@ -105,7 +168,7 @@ export const getStaffById = async (req, res) => {
 };
 
 /* -----------------------------------------
-CREATE STAFF - REMOVED address field
+CREATE STAFF
 ------------------------------------------*/
 export const createStaff = async (req, res) => {
   try {
@@ -193,7 +256,7 @@ export const createStaff = async (req, res) => {
       employeeId: finalEmployeeId
     });
 
-    // Create user and staff in transaction - REMOVED address field
+    // Create user and staff in transaction
     const result = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
@@ -202,7 +265,8 @@ export const createStaff = async (req, res) => {
           password: hashedPassword,
           role: "STAFF",
           isActive: true,
-          status: "active"
+          status: "active",
+          activatedAt: new Date()
         }
       });
 
@@ -216,7 +280,8 @@ export const createStaff = async (req, res) => {
           staffRole: finalStaffRole,
           employeeId: finalEmployeeId,
           phone: phone || null,
-          appointedDate: appointedDate ? new Date(appointedDate) : null
+          appointedDate: appointedDate ? new Date(appointedDate) : null,
+          deletedAt: null // Explicitly set to null for new staff
         },
         include: {
           user: {
@@ -225,7 +290,8 @@ export const createStaff = async (req, res) => {
               email: true,
               name: true,
               isActive: true,
-              status: true
+              status: true,
+              activatedAt: true
             }
           }
         }
@@ -258,7 +324,7 @@ export const createStaff = async (req, res) => {
 };
 
 /* -----------------------------------------
-UPDATE STAFF - REMOVED address field
+UPDATE STAFF
 ------------------------------------------*/
 export const updateStaff = async (req, res) => {
   try {
@@ -284,6 +350,14 @@ export const updateStaff = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "Staff not found"
+      });
+    }
+
+    // Check if staff is in trash
+    if (existingStaff.deletedAt) {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot update staff that is in trash. Please restore first."
       });
     }
 
@@ -346,8 +420,8 @@ export const updateStaff = async (req, res) => {
 };
 
 /* -----------------------------------------
-DELETE STAFF (SOFT DELETE) - UPDATED WITH DEACTIVATION
-----------------------------------------*/
+SOFT DELETE STAFF (MOVE TO TRASH) - UPDATED
+------------------------------------------*/
 export const deleteStaff = async (req, res) => {
   try {
     const { id } = req.params;
@@ -361,12 +435,22 @@ export const deleteStaff = async (req, res) => {
       return res.status(404).json({ success: false, message: "Staff not found" });
     }
 
+    // Check if already deleted
+    if (staff.deletedAt) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Staff is already in trash" 
+      });
+    }
+
+    const now = new Date();
+    
     // Soft delete staff and deactivate user
     await prisma.$transaction([
       prisma.staff.update({ 
         where: { id: Number(id) }, 
         data: { 
-          deletedAt: new Date()
+          deletedAt: now
         } 
       }),
       prisma.user.update({ 
@@ -374,27 +458,35 @@ export const deleteStaff = async (req, res) => {
         data: { 
           isActive: false,
           status: "deactivated",
-          deactivatedAt: new Date(),
+          deactivatedAt: now,
           deactivatedReason: "Staff moved to trash",
-          deactivatedBy: req.user.id
+          deactivatedBy: req.user?.id || null
         } 
       })
     ]);
 
     res.json({ 
       success: true, 
-      message: "Staff moved to trash successfully" 
+      message: "Staff moved to trash successfully",
+      data: {
+        id: staff.id,
+        name: staff.name,
+        deletedAt: now
+      }
     });
 
   } catch (error) {
     console.error("Delete staff error:", error);
-    res.status(500).json({ success: false, message: "Failed to delete staff" });
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to move staff to trash" 
+    });
   }
 };
 
 /* -----------------------------------------
-RESTORE STAFF FROM TRASH - UPDATED
-----------------------------------------*/
+RESTORE STAFF FROM TRASH
+------------------------------------------*/
 export const restoreStaff = async (req, res) => {
   try {
     const { id } = req.params;
@@ -408,6 +500,17 @@ export const restoreStaff = async (req, res) => {
       return res.status(404).json({ success: false, message: "Staff not found" });
     }
 
+    // Check if not in trash
+    if (!staff.deletedAt) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Staff is not in trash" 
+      });
+    }
+
+    const now = new Date();
+    
+    // Restore staff and reactivate user
     await prisma.$transaction([
       prisma.staff.update({ 
         where: { id: Number(id) }, 
@@ -422,25 +525,47 @@ export const restoreStaff = async (req, res) => {
           status: "active",
           deactivatedAt: null,
           deactivatedReason: null,
-          activatedAt: new Date()
+          deactivatedBy: null,
+          activatedAt: now
         } 
       })
     ]);
 
+    // Get the restored staff data
+    const restoredStaff = await prisma.staff.findUnique({
+      where: { id: Number(id) },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            isActive: true,
+            status: true,
+            activatedAt: true
+          }
+        }
+      }
+    });
+
     res.json({ 
       success: true, 
-      message: "Staff restored successfully" 
+      message: "Staff restored successfully",
+      data: restoredStaff
     });
 
   } catch (error) {
     console.error("Restore staff error:", error);
-    res.status(500).json({ success: false, message: "Failed to restore staff" });
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to restore staff" 
+    });
   }
 };
 
 /* -----------------------------------------
 PERMANENTLY DELETE STAFF (HARD DELETE)
-----------------------------------------*/
+------------------------------------------*/
 export const permanentDeleteStaff = async (req, res) => {
   try {
     const { id } = req.params;
@@ -454,6 +579,11 @@ export const permanentDeleteStaff = async (req, res) => {
       return res.status(404).json({ success: false, message: "Staff not found" });
     }
 
+    // Store names for response
+    const staffName = staff.name;
+    const userEmail = staff.user?.email;
+
+    // Permanently delete staff and associated user
     await prisma.$transaction([
       prisma.staff.delete({ where: { id: Number(id) } }),
       prisma.user.delete({ where: { id: staff.userId } })
@@ -461,22 +591,33 @@ export const permanentDeleteStaff = async (req, res) => {
 
     res.json({ 
       success: true, 
-      message: "Staff permanently deleted" 
+      message: `Staff "${staffName}" (${userEmail}) permanently deleted`,
+      data: {
+        id: staff.id,
+        name: staffName,
+        email: userEmail
+      }
     });
 
   } catch (error) {
     console.error("Permanent delete staff error:", error);
-    res.status(500).json({ success: false, message: "Failed to permanently delete staff" });
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to permanently delete staff" 
+    });
   }
 };
 
 /* -----------------------------------------
 GET HODs ONLY
-----------------------------------------*/
+------------------------------------------*/
 export const getHODs = async (req, res) => {
   try {
     const hods = await prisma.staff.findMany({
-      where: { staffRole: 'HOD', deletedAt: null },
+      where: { 
+        staffRole: 'HOD', 
+        deletedAt: null 
+      },
       include: {
         user: { 
           select: { 
@@ -488,7 +629,10 @@ export const getHODs = async (req, res) => {
             lastLogin: true 
           } 
         },
-        courses: { select: { id: true, code: true, name: true } }
+        courses: { 
+          where: { deletedAt: null },
+          select: { id: true, code: true, name: true } 
+        }
       },
       orderBy: { department: "asc" }
     });
@@ -502,11 +646,14 @@ export const getHODs = async (req, res) => {
 
 /* -----------------------------------------
 GET FACULTY ONLY
-----------------------------------------*/
+------------------------------------------*/
 export const getFaculty = async (req, res) => {
   try {
     const faculty = await prisma.staff.findMany({
-      where: { staffRole: 'FACULTY', deletedAt: null },
+      where: { 
+        staffRole: 'FACULTY', 
+        deletedAt: null 
+      },
       include: {
         user: { 
           select: { 
@@ -518,7 +665,10 @@ export const getFaculty = async (req, res) => {
             lastLogin: true 
           } 
         },
-        courses: { select: { id: true, code: true, name: true } }
+        courses: { 
+          where: { deletedAt: null },
+          select: { id: true, code: true, name: true } 
+        }
       },
       orderBy: { department: "asc" }
     });
@@ -532,11 +682,14 @@ export const getFaculty = async (req, res) => {
 
 /* -----------------------------------------
 GET MENTORS ONLY
-----------------------------------------*/
+------------------------------------------*/
 export const getMentors = async (req, res) => {
   try {
     const mentors = await prisma.staff.findMany({
-      where: { staffRole: 'MENTOR', deletedAt: null },
+      where: { 
+        staffRole: 'MENTOR', 
+        deletedAt: null 
+      },
       include: {
         user: { 
           select: { 
@@ -560,11 +713,12 @@ export const getMentors = async (req, res) => {
 };
 
 /* -----------------------------------------
-GET STAFF STATISTICS
-----------------------------------------*/
+GET STAFF STATISTICS (UPDATED WITH TRASH COUNT)
+------------------------------------------*/
 export const getStaffStats = async (req, res) => {
   try {
     const totalStaff = await prisma.staff.count({ where: { deletedAt: null } });
+    const trashedStaff = await prisma.staff.count({ where: { deletedAt: { not: null } } });
     const activeStaff = await prisma.staff.count({ 
       where: { 
         deletedAt: null, 
@@ -583,9 +737,24 @@ export const getStaffStats = async (req, res) => {
         } 
       } 
     });
-    const hodsCount = await prisma.staff.count({ where: { staffRole: 'HOD', deletedAt: null } });
-    const facultyCount = await prisma.staff.count({ where: { staffRole: 'FACULTY', deletedAt: null } });
-    const mentorsCount = await prisma.staff.count({ where: { staffRole: 'MENTOR', deletedAt: null } });
+    const hodsCount = await prisma.staff.count({ 
+      where: { 
+        staffRole: 'HOD', 
+        deletedAt: null 
+      } 
+    });
+    const facultyCount = await prisma.staff.count({ 
+      where: { 
+        staffRole: 'FACULTY', 
+        deletedAt: null 
+      } 
+    });
+    const mentorsCount = await prisma.staff.count({ 
+      where: { 
+        staffRole: 'MENTOR', 
+        deletedAt: null 
+      } 
+    });
     
     const departments = await prisma.staff.groupBy({
       by: ['department'],
@@ -599,6 +768,7 @@ export const getStaffStats = async (req, res) => {
         total: totalStaff,
         active: activeStaff,
         inactive: inactiveStaff,
+        trashed: trashedStaff,
         byRole: { HOD: hodsCount, FACULTY: facultyCount, MENTOR: mentorsCount },
         departments: departments.map(d => ({ name: d.department, count: d._count }))
       }

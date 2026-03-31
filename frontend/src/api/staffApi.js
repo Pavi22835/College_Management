@@ -3,10 +3,11 @@ import axiosInstance from "./axiosConfig";
 const staffApi = {
   // ========== STAFF MANAGEMENT (ADMIN) ==========
 
-  // Get all staff (Admin)
-  getStaff: async () => {
+  // Get all staff (Admin) - Excludes deleted by default
+  getStaff: async (includeTrashed = false) => {
     try {
-      const response = await axiosInstance.get("/admin/staff");
+      const params = includeTrashed ? { includeTrashed: 'true' } : {};
+      const response = await axiosInstance.get("/admin/staff", { params });
       console.log("📊 Get staff response:", response.data);
       
       if (response.data?.success && response.data?.data) {
@@ -28,7 +29,25 @@ const staffApi = {
 
   // Get all staff (alias for getStaff)
   getAll: async () => {
-    return staffApi.getStaff();
+    return staffApi.getStaff(false); // Exclude trashed by default
+  },
+
+  // Get trashed staff (Admin)
+  getTrashed: async () => {
+    try {
+      const response = await axiosInstance.get("/admin/staff/trash");
+      console.log("📊 Get trashed staff response:", response.data);
+      
+      if (response.data?.success && response.data?.data) {
+        return response.data.data;
+      } else if (Array.isArray(response.data)) {
+        return response.data;
+      }
+      return [];
+    } catch (error) {
+      console.error("❌ Error fetching trashed staff:", error);
+      throw error;
+    }
   },
 
   // Get staff by role
@@ -65,20 +84,7 @@ const staffApi = {
       return [];
     } catch (error) {
       console.error("❌ Error fetching HODs:", error);
-      // Fallback: filter from all staff if endpoint doesn't exist
-      try {
-        const allStaff = await staffApi.getStaff();
-        const hods = allStaff.filter(staff => 
-          staff.staffRole === 'HOD' ||
-          staff.designation?.toLowerCase().includes('head') || 
-          staff.designation?.toLowerCase().includes('hod')
-        );
-        console.log("📊 Fallback HODs filtered:", hods.length);
-        return hods;
-      } catch (fallbackError) {
-        console.error("❌ Fallback error fetching HODs:", fallbackError);
-        throw error;
-      }
+      throw error;
     }
   },
 
@@ -96,22 +102,7 @@ const staffApi = {
       return [];
     } catch (error) {
       console.error("❌ Error fetching faculty:", error);
-      // Fallback: filter from all staff if endpoint doesn't exist
-      try {
-        const allStaff = await staffApi.getStaff();
-        const faculty = allStaff.filter(staff => 
-          staff.staffRole === 'FACULTY' || 
-          (staff.designation && 
-           !staff.designation.toLowerCase().includes('head') &&
-           !staff.designation.toLowerCase().includes('hod') &&
-           !staff.designation.toLowerCase().includes('mentor'))
-        );
-        console.log("📊 Fallback Faculty filtered:", faculty.length);
-        return faculty;
-      } catch (fallbackError) {
-        console.error("❌ Fallback error fetching faculty:", fallbackError);
-        throw error;
-      }
+      throw error;
     }
   },
 
@@ -129,19 +120,7 @@ const staffApi = {
       return [];
     } catch (error) {
       console.error("❌ Error fetching mentors:", error);
-      // Fallback: filter from all staff if endpoint doesn't exist
-      try {
-        const allStaff = await staffApi.getStaff();
-        const mentors = allStaff.filter(staff => 
-          staff.staffRole === 'MENTOR' || 
-          staff.designation?.toLowerCase().includes('mentor')
-        );
-        console.log("📊 Fallback Mentors filtered:", mentors.length);
-        return mentors;
-      } catch (fallbackError) {
-        console.error("❌ Fallback error fetching mentors:", fallbackError);
-        throw error;
-      }
+      throw error;
     }
   },
 
@@ -252,9 +231,9 @@ const staffApi = {
   },
 
   // Soft delete staff member - move to trash (Admin)
-  softDeleteStaff: async (id) => {
+  deleteStaff: async (id) => {
     try {
-      const response = await axiosInstance.patch(`/admin/staff/${id}/soft-delete`);
+      const response = await axiosInstance.delete(`/admin/staff/${id}`);
       console.log(`🗑️ Soft delete staff (ID: ${id}) moved to trash response:`, response.data);
       
       if (response.data?.success) {
@@ -263,29 +242,14 @@ const staffApi = {
       throw new Error(response.data?.message || "Failed to move staff to trash");
     } catch (error) {
       console.error("❌ Error soft deleting staff:", error);
-      // Fallback: try using update with isDeleted flag
-      try {
-        console.log("🔄 Attempting fallback soft delete using update...");
-        const staffData = await staffApi.getStaffById(id);
-        const response = await staffApi.updateStaff(id, {
-          ...staffData,
-          isDeleted: true,
-          status: 'deleted',
-          deletedAt: new Date().toISOString()
-        });
-        console.log("✅ Fallback soft delete successful:", response);
-        return { success: true, data: response };
-      } catch (fallbackError) {
-        console.error("❌ Fallback soft delete failed:", fallbackError);
-        throw error;
-      }
+      throw error;
     }
   },
 
   // Restore staff from trash (Admin)
   restoreStaff: async (id) => {
     try {
-      const response = await axiosInstance.patch(`/admin/staff/${id}/restore`);
+      const response = await axiosInstance.post(`/admin/staff/${id}/restore`);
       console.log(`🔄 Restore staff (ID: ${id}) from trash response:`, response.data);
       
       if (response.data?.success) {
@@ -294,22 +258,7 @@ const staffApi = {
       throw new Error(response.data?.message || "Failed to restore staff");
     } catch (error) {
       console.error("❌ Error restoring staff:", error);
-      // Fallback: try using update with isDeleted flag removed
-      try {
-        console.log("🔄 Attempting fallback restore using update...");
-        const staffData = await staffApi.getStaffById(id);
-        const response = await staffApi.updateStaff(id, {
-          ...staffData,
-          isDeleted: false,
-          status: 'active',
-          deletedAt: null
-        });
-        console.log("✅ Fallback restore successful:", response);
-        return { success: true, data: response };
-      } catch (fallbackError) {
-        console.error("❌ Fallback restore failed:", fallbackError);
-        throw error;
-      }
+      throw error;
     }
   },
 
@@ -325,22 +274,8 @@ const staffApi = {
       throw new Error(response.data?.message || "Failed to permanently delete staff");
     } catch (error) {
       console.error("❌ Error permanently deleting staff:", error);
-      // Fallback: try using regular delete
-      try {
-        console.log("🔄 Attempting fallback permanent delete using regular delete...");
-        const response = await axiosInstance.delete(`/admin/staff/${id}`);
-        console.log("✅ Fallback permanent delete successful:", response);
-        return { success: true, data: response.data };
-      } catch (fallbackError) {
-        console.error("❌ Fallback permanent delete failed:", fallbackError);
-        throw error;
-      }
+      throw error;
     }
-  },
-
-  // Delete staff member (Admin) - alias for soft delete
-  deleteStaff: async (id) => {
-    return staffApi.softDeleteStaff(id);
   },
 
   // ========== STAFF DASHBOARD METHODS ==========
@@ -432,37 +367,6 @@ const staffApi = {
     }
   },
 
-  // ========== TRASH & RESTORE METHODS (Aliases) ==========
-
-  // Get trashed staff (Admin)
-  getTrashedStaff: async () => {
-    try {
-      const response = await axiosInstance.get("/admin/staff/trash");
-      console.log("📊 Get trashed staff response:", response.data);
-      
-      if (response.data?.success && response.data?.data) {
-        return response.data.data;
-      } else if (Array.isArray(response.data)) {
-        return response.data;
-      }
-      return [];
-    } catch (error) {
-      console.error("❌ Error fetching trashed staff:", error);
-      // Fallback: filter from all staff
-      try {
-        const allStaff = await staffApi.getStaff();
-        const trashed = allStaff.filter(staff => 
-          staff.isDeleted === true || staff.status === 'deleted'
-        );
-        console.log("📊 Fallback trashed staff filtered:", trashed.length);
-        return trashed;
-      } catch (fallbackError) {
-        console.error("❌ Fallback error fetching trashed staff:", fallbackError);
-        throw error;
-      }
-    }
-  },
-
   // ========== STAFF STATISTICS ==========
 
   // Get staff statistics
@@ -505,7 +409,7 @@ const staffApi = {
 
   // Alias for getStaff
   getAllStaff: async () => {
-    return staffApi.getStaff();
+    return staffApi.getStaff(false);
   },
 
   // Alias for createStaff
@@ -528,11 +432,6 @@ const staffApi = {
     return staffApi.getStaffById(id);
   },
 
-  // Alias for softDeleteStaff
-  softDelete: async (id) => {
-    return staffApi.softDeleteStaff(id);
-  },
-
   // Alias for restoreStaff
   restore: async (id) => {
     return staffApi.restoreStaff(id);
@@ -541,6 +440,11 @@ const staffApi = {
   // Alias for permanentDeleteStaff
   permanentDelete: async (id) => {
     return staffApi.permanentDeleteStaff(id);
+  },
+
+  // Alias for getTrashed
+  getTrashedStaff: async () => {
+    return staffApi.getTrashed();
   }
 };
 

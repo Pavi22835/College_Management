@@ -14,7 +14,7 @@ model User {
   name                String
   role                Role      @default(STUDENT)
   isActive            Boolean   @default(true)
-  status              String    @default("active")      // active, inactive, deactivated
+  status              String    @default("active")      // active, inactive, deactivated, suspended
   deactivatedAt       DateTime?
   deactivatedReason   String?
   deactivatedBy       Int?
@@ -66,32 +66,41 @@ model Student {
   @@index([teacherId])
   @@index([mentorId])
   @@index([course])
+  @@index([batch])
+  @@index([deletedAt])
 }
 
 model Staff {
-  id            Int          @id @default(autoincrement())
-  userId        Int          @unique
-  employeeId    String       @unique
-  department    String
-  designation   String
-  phone         String?
-  staffRole     StaffRole    @default(FACULTY)
-  appointedDate DateTime?
-  studentsCount Int?         @default(0)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-  deletedAt     DateTime?
-  email         String       @unique
-  name          String
-  courses       Course[]
-  teacherStudents Student[]  @relation("TeacherStudents")
-  mentorStudents Student[]   @relation("MentorStudents")
-  department_rel Department? @relation("DepartmentHOD")
-  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id               Int          @id @default(autoincrement())
+  userId           Int          @unique
+  employeeId       String       @unique
+  department       String
+  designation      String
+  phone            String?
+  staffRole        StaffRole    @default(FACULTY)
+  appointedDate    DateTime?
+  studentsCount    Int?         @default(0)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  deletedAt        DateTime?
+  email            String       @unique
+  name             String
+  deletedBy        Int?
+  deletedReason    String?
+  restoredAt       DateTime?
+  restoredBy       Int?
+  courses          Course[]
+  teacherStudents  Student[]    @relation("TeacherStudents")
+  mentorStudents   Student[]    @relation("MentorStudents")
+  department_rel   Department?  @relation("DepartmentHOD")
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([email])
   @@index([department])
   @@index([staffRole])
+  @@index([deletedAt])
+  @@index([deletedBy])
+  @@index([employeeId])
 }
 
 enum StaffRole {
@@ -122,10 +131,12 @@ model Department {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   deletedAt        DateTime?
+  deletedBy        Int?
   hod              Staff?    @relation("DepartmentHOD", fields: [hodId], references: [id])
 
   @@index([code])
   @@index([hodId])
+  @@index([deletedAt])
 }
 
 model Course {
@@ -141,6 +152,7 @@ model Course {
   schedule    String?
   room        String?
   deletedAt   DateTime?
+  deletedBy   Int?
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   attendances Attendance[]
@@ -149,6 +161,8 @@ model Course {
 
   @@index([department])
   @@index([teacherId])
+  @@index([deletedAt])
+  @@index([status])
 }
 
 model Enrollment {
@@ -165,6 +179,7 @@ model Enrollment {
   @@unique([studentId, courseId])
   @@index([studentId])
   @@index([courseId])
+  @@index([status])
 }
 
 model Attendance {
@@ -183,6 +198,7 @@ model Attendance {
   @@index([date])
   @@index([studentId])
   @@index([courseId])
+  @@index([status])
 }
 
 enum Role {
@@ -201,18 +217,24 @@ model Trash {
   id            Int       @id @default(autoincrement())
   entity        String
   entityId      Int
+  entityName    String?
   data          Json
   deletedBy     Int
   deletedAt     DateTime  @default(now())
   expiresAt     DateTime
   restoredAt    DateTime?
   restoredBy    Int?
+  reason        String?
+  ipAddress     String?
   createdAt     DateTime  @default(now())
 
   @@index([entity])
   @@index([entityId])
   @@index([deletedAt])
   @@index([expiresAt])
+  @@index([deletedBy])
+  @@index([restoredAt])
+  @@index([entity, entityId])
 }
 
 model Log {
@@ -221,7 +243,9 @@ model Log {
   action    String
   entity    String
   entityId  Int
-  details   String
+  oldData   Json?
+  newData   Json?
+  details   String?
   ipAddress String?
   userAgent String?
   createdAt DateTime  @default(now())
@@ -229,5 +253,6 @@ model Log {
   @@index([userId])
   @@index([action])
   @@index([entity])
+  @@index([entityId])
   @@index([createdAt])
 }
