@@ -23,7 +23,11 @@ import {
   FileText,
   DownloadCloud,
   UploadCloud,
-  Clock
+  Clock,
+  ChevronLeft,
+  ChevronRight,
+  CheckCircle,
+  AlertCircle
 } from 'lucide-react';
 import courseApi from '../../api/courseApi';
 import * as XLSX from 'xlsx';
@@ -50,6 +54,13 @@ const AdminCourses = () => {
   const [importResult, setImportResult] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [weather, setWeather] = useState({ temp: 34, condition: 'sunny' });
+  const [successMessage, setSuccessMessage] = useState('');
+  
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [selectedRows, setSelectedRows] = useState([]);
+  const [selectAll, setSelectAll] = useState(false);
 
   const [stats, setStats] = useState({
     totalCourses: 0,
@@ -67,6 +78,93 @@ const AdminCourses = () => {
     schedule: '',
     description: ''
   });
+
+  // Pagination calculations
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = filteredCourses.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredCourses.length / itemsPerPage);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+    setSelectedRows([]);
+    setSelectAll(false);
+  }, [searchTerm, departmentFilter]);
+
+  // Handle individual row selection
+  const handleRowSelect = (id) => {
+    setSelectedRows(prev => {
+      let newSelected;
+      if (prev.includes(id)) {
+        newSelected = prev.filter(rowId => rowId !== id);
+      } else {
+        newSelected = [...prev, id];
+      }
+      return newSelected;
+    });
+  };
+
+  // Update selectAll when selectedRows changes
+  useEffect(() => {
+    if (currentItems.length > 0) {
+      const allSelected = currentItems.every(item => selectedRows.includes(item.id));
+      if (allSelected !== selectAll) {
+        setSelectAll(allSelected);
+      }
+    } else {
+      if (selectAll) setSelectAll(false);
+    }
+  }, [selectedRows, currentItems]);
+
+  // Handle select all checkbox click
+  const handleSelectAllChange = (e) => {
+    const checked = e.target.checked;
+    setSelectAll(checked);
+    if (checked) {
+      const allIds = currentItems.map(item => item.id);
+      setSelectedRows(allIds);
+    } else {
+      setSelectedRows([]);
+    }
+  };
+
+  // Handle bulk delete
+  const handleBulkDelete = async () => {
+    if (selectedRows.length === 0) {
+      setError('Please select at least one course');
+      setTimeout(() => setError(null), 3000);
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to delete ${selectedRows.length} course(s)? This action cannot be undone.`)) return;
+
+    try {
+      setLoading(true);
+      let successCount = 0;
+      
+      for (const id of selectedRows) {
+        try {
+          await courseApi.deleteCourse(id);
+          successCount++;
+        } catch (err) {
+          console.error(`Failed to delete course ${id}:`, err);
+        }
+      }
+      
+      setSuccessMessage(`Successfully deleted ${successCount} course(s)`);
+      setTimeout(() => setSuccessMessage(''), 3000);
+      setSelectedRows([]);
+      setSelectAll(false);
+      fetchData();
+    } catch (err) {
+      console.error('Error during bulk delete:', err);
+      setError('Failed to delete courses');
+      setTimeout(() => setError(null), 3000);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Update time every minute
   useEffect(() => {
@@ -223,11 +321,14 @@ const AdminCourses = () => {
   const confirmDelete = async () => {
     try {
       await courseApi.deleteCourse(selectedCourse.id);
+      setSuccessMessage(`${selectedCourse.name} deleted successfully`);
+      setTimeout(() => setSuccessMessage(''), 3000);
       setShowModal(false);
       fetchData();
     } catch (err) {
       console.error('Error deleting course:', err);
-      alert('Failed to delete course');
+      setError('Failed to delete course');
+      setTimeout(() => setError(null), 3000);
     }
   };
 
@@ -242,7 +343,8 @@ const AdminCourses = () => {
     e.preventDefault();
     try {
       if (!formData.code || !formData.name || !formData.department || !formData.credits) {
-        alert('Please fill in all required fields');
+        setError('Please fill in all required fields');
+        setTimeout(() => setError(null), 3000);
         return;
       }
 
@@ -259,16 +361,18 @@ const AdminCourses = () => {
 
       if (modalType === 'add') {
         await courseApi.createCourse(courseData);
-        alert('Course added successfully!');
+        setSuccessMessage('Course added successfully!');
       } else if (modalType === 'edit') {
         await courseApi.updateCourse(selectedCourse.id, courseData);
-        alert('Course updated successfully!');
+        setSuccessMessage('Course updated successfully!');
       }
+      setTimeout(() => setSuccessMessage(''), 3000);
       setShowModal(false);
       fetchData();
     } catch (err) {
       console.error('Error saving course:', err);
-      alert(err.message || 'Failed to save course');
+      setError(err.message || 'Failed to save course');
+      setTimeout(() => setError(null), 3000);
     }
   };
 
@@ -282,7 +386,7 @@ const AdminCourses = () => {
   // Export to Excel
   const exportToExcel = () => {
     try {
-      const exportData = filteredCourses.map(course => ({
+      const exportData = currentItems.map(course => ({
         'Course Code': course.code || '',
         'Course Name': course.name || '',
         'Department': course.department || '',
@@ -301,7 +405,8 @@ const AdminCourses = () => {
       setShowExportMenu(false);
     } catch (err) {
       console.error('Error exporting to Excel:', err);
-      alert('Failed to export to Excel');
+      setError('Failed to export to Excel');
+      setTimeout(() => setError(null), 3000);
     }
   };
 
@@ -325,7 +430,7 @@ const AdminCourses = () => {
         'Schedule'
       ];
       
-      const tableRows = filteredCourses.map(course => [
+      const tableRows = currentItems.map(course => [
         course.code || '',
         course.name || '',
         course.department || '',
@@ -346,7 +451,8 @@ const AdminCourses = () => {
       setShowExportMenu(false);
     } catch (err) {
       console.error('Error exporting to PDF:', err);
-      alert('Failed to export to PDF');
+      setError('Failed to export to PDF');
+      setTimeout(() => setError(null), 3000);
     }
   };
 
@@ -375,7 +481,8 @@ const AdminCourses = () => {
         const jsonData = XLSX.utils.sheet_to_json(worksheet);
         
         if (jsonData.length === 0) {
-          alert('The file is empty!');
+          setError('The file is empty!');
+          setTimeout(() => setError(null), 3000);
           return;
         }
         
@@ -383,7 +490,8 @@ const AdminCourses = () => {
         setShowImportPreview(true);
       } catch (err) {
         console.error('Error reading file:', err);
-        alert('Failed to read file. Please make sure it\'s a valid Excel file.');
+        setError('Failed to read file. Please make sure it\'s a valid Excel file.');
+        setTimeout(() => setError(null), 3000);
       }
     };
     reader.readAsBinaryString(file);
@@ -457,10 +565,11 @@ const AdminCourses = () => {
         setImportResult({
           imported,
           skipped,
-          skippedCourses: skippedCourses.slice(0, 10) // Show first 10 skipped
+          skippedCourses: skippedCourses.slice(0, 10)
         });
         
-        alert(`Import completed!\n\nImported: ${imported} courses\nSkipped (already exist): ${skipped} courses`);
+        setSuccessMessage(`Import completed! Imported: ${imported} courses, Skipped: ${skipped} courses`);
+        setTimeout(() => setSuccessMessage(''), 5000);
         
         setShowImportPreview(false);
         setShowImportMenu(false);
@@ -472,7 +581,8 @@ const AdminCourses = () => {
         
       } catch (err) {
         console.error('Error importing data:', err);
-        alert('Failed to import data. Please check the file format.');
+        setError('Failed to import data. Please check the file format.');
+        setTimeout(() => setError(null), 3000);
       } finally {
         setLoading(false);
       }
@@ -515,7 +625,6 @@ const AdminCourses = () => {
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(sampleData);
     
-    // Set column widths
     ws['!cols'] = [
       { wch: 15 }, // Course Code
       { wch: 30 }, // Course Name
@@ -568,6 +677,22 @@ const AdminCourses = () => {
         style={{ display: 'none' }}
         onChange={handleFileSelect}
       />
+
+      {/* Success Message */}
+      {successMessage && (
+        <div className="success-message">
+          <CheckCircle size={16} />
+          <span>{successMessage}</span>
+        </div>
+      )}
+
+      {/* Error Message */}
+      {error && (
+        <div className="error-message">
+          <AlertCircle size={16} />
+          <span>{error}</span>
+        </div>
+      )}
 
       {/* Header */}
       <div className="page-header">
@@ -763,11 +888,30 @@ const AdminCourses = () => {
         </div>
       )}
 
+      {/* Table Actions Bar */}
+      {selectedRows.length > 0 && (
+        <div className="table-actions-bar">
+          <span className="selected-count">{selectedRows.length} course(s) selected</span>
+          <div className="bulk-actions">
+            <button className="btn-bulk-delete" onClick={handleBulkDelete} title="Delete selected courses">
+              <Trash2 size={16} /> Delete Selected
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Courses Table */}
       <div className="table-container">
         <table className="courses-table">
           <thead>
             <tr>
+              <th style={{ width: '40px' }}>
+                <input
+                  type="checkbox"
+                  checked={selectAll}
+                  onChange={handleSelectAllChange}
+                />
+              </th>
               <th className="col-code">CODE</th>
               <th className="col-name">COURSE NAME</th>
               <th className="col-dept">DEPARTMENT</th>
@@ -780,9 +924,16 @@ const AdminCourses = () => {
             </tr>
           </thead>
           <tbody>
-            {filteredCourses.length > 0 ? (
-              filteredCourses.map((course) => (
+            {currentItems.length > 0 ? (
+              currentItems.map((course) => (
                 <tr key={course.id}>
+                  <td style={{ textAlign: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedRows.includes(course.id)}
+                      onChange={() => handleRowSelect(course.id)}
+                    />
+                  </td>
                   <td className="col-code">
                     <span className="course-code">{course.code}</span>
                   </td>
@@ -842,7 +993,7 @@ const AdminCourses = () => {
               ))
             ) : (
               <tr>
-                <td colSpan="9" className="empty-state">
+                <td colSpan="10" className="empty-state">
                   {courses.length === 0 ? (
                     <>
                       <BookOpen size={48} />
@@ -862,6 +1013,67 @@ const AdminCourses = () => {
           </tbody>
         </table>
       </div>
+
+      {/* Pagination */}
+      {filteredCourses.length > 0 && (
+        <div className="pagination-container">
+          <div className="pagination-info">
+            <span>Show</span>
+            <select 
+              value={itemsPerPage} 
+              onChange={(e) => {
+                setItemsPerPage(Number(e.target.value));
+                setCurrentPage(1);
+                setSelectedRows([]);
+                setSelectAll(false);
+              }}
+              className="pagination-select"
+            >
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+            </select>
+            <span>entries</span>
+            <span className="pagination-total">
+              Total: {filteredCourses.length}
+            </span>
+          </div>
+          <div className="pagination-controls">
+            <button
+              className="pagination-btn"
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+            >
+              First
+            </button>
+            <button
+              className="pagination-btn"
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft size={16} /> Prev
+            </button>
+            <span className="pagination-page">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button
+              className="pagination-btn"
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+            >
+              Next <ChevronRight size={16} />
+            </button>
+            <button
+              className="pagination-btn"
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+            >
+              Last
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Add/Edit Modal */}
       {(modalType === 'add' || modalType === 'edit') && showModal && (
