@@ -99,10 +99,14 @@ const StaffCourses = () => {
     completedCourses: 0
   });
 
+  // Default batches as fallback
+  const defaultBatches = ['2019-2023', '2020-2024', '2021-2025', '2022-2026', '2023-2027'];
+
   useEffect(() => {
     fetchCourses();
     fetchAvailableStudents();
     fetchDepartments();
+    fetchBatchesFromCourses(); // Get batches from existing courses
   }, []);
 
   useEffect(() => {
@@ -135,6 +139,33 @@ const StaffCourses = () => {
       setDepartments(deptsData);
     } catch (err) {
       console.error('Error fetching departments:', err);
+    }
+  };
+
+  // Fetch batches from existing courses instead of separate API
+  const fetchBatchesFromCourses = async () => {
+    try {
+      const response = await staffApi.getCourses().catch(err => {
+        console.warn('Courses fetch failed:', err);
+        return { data: [] };
+      });
+      
+      let coursesData = [];
+      if (response.data && Array.isArray(response.data)) {
+        coursesData = response.data;
+      } else if (Array.isArray(response)) {
+        coursesData = response;
+      }
+      
+      const uniqueBatches = [...new Set(coursesData.map(c => c.batch).filter(Boolean))];
+      if (uniqueBatches.length > 0) {
+        setBatchList(uniqueBatches.sort());
+      } else {
+        setBatchList(defaultBatches);
+      }
+    } catch (error) {
+      console.error('Error fetching batches from courses:', error);
+      setBatchList(defaultBatches);
     }
   };
 
@@ -195,7 +226,9 @@ const StaffCourses = () => {
       }));
 
       const uniqueBatches = [...new Set(enhancedCourses.map(c => c.batch).filter(Boolean))];
-      setBatchList(uniqueBatches.sort());
+      if (uniqueBatches.length > 0) {
+        setBatchList(prev => [...new Set([...prev, ...uniqueBatches])].sort());
+      }
 
       let dashboardStats = {
         totalCourses: enhancedCourses.length,
@@ -799,7 +832,7 @@ const StaffCourses = () => {
         )}
       </div>
 
-      {/* Add Course Modal with Batch Field */}
+      {/* Add Course Modal with Batch Dropdown */}
       {showAddCourseModal && (
         <div className="modal-overlay" onClick={() => setShowAddCourseModal(false)}>
           <div className="modal-content modal-lg" onClick={(e) => e.stopPropagation()}>
@@ -857,13 +890,23 @@ const StaffCourses = () => {
               <div className="form-row">
                 <div className="form-group">
                   <label>Batch (e.g., 2019-2023)</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., 2019-2023"
+                  <select
                     value={newCourse.batch}
                     onChange={(e) => setNewCourse({...newCourse, batch: e.target.value})}
-                  />
-                  <small className="form-hint-text">Format: Start Year - End Year (e.g., 2019-2023)</small>
+                    className="batch-select-dropdown"
+                  >
+                    <option value="">Select Batch</option>
+                    {batchList.length > 0 ? (
+                      batchList.map(batch => (
+                        <option key={batch} value={batch}>{batch}</option>
+                      ))
+                    ) : (
+                      defaultBatches.map(batch => (
+                        <option key={batch} value={batch}>{batch}</option>
+                      ))
+                    )}
+                  </select>
+                  <small className="form-hint-text">Select the batch for this course</small>
                 </div>
               </div>
               <div className="form-group">

@@ -272,6 +272,39 @@ export const courseApi = {
     }
   },
 
+  // Get enrolled students for a course
+  getEnrolledStudents: async (courseId) => {
+    try {
+      const response = await axiosConfig.get(`/admin/courses/${courseId}/students`);
+      return response.data;
+    } catch (error) {
+      console.error(`❌ Error fetching enrolled students for course ${courseId}:`, error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  // Assign students to course
+  assignStudents: async (courseId, studentIds) => {
+    try {
+      const response = await axiosConfig.post(`/admin/courses/${courseId}/assign-students`, { studentIds });
+      return response.data;
+    } catch (error) {
+      console.error(`❌ Error assigning students to course ${courseId}:`, error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  // Remove student from course
+  removeStudent: async (courseId, studentId) => {
+    try {
+      const response = await axiosConfig.delete(`/admin/courses/${courseId}/students/${studentId}`);
+      return response.data;
+    } catch (error) {
+      console.error(`❌ Error removing student ${studentId} from course ${courseId}:`, error.response?.data || error.message);
+      throw error;
+    }
+  },
+
   // Course trash methods
   getTrashed: async () => {
     try {
@@ -299,6 +332,99 @@ export const courseApi = {
       return response.data;
     } catch (error) {
       console.error(`❌ Error permanently deleting course ${id}:`, error.response?.data || error.message);
+      throw error;
+    }
+  }
+};
+
+// ==================== BATCH API ====================
+export const batchApi = {
+  // Get all batches
+  getAll: async () => {
+    try {
+      const response = await axiosConfig.get('/admin/batches');
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error fetching batches:', error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  // Get batch by ID
+  getById: async (id) => {
+    try {
+      const response = await axiosConfig.get(`/admin/batches/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error(`❌ Error fetching batch ${id}:`, error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  // Create new batch
+  create: async (data) => {
+    try {
+      console.log('📤 Creating batch with data:', data);
+      const response = await axiosConfig.post('/admin/batches', data);
+      console.log('📥 Create response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error creating batch:', error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  // Update batch
+  update: async (id, data) => {
+    try {
+      const response = await axiosConfig.put(`/admin/batches/${id}`, data);
+      return response.data;
+    } catch (error) {
+      console.error(`❌ Error updating batch ${id}:`, error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  // Delete batch (soft delete)
+  delete: async (id) => {
+    try {
+      const response = await axiosConfig.delete(`/admin/batches/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error(`❌ Error deleting batch ${id}:`, error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  // Get students by batch
+  getStudentsByBatch: async (batchId) => {
+    try {
+      const response = await axiosConfig.get(`/admin/batches/${batchId}/students`);
+      return response.data;
+    } catch (error) {
+      console.error(`❌ Error fetching students for batch ${batchId}:`, error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  // Get courses by batch
+  getCoursesByBatch: async (batchId) => {
+    try {
+      const response = await axiosConfig.get(`/admin/batches/${batchId}/courses`);
+      return response.data;
+    } catch (error) {
+      console.error(`❌ Error fetching courses for batch ${batchId}:`, error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  // Get batch stats
+  getStats: async () => {
+    try {
+      const response = await axiosConfig.get('/admin/batches/stats');
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error fetching batch stats:', error.response?.data || error.message);
       throw error;
     }
   }
@@ -554,6 +680,7 @@ export default {
   studentApi,
   staffApi,
   courseApi,
+  batchApi,
   attendanceApi,
   dashboardApi,
   userApi,
