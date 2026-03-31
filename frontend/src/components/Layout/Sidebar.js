@@ -73,7 +73,6 @@ const Sidebar = () => {
         { path: '/staff/courses', label: 'My Courses', icon: <BookOpen size={18} /> },
         { path: '/staff/students', label: 'My Students', icon: <Users size={18} /> },
         { path: '/staff/attendance', label: 'Attendance', icon: <Calendar size={18} /> },
-        { path: '/staff/grading', label: 'Grading', icon: <Award size={18} /> },
         { path: '/staff/reports', label: 'Reports', icon: <BarChart3 size={18} /> },
         { path: '/staff/communication', label: 'Communication', icon: <MessageSquare size={18} /> },
       ];

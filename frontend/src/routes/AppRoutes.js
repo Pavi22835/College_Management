@@ -30,7 +30,6 @@ import StaffDashboard from '../pages/staff/StaffDashboard';
 import StaffCourses from '../pages/staff/Courses';
 import StaffStudents from '../pages/staff/Students';
 import StaffAttendance from '../pages/staff/Attendance';
-import StaffGrading from '../pages/staff/Grading';
 import StaffReports from '../pages/staff/Reports';
 import StaffCommunication from '../pages/staff/Communication';
 
@@ -142,7 +141,6 @@ const AppRoutes = () => {
           <Route path="courses" element={<StaffCourses />} />
           <Route path="students" element={<StaffStudents />} />
           <Route path="attendance" element={<StaffAttendance />} />
-          <Route path="grading" element={<StaffGrading />} />
           <Route path="reports" element={<StaffReports />} />
           <Route path="communication" element={<StaffCommunication />} />
         </Route>
