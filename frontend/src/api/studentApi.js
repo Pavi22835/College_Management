@@ -1,10 +1,11 @@
 import axiosInstance from "./axiosConfig";
 
 const studentApi = {
-  // Get all students
-  getStudents: async () => {
+  // Get all students (active only by default)
+  getStudents: async (includeTrashed = false) => {
     try {
-      const response = await axiosInstance.get("/students");
+      const params = includeTrashed ? { includeTrashed: 'true' } : {};
+      const response = await axiosInstance.get("/students", { params });
       console.log("Get students response:", response.data);
       
       if (response.data?.success && response.data?.data) {
@@ -18,6 +19,24 @@ const studentApi = {
     } catch (error) {
       console.error("Error fetching students:", error);
       return [];
+    }
+  },
+
+  // Get trashed students (soft deleted)
+  getTrashedStudents: async () => {
+    try {
+      const response = await axiosInstance.get("/students/trash");
+      console.log("Get trashed students response:", response.data);
+      
+      if (response.data?.success && response.data?.data) {
+        return response.data.data;
+      } else if (Array.isArray(response.data)) {
+        return response.data;
+      }
+      return [];
+    } catch (error) {
+      console.error("Error fetching trashed students:", error);
+      throw error;
     }
   },
 
@@ -88,7 +107,7 @@ const studentApi = {
     }
   },
 
-  // Create new student - UPDATED with better error handling
+  // Create new student
   createStudent: async (data) => {
     try {
       console.log("Creating student with data:", JSON.stringify(data, null, 2));
@@ -125,15 +144,79 @@ const studentApi = {
     }
   },
 
-  // Delete student
-  deleteStudent: async (id) => {
+  // Soft delete student (move to trash)
+  softDeleteStudent: async (id) => {
     try {
       const response = await axiosInstance.delete(`/students/${id}`);
-      return response.data;
+      console.log(`🗑️ Student (ID: ${id}) moved to trash:`, response.data);
+      
+      if (response.data?.success) {
+        return response.data;
+      }
+      throw new Error(response.data?.message || "Failed to move student to trash");
     } catch (error) {
-      console.error("Error deleting student:", error);
+      console.error("❌ Error soft deleting student:", error);
       throw error;
     }
+  },
+
+  // Restore student from trash
+  restoreStudent: async (id) => {
+    try {
+      const response = await axiosInstance.post(`/students/${id}/restore`);
+      console.log(`🔄 Student (ID: ${id}) restored:`, response.data);
+      
+      if (response.data?.success) {
+        return response.data;
+      }
+      throw new Error(response.data?.message || "Failed to restore student");
+    } catch (error) {
+      console.error("❌ Error restoring student:", error);
+      throw error;
+    }
+  },
+
+  // Permanently delete student
+  permanentDeleteStudent: async (id) => {
+    try {
+      const response = await axiosInstance.delete(`/students/${id}/permanent`);
+      console.log(`🗑️ Student (ID: ${id}) permanently deleted:`, response.data);
+      
+      if (response.data?.success) {
+        return response.data;
+      }
+      throw new Error(response.data?.message || "Failed to permanently delete student");
+    } catch (error) {
+      console.error("❌ Error permanently deleting student:", error);
+      throw error;
+    }
+  },
+
+  // ========== ALIAS METHODS for backward compatibility ==========
+
+  // Delete student (alias for soft delete - moves to trash)
+  deleteStudent: async (id) => {
+    return studentApi.softDeleteStudent(id);
+  },
+
+  // Get all students (alias - excludes trashed by default)
+  getAll: async () => {
+    return studentApi.getStudents(false);
+  },
+
+  // Get trashed students (alias)
+  getTrashed: async () => {
+    return studentApi.getTrashedStudents();
+  },
+
+  // Restore (alias)
+  restore: async (id) => {
+    return studentApi.restoreStudent(id);
+  },
+
+  // Permanent delete (alias)
+  permanentDelete: async (id) => {
+    return studentApi.permanentDeleteStudent(id);
   }
 };
 

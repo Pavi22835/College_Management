@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   User,
   Mail,
@@ -34,7 +34,13 @@ import {
   Building2,
   Library,
   Lock,
-  Key
+  Key,
+  ChevronLeft,
+  ChevronRight,
+  Archive,
+  Undo2,
+  RotateCcw,
+  AlertTriangle
 } from 'lucide-react';
 import studentApi from '../../api/studentApi';
 import staffApi from '../../api/staffApi';
@@ -45,14 +51,14 @@ import './Students.css';
 
 const AdminStudents = () => {
   const [students, setStudents] = useState([]);
-  const [filteredStudents, setFilteredStudents] = useState([]);
+  const [deletedStudents, setDeletedStudents] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [courses, setCourses] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [courseFilter, setCourseFilter] = useState('all');
-  const [showFilters, setShowFilters] = useState(false);
+  const [activeTab, setActiveTab] = useState('active');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -64,16 +70,16 @@ const AdminStudents = () => {
   const [importPreview, setImportPreview] = useState([]);
   const [showImportPreview, setShowImportPreview] = useState(false);
   const [importError, setImportError] = useState('');
-  const [importResult, setImportResult] = useState(null);
-  const [stats, setStats] = useState({
-    totalStudents: 0,
-    totalCourses: 0,
-    activeStudents: 0,
-    inactiveStudents: 0
-  });
   const [departmentSearchTerm, setDepartmentSearchTerm] = useState('');
   const [showDepartmentDropdown, setShowDepartmentDropdown] = useState(false);
   const departmentSearchRef = useRef(null);
+  
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [selectedRows, setSelectedRows] = useState([]);
+  const [selectAll, setSelectAll] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
   const fileInputRef = useRef(null);
 
@@ -92,6 +98,15 @@ const AdminStudents = () => {
     department: '',
     course: '',
     semester: ''
+  });
+
+  // Stats state
+  const [stats, setStats] = useState({
+    totalStudents: 0,
+    totalCourses: 0,
+    activeStudents: 0,
+    inactiveStudents: 0,
+    trashedStudents: 0
   });
 
   const departmentOptions = [
@@ -156,13 +171,9 @@ const AdminStudents = () => {
 
   const semesterOptions = [1, 2, 3, 4, 5, 6, 7, 8];
 
-  useEffect(() => {
-    fetchData();
-    fetchDepartments();
-  }, []);
-
-  useEffect(() => {
-    let filtered = students;
+  // Use useMemo for filtered students
+  const filteredStudents = useMemo(() => {
+    let filtered = activeTab === 'active' ? students : deletedStudents;
 
     if (searchTerm) {
       filtered = filtered.filter(student =>
@@ -184,8 +195,103 @@ const AdminStudents = () => {
       filtered = filtered.filter(student => student.course === courseFilter);
     }
 
-    setFilteredStudents(filtered);
-  }, [searchTerm, departmentFilter, courseFilter, students]);
+    return filtered;
+  }, [searchTerm, departmentFilter, courseFilter, students, deletedStudents, activeTab]);
+
+  // Pagination calculations
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = filteredStudents.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredStudents.length / itemsPerPage);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+    setSelectedRows([]);
+    setSelectAll(false);
+  }, [searchTerm, departmentFilter, courseFilter, activeTab]);
+
+  // Handle individual row selection
+  const handleRowSelect = (id) => {
+    setSelectedRows(prev => {
+      const newSelected = prev.includes(id) 
+        ? prev.filter(rowId => rowId !== id)
+        : [...prev, id];
+      return newSelected;
+    });
+  };
+
+  // Handle select all checkbox click
+  const handleSelectAllChange = (e) => {
+    const checked = e.target.checked;
+    setSelectAll(checked);
+    if (checked) {
+      const allIds = currentItems.map(item => item.id);
+      setSelectedRows(allIds);
+    } else {
+      setSelectedRows([]);
+    }
+  };
+
+  // Update selectAll state when selectedRows changes
+  useEffect(() => {
+    if (currentItems.length > 0) {
+      const allSelected = currentItems.every(item => selectedRows.includes(item.id));
+      if (allSelected !== selectAll) {
+        setSelectAll(allSelected);
+      }
+    }
+  }, [selectedRows, currentItems]);
+
+  // Handle bulk delete/move to trash
+  const handleBulkAction = async (action) => {
+    if (selectedRows.length === 0) {
+      setError('Please select at least one student');
+      setTimeout(() => setError(null), 3000);
+      return;
+    }
+
+    const confirmMessage = action === 'delete' 
+      ? `Are you sure you want to move ${selectedRows.length} student(s) to trash?`
+      : `Are you sure you want to permanently delete ${selectedRows.length} student(s)? This action cannot be undone.`;
+
+    if (!window.confirm(confirmMessage)) return;
+
+    try {
+      setLoading(true);
+      let successCount = 0;
+      
+      for (const id of selectedRows) {
+        try {
+          if (action === 'delete') {
+            await studentApi.softDeleteStudent(id);
+          } else if (action === 'permanent') {
+            await studentApi.permanentDeleteStudent(id);
+          }
+          successCount++;
+        } catch (err) {
+          console.error(`Failed to ${action} student ${id}:`, err);
+        }
+      }
+      
+      setSuccessMessage(`Successfully ${action === 'delete' ? 'moved' : 'permanently deleted'} ${successCount} student(s)`);
+      setTimeout(() => setSuccessMessage(''), 3000);
+      setSelectedRows([]);
+      setSelectAll(false);
+      fetchData();
+    } catch (err) {
+      console.error(`Error during bulk ${action}:`, err);
+      setError(`Failed to ${action} students`);
+      setTimeout(() => setError(null), 3000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+    fetchDepartments();
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -242,20 +348,25 @@ const AdminStudents = () => {
         coursesData = coursesRes;
       }
 
-      setStudents(studentsData);
-      setFilteredStudents(studentsData);
+      // Separate active and deleted based on deletedAt field
+      const active = studentsData.filter(student => !student.deletedAt);
+      const deleted = studentsData.filter(student => student.deletedAt);
+
+      setStudents(active);
+      setDeletedStudents(deleted);
       setTeachers(teachersData);
       setCourses(coursesData);
 
       const uniqueCourses = [...new Set(studentsData.map(s => s.course).filter(Boolean))];
-      const activeStudents = studentsData.filter(s => s.user?.isActive !== false).length;
-      const inactiveStudents = studentsData.filter(s => s.user?.isActive === false).length;
+      const activeStudents = active.filter(s => s.user?.isActive !== false).length;
+      const inactiveStudents = active.filter(s => s.user?.isActive === false).length;
       
       setStats({
-        totalStudents: studentsData.length,
+        totalStudents: active.length,
         totalCourses: uniqueCourses.length,
         activeStudents: activeStudents,
-        inactiveStudents: inactiveStudents
+        inactiveStudents: inactiveStudents,
+        trashedStudents: deleted.length
       });
 
     } catch (err) {
@@ -318,20 +429,120 @@ const AdminStudents = () => {
     setShowModal(true);
   };
 
-  const handleDelete = (student) => {
+  // Soft Delete - Move to trash
+  const handleSoftDelete = async (student) => {
     setSelectedStudent(student);
-    setModalType('delete');
+    setModalType('softDelete');
     setShowModal(true);
+  };
+
+  const confirmSoftDelete = async () => {
+    try {
+      setLoading(true);
+      await studentApi.softDeleteStudent(selectedStudent.id);
+      
+      const updatedActive = students.filter(s => s.id !== selectedStudent.id);
+      const deletedStudentWithDate = {
+        ...selectedStudent,
+        deletedAt: new Date().toISOString()
+      };
+      
+      setStudents(updatedActive);
+      setDeletedStudents([deletedStudentWithDate, ...deletedStudents]);
+      
+      setStats(prev => ({
+        ...prev,
+        totalStudents: prev.totalStudents - 1,
+        trashedStudents: prev.trashedStudents + 1,
+        activeStudents: prev.activeStudents - (selectedStudent.user?.isActive !== false ? 1 : 0)
+      }));
+      
+      setSuccessMessage(`${selectedStudent.name} moved to trash successfully`);
+      setTimeout(() => setSuccessMessage(''), 3000);
+      setShowModal(false);
+    } catch (err) {
+      console.error('Error soft deleting student:', err);
+      setError('Failed to move to trash: ' + (err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 3000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Restore from trash
+  const handleRestore = async (student) => {
+    if (!window.confirm(`Are you sure you want to restore ${student.name}?`)) return;
+    
+    try {
+      setLoading(true);
+      await studentApi.restoreStudent(student.id);
+      
+      const updatedDeleted = deletedStudents.filter(s => s.id !== student.id);
+      const restoredStudent = {
+        ...student,
+        deletedAt: null,
+        restoredAt: new Date().toISOString()
+      };
+      
+      setDeletedStudents(updatedDeleted);
+      setStudents([restoredStudent, ...students]);
+      
+      setStats(prev => ({
+        ...prev,
+        totalStudents: prev.totalStudents + 1,
+        trashedStudents: prev.trashedStudents - 1,
+        activeStudents: prev.activeStudents + 1
+      }));
+      
+      setSuccessMessage(`${student.name} restored successfully`);
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (err) {
+      console.error('Error restoring student:', err);
+      setError('Failed to restore: ' + (err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 3000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Permanent Delete
+  const handlePermanentDelete = async (student) => {
+    if (!window.confirm(`⚠️ Are you sure you want to permanently delete ${student.name}? This action cannot be undone.`)) return;
+    
+    try {
+      setLoading(true);
+      await studentApi.permanentDeleteStudent(student.id);
+      
+      const updatedDeleted = deletedStudents.filter(s => s.id !== student.id);
+      setDeletedStudents(updatedDeleted);
+      
+      setStats(prev => ({
+        ...prev,
+        trashedStudents: prev.trashedStudents - 1
+      }));
+      
+      setSuccessMessage(`${student.name} permanently deleted`);
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (err) {
+      console.error('Error permanently deleting student:', err);
+      setError('Failed to permanently delete: ' + (err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 3000);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const confirmDelete = async () => {
     try {
       await studentApi.deleteStudent(selectedStudent.id);
+      setSuccessMessage(`${selectedStudent.name} deleted successfully`);
+      setTimeout(() => setSuccessMessage(''), 3000);
       setShowModal(false);
       fetchData();
     } catch (err) {
       console.error('Error deleting student:', err);
-      alert('Failed to delete student');
+      setError('Failed to delete student');
+      setTimeout(() => setError(null), 3000);
     }
   };
 
@@ -367,17 +578,20 @@ const AdminStudents = () => {
     e.preventDefault();
     try {
       if (!formData.name || !formData.email || !formData.rollNo) {
-        alert('Please fill in all required fields');
+        setError('Please fill in all required fields');
+        setTimeout(() => setError(null), 3000);
         return;
       }
       
       if (modalType === 'add' && !formData.password) {
-        alert('Please enter a password for the student');
+        setError('Please enter a password for the student');
+        setTimeout(() => setError(null), 3000);
         return;
       }
       
       if (modalType === 'add' && formData.password.length < 6) {
-        alert('Password must be at least 6 characters long');
+        setError('Password must be at least 6 characters long');
+        setTimeout(() => setError(null), 3000);
         return;
       }
 
@@ -403,19 +617,21 @@ const AdminStudents = () => {
 
       if (modalType === 'add') {
         await studentApi.createStudent(studentData);
-        alert('Student added successfully!');
+        setSuccessMessage('Student added successfully!');
       } else if (modalType === 'edit') {
         if (formData.password) {
           studentData.password = formData.password;
         }
         await studentApi.updateStudent(selectedStudent.id, studentData);
-        alert('Student updated successfully!');
+        setSuccessMessage('Student updated successfully!');
       }
+      setTimeout(() => setSuccessMessage(''), 3000);
       setShowModal(false);
       fetchData();
     } catch (err) {
       console.error('Error saving student:', err);
-      alert(err.message || 'Failed to save student');
+      setError(err.message || 'Failed to save student');
+      setTimeout(() => setError(null), 3000);
     }
   };
 
@@ -430,18 +646,20 @@ const AdminStudents = () => {
   };
 
   const getUniqueDepartments = () => {
-    const depts = students.map(s => s.department).filter(Boolean);
+    const allStudents = [...students, ...deletedStudents];
+    const depts = allStudents.map(s => s.department).filter(Boolean);
     return [...new Set(depts)].sort();
   };
 
   const getUniqueCourses = () => {
-    const coursesList = students.map(s => s.course).filter(Boolean);
+    const allStudents = [...students, ...deletedStudents];
+    const coursesList = allStudents.map(s => s.course).filter(Boolean);
     return [...new Set(coursesList)].sort();
   };
 
   const exportToExcel = () => {
     try {
-      const exportData = filteredStudents.map(student => ({
+      const exportData = currentItems.map(student => ({
         'Name': student.name || '',
         'Email': student.email || '',
         'Roll No': student.rollNo || '',
@@ -455,7 +673,7 @@ const AdminStudents = () => {
         'Admission Year': student.admissionYear || '',
         'Age': student.age || '',
         'Gender': student.gender || '',
-        'Status': student.user?.isActive !== false ? 'Active' : 'Inactive'
+        'Status': activeTab === 'deleted' ? 'Deleted' : (student.user?.isActive !== false ? 'Active' : 'Inactive')
       }));
 
       const wb = XLSX.utils.book_new();
@@ -472,7 +690,8 @@ const AdminStudents = () => {
       setShowExportMenu(false);
     } catch (err) {
       console.error('Error exporting to Excel:', err);
-      alert('Failed to export to Excel');
+      setError('Failed to export to Excel');
+      setTimeout(() => setError(null), 3000);
     }
   };
 
@@ -569,7 +788,6 @@ const AdminStudents = () => {
 
         for (let i = 0; i < jsonData.length; i++) {
           const row = jsonData[i];
-          const rowNumber = i + 2;
 
           try {
             const name = String(row['Name'] || row['name'] || '').trim();
@@ -618,7 +836,8 @@ const AdminStudents = () => {
         }
 
         if (newCount === 0) {
-          alert(`No new students to import.\nDuplicate Roll No: ${duplicateByRollNo}\nDuplicate Email: ${duplicateByEmail}\nErrors: ${errorCount}`);
+          setError(`No new students to import.\nDuplicate Roll No: ${duplicateByRollNo}\nDuplicate Email: ${duplicateByEmail}\nErrors: ${errorCount}`);
+          setTimeout(() => setError(null), 5000);
           setShowImportPreview(false);
           setImportFile(null);
           setLoading(false);
@@ -640,7 +859,8 @@ const AdminStudents = () => {
           }
         }
 
-        alert(`Import Completed!\nSuccessfully imported: ${importedCount} students`);
+        setSuccessMessage(`Successfully imported ${importedCount} students!`);
+        setTimeout(() => setSuccessMessage(''), 5000);
         setShowImportPreview(false);
         setImportFile(null);
         if (fileInputRef.current) fileInputRef.current.value = '';
@@ -648,7 +868,8 @@ const AdminStudents = () => {
         
       } catch (err) {
         console.error('Import error:', err);
-        alert('Failed to process import');
+        setError('Failed to process import');
+        setTimeout(() => setError(null), 3000);
       } finally {
         setLoading(false);
       }
@@ -692,25 +913,28 @@ const AdminStudents = () => {
     );
   }
 
-  if (error) {
-    return (
-      <div className="error-container">
-        <div className="error-icon">!</div>
-        <h3>Error Loading Students</h3>
-        <p>{error}</p>
-        <button className="btn-retry" onClick={handleRefresh}>
-          <RefreshCw size={16} /> Try Again
-        </button>
-      </div>
-    );
-  }
-
   const uniqueDepartments = getUniqueDepartments();
   const uniqueCourses = getUniqueCourses();
 
   return (
     <div className="admin-students">
       <input type="file" ref={fileInputRef} accept=".xlsx,.xls" onChange={handleFileImport} style={{ display: 'none' }} />
+
+      {/* Success Message */}
+      {successMessage && (
+        <div className="success-message">
+          <Check size={16} />
+          <span>{successMessage}</span>
+        </div>
+      )}
+
+      {/* Error Message */}
+      {error && (
+        <div className="error-message">
+          <AlertTriangle size={16} />
+          <span>{error}</span>
+        </div>
+      )}
 
       {/* Header */}
       <div className="page-header">
@@ -733,7 +957,18 @@ const AdminStudents = () => {
               </div>
             )}
           </div>
-          <button className="btn-export" onClick={exportToExcel}><Download size={18} /><span>Export Excel</span></button>
+          <button className="btn-export" onClick={exportToExcel}><DownloadCloud size={18} /><span>Export Excel</span></button>
+          
+          {/* Trash Icon */}
+          <button 
+            className={`btn-icon ${activeTab === 'deleted' ? 'active-trash' : ''}`} 
+            onClick={() => setActiveTab(activeTab === 'active' ? 'deleted' : 'active')}
+            title={activeTab === 'active' ? "View Trash" : "View Active Students"}
+          >
+            <Archive size={18} />
+            {stats.trashedStudents > 0 && <span className="badge-icon">{stats.trashedStudents}</span>}
+          </button>
+          
           <button className="btn-icon" onClick={handleRefresh} title="Refresh"><RefreshCw size={18} /></button>
           <button className="btn-add-student" onClick={handleAdd}><Plus size={20} /><span>Add Student</span></button>
         </div>
@@ -757,13 +992,28 @@ const AdminStudents = () => {
               <div className="import-preview-table">
                 <table>
                   <thead>
-                    <tr>{importPreview.length > 0 && Object.keys(importPreview[0]).map(key => <th key={key}>{key}</th>)}</tr>
+                    <tr>
+                      {importPreview.length > 0 && Object.keys(importPreview[0]).map(key => (
+                        <th key={key}>{key}</th>
+                      ))}
+                    </tr>
                   </thead>
-                  <tbody>{importPreview.map((row, index) => (<tr key={index}>{Object.values(row).map((value, i) => <td key={i}>{String(value)}</td>)}</tr>))}</tbody>
+                  <tbody>
+                    {importPreview.map((row, index) => (
+                      <tr key={index}>
+                        {Object.values(row).map((value, i) => (
+                          <td key={i}>{String(value)}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
                 </table>
               </div>
             </div>
-            <div className="modal-footer"><button className="btn-secondary" onClick={cancelImport}>Cancel</button><button className="btn-primary" onClick={confirmImport}><Upload size={16} />Confirm Import</button></div>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={cancelImport}>Cancel</button>
+              <button className="btn-primary" onClick={confirmImport}><Upload size={16} />Confirm Import</button>
+            </div>
           </div>
         </div>
       )}
@@ -772,7 +1022,21 @@ const AdminStudents = () => {
       <div className="stats-grid">
         <div className="stat-card blue"><div className="stat-icon blue"><Users size={24} /></div><div className="stat-content"><span className="stat-label">Total Students</span><span className="stat-value">{stats.totalStudents}</span></div></div>
         <div className="stat-card green"><div className="stat-icon green"><UserCheck size={24} /></div><div className="stat-content"><span className="stat-label">Active Students</span><span className="stat-value">{stats.activeStudents}</span></div></div>
-        <div className="stat-card purple"><div className="stat-icon purple"><X size={24} /></div><div className="stat-content"><span className="stat-label">Inactive Students</span><span className="stat-value">{stats.inactiveStudents}</span></div></div>
+        <div className="stat-card purple"><div className="stat-icon purple"><Archive size={24} /></div><div className="stat-content"><span className="stat-label">Trash</span><span className="stat-value">{stats.trashedStudents}</span></div></div>
+      </div>
+
+      {/* Tabs */}
+      <div className="tabs-container">
+        <button className={`tab-btn ${activeTab === 'active' ? 'active' : ''}`} onClick={() => setActiveTab('active')}>
+          <Users size={16} />
+          <span>Active Students</span>
+          <span className="tab-count">{students.length}</span>
+        </button>
+        <button className={`tab-btn ${activeTab === 'deleted' ? 'active' : ''}`} onClick={() => setActiveTab('deleted')}>
+          <Trash2 size={16} />
+          <span>Trash</span>
+          <span className="tab-count">{deletedStudents.length}</span>
+        </button>
       </div>
 
       {/* Search and Filter Section */}
@@ -780,7 +1044,7 @@ const AdminStudents = () => {
         <div className="search-filter-bar">
           <div className="search-wrapper">
             <Search className="search-icon" size={18} />
-            <input type="text" className="search-input" placeholder="Search by name, roll no, email, batch..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            <input type="text" className="search-input" placeholder={activeTab === 'active' ? "Search by name, roll no, email, batch..." : "Search deleted students..."} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             {searchTerm && <button className="search-clear" onClick={() => setSearchTerm('')}><X size={16} /></button>}
           </div>
 
@@ -813,11 +1077,35 @@ const AdminStudents = () => {
         )}
       </div>
 
+      {/* Table Actions Bar */}
+      {selectedRows.length > 0 && (
+        <div className="table-actions-bar">
+          <span className="selected-count">{selectedRows.length} student(s) selected</span>
+          <div className="bulk-actions">
+            <button className="btn-bulk-delete" onClick={() => handleBulkAction('delete')} title="Move selected to trash">
+              <Archive size={16} /> Move to Trash
+            </button>
+            {activeTab === 'deleted' && (
+              <button className="btn-bulk-permanent-delete" onClick={() => handleBulkAction('permanent')} title="Permanently delete selected">
+                <Trash2 size={16} /> Permanently Delete
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Students Table */}
       <div className="table-container">
         <table className="students-table">
           <thead>
             <tr>
+              <th style={{ width: '40px' }}>
+                <input
+                  type="checkbox"
+                  checked={selectAll}
+                  onChange={handleSelectAllChange}
+                />
+              </th>
               <th>Student</th>
               <th>Roll No</th>
               <th>Department</th>
@@ -830,31 +1118,164 @@ const AdminStudents = () => {
             </tr>
           </thead>
           <tbody>
-            {filteredStudents.length > 0 ? (
-              filteredStudents.map((student) => {
+            {currentItems.length > 0 ? (
+              currentItems.map((student) => {
                 const isActive = student.user?.isActive !== false;
+                const isDeleted = activeTab === 'deleted';
+                const deletedDate = student.deletedAt ? new Date(student.deletedAt).toLocaleDateString() : null;
+                
                 return (
-                  <tr key={student.id}>
-                    <td><div className="student-info"><div className="student-avatar">{student.name?.charAt(0).toUpperCase()}</div><div><div className="student-name">{student.name}</div><div className="student-email">{student.email}</div></div></div></td>
+                  <tr key={student.id} className={isDeleted ? 'deleted-row' : ''}>
+                    <td style={{ textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedRows.includes(student.id)}
+                        onChange={() => handleRowSelect(student.id)}
+                      />
+                    </td>
+                    <td>
+                      <div className="student-info">
+                        <div className="student-avatar">{student.name?.charAt(0).toUpperCase()}</div>
+                        <div>
+                          <div className="student-name">{student.name}</div>
+                          <div className="student-email">{student.email}</div>
+                          {isDeleted && deletedDate && (
+                            <div className="deleted-date">Deleted: {deletedDate}</div>
+                          )}
+                        </div>
+                      </div>
+                    </td>
                     <td><span className="roll-badge">{student.rollNo}</span></td>
                     <td><span className="department-badge">{student.department || '—'}</span></td>
                     <td><span className="course-badge">{student.course || '—'}</span></td>
                     <td><span className="semester-badge">{student.semester || '—'}</span></td>
                     <td><span className="batch-badge">{student.batch || '—'}</span></td>
                     <td>{student.phone ? <span className="contact-info"><Phone size={14} />{student.phone}</span> : '—'}</td>
-                    <td><span className={`status-badge ${isActive ? 'active' : 'inactive'}`}>{isActive ? 'ACTIVE' : 'INACTIVE'}</span></td>
-                    <td><div className="action-group"><button className="action-btn view" onClick={() => handleView(student)} title="View"><Eye size={18} /></button><button className="action-btn edit" onClick={() => handleEdit(student)} title="Edit"><Edit size={18} /></button><button className="action-btn delete" onClick={() => handleDelete(student)} title="Delete"><Trash2 size={18} /></button></div></td>
+                    <td>
+                      {activeTab === 'active' ? (
+                        <span className={`status-badge ${isActive ? 'active' : 'inactive'}`}>
+                          {isActive ? 'ACTIVE' : 'INACTIVE'}
+                        </span>
+                      ) : (
+                        <span className="status-badge deleted">DELETED</span>
+                      )}
+                    </td>
+                    <td>
+                      <div className="action-group">
+                        <button className="action-btn view" onClick={() => handleView(student)} title="View"><Eye size={18} /></button>
+                        {activeTab === 'active' ? (
+                          <>
+                            <button className="action-btn edit" onClick={() => handleEdit(student)} title="Edit"><Edit size={18} /></button>
+                            <button className="action-btn delete" onClick={() => handleSoftDelete(student)} title="Move to Trash"><Archive size={18} /></button>
+                          </>
+                        ) : (
+                          <>
+                            <button className="action-btn restore" onClick={() => handleRestore(student)} title="Restore"><RotateCcw size={18} /></button>
+                            <button className="action-btn permanent-delete" onClick={() => handlePermanentDelete(student)} title="Permanently Delete"><Trash2 size={18} /></button>
+                          </>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 );
               })
             ) : (
-              <tr><td colSpan="9" className="empty-state">{students.length === 0 ? <><Users size={48} /><h3>No Students Found</h3><p>Click "Add Student" to create your first student record.</p><button className="btn-primary" onClick={handleAdd}><Plus size={16} /> Add Student</button></> : <><Search size={48} /><h3>No Matching Students</h3><p>Try adjusting your search criteria.</p><button className="btn-secondary" onClick={clearFilters}>Clear Filters</button></>}</td></tr>
+              <tr>
+                <td colSpan="10" className="empty-state">
+                  {activeTab === 'active' ? (
+                    students.length === 0 ? (
+                      <>
+                        <Users size={48} />
+                        <h3>No Students Found</h3>
+                        <p>Click "Add Student" to create your first student record.</p>
+                        <button className="btn-primary" onClick={handleAdd}>
+                          <Plus size={16} /> Add Student
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <Search size={48} />
+                        <h3>No Matching Students</h3>
+                        <p>Try adjusting your search criteria.</p>
+                        <button className="btn-secondary" onClick={clearFilters}>Clear Filters</button>
+                      </>
+                    )
+                  ) : (
+                    <>
+                      <Trash2 size={48} />
+                      <h3>Trash is Empty</h3>
+                      <p>No deleted students found. Deleted students will appear here for restoration.</p>
+                    </>
+                  )}
+                </td>
+              </tr>
             )}
           </tbody>
         </table>
       </div>
 
-      {/* Add/Edit Student Modal - WITH SINGLE SEARCHABLE DROPDOWN (NO DUPLICATE) */}
+      {/* Pagination */}
+      {filteredStudents.length > 0 && (
+        <div className="pagination-container">
+          <div className="pagination-info">
+            <span>Show</span>
+            <select 
+              value={itemsPerPage} 
+              onChange={(e) => {
+                setItemsPerPage(Number(e.target.value));
+                setCurrentPage(1);
+                setSelectedRows([]);
+                setSelectAll(false);
+              }}
+              className="pagination-select"
+            >
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+            </select>
+            <span>entries</span>
+            <span className="pagination-total">
+              Total: {filteredStudents.length}
+            </span>
+          </div>
+          <div className="pagination-controls">
+            <button
+              className="pagination-btn"
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+            >
+              First
+            </button>
+            <button
+              className="pagination-btn"
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft size={16} /> Prev
+            </button>
+            <span className="pagination-page">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button
+              className="pagination-btn"
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+            >
+              Next <ChevronRight size={16} />
+            </button>
+            <button
+              className="pagination-btn"
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+            >
+              Last
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Add/Edit Student Modal */}
       {(modalType === 'add' || modalType === 'edit') && showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content modal-lg" onClick={(e) => e.stopPropagation()}>
@@ -864,7 +1285,6 @@ const AdminStudents = () => {
             </div>
             <form onSubmit={handleSubmit}>
               <div className="modal-body">
-                {/* Personal Information Section */}
                 <div className="form-section">
                   <h3>Personal Information</h3>
                   <div className="form-row">
@@ -920,7 +1340,6 @@ const AdminStudents = () => {
                   </div>
                 </div>
 
-                {/* Academic Information Section */}
                 <div className="form-section">
                   <h3>Academic Information</h3>
                   
@@ -936,7 +1355,6 @@ const AdminStudents = () => {
                   </div>
                   
                   <div className="form-row">
-                    {/* ONLY ONE SEARCHABLE DROPDOWN FOR DEPARTMENT - NO DUPLICATE SELECT */}
                     <div className="form-group" ref={departmentSearchRef}>
                       <label>Department *</label>
                       <div className="searchable-select">
@@ -1042,7 +1460,6 @@ const AdminStudents = () => {
                   </div>
                 </div>
 
-                {/* Contact Information Section */}
                 <div className="form-section">
                   <h3>Contact Information</h3>
                   <div className="form-group">
@@ -1070,7 +1487,7 @@ const AdminStudents = () => {
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header"><h2>Student Details</h2><button className="close-btn" onClick={() => setShowModal(false)}><X size={20} /></button></div>
             <div className="modal-body">
-              <div className="profile-header"><div className="profile-avatar">{selectedStudent.name?.charAt(0).toUpperCase()}</div><div className="profile-info"><h3>{selectedStudent.name}</h3><p>{selectedStudent.email}</p></div></div>
+              <div className="profile-header"><div className="profile-avatar">{selectedStudent.name?.charAt(0).toUpperCase()}</div><div className="profile-info"><h3>{selectedStudent.name}</h3><p>{selectedStudent.email}</p>{selectedStudent.deletedAt && (<p className="deleted-info">Deleted on: {new Date(selectedStudent.deletedAt).toLocaleString()}</p>)}</div></div>
               <div className="details-grid">
                 <div className="detail-item"><span className="detail-label">Roll No</span><span className="detail-value">{selectedStudent.rollNo}</span></div>
                 <div className="detail-item"><span className="detail-label">Enrollment No</span><span className="detail-value">{selectedStudent.enrollmentNo || '—'}</span></div>
@@ -1086,7 +1503,24 @@ const AdminStudents = () => {
                 <div className="detail-item full-width"><span className="detail-label">Status</span><span className={`status-badge ${selectedStudent.user?.isActive !== false ? 'active' : 'inactive'}`}>{selectedStudent.user?.isActive !== false ? 'ACTIVE' : 'INACTIVE'}</span></div>
               </div>
             </div>
-            <div className="modal-footer"><button className="btn-secondary" onClick={() => setShowModal(false)}>Close</button><button className="btn-primary" onClick={() => { setShowModal(false); handleEdit(selectedStudent); }}><Edit size={16} />Edit Student</button></div>
+            <div className="modal-footer"><button className="btn-secondary" onClick={() => setShowModal(false)}>Close</button>
+              {selectedStudent.deletedAt ? (
+                <button className="btn-primary" onClick={() => { setShowModal(false); handleRestore(selectedStudent); }}><RotateCcw size={16} />Restore Student</button>
+              ) : (
+                <button className="btn-primary" onClick={() => { setShowModal(false); handleEdit(selectedStudent); }}><Edit size={16} />Edit Student</button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Soft Delete Confirmation Modal */}
+      {modalType === 'softDelete' && selectedStudent && showModal && (
+        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+          <div className="modal-content modal-sm" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header"><h2>Move to Trash</h2><button className="close-btn" onClick={() => setShowModal(false)}><X size={20} /></button></div>
+            <div className="modal-body text-center"><div className="delete-icon warning"><Archive size={48} /></div><p className="delete-message">Are you sure you want to move <strong>{selectedStudent.name}</strong> to trash?</p><p className="delete-warning">You can restore this student from trash later.</p></div>
+            <div className="modal-footer"><button className="btn-secondary" onClick={() => setShowModal(false)}>Cancel</button><button className="btn-warning" onClick={confirmSoftDelete}><Archive size={16} />Move to Trash</button></div>
           </div>
         </div>
       )}

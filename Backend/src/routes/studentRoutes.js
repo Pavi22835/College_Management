@@ -16,7 +16,9 @@ import {
   getStudentGrades,
   getTrashedStudents,
   restoreStudent,
-  permanentDeleteStudent
+  permanentDeleteStudent,
+  activateStudent,
+  deactivateStudent
 } from "../controllers/studentController.js";
 
 const router = express.Router();
@@ -47,8 +49,10 @@ router.get("/trash", protect, authorize("ADMIN"), getTrashedStudents);
 router.post("/", protect, authorize("ADMIN"), createStudent);
 router.get("/:id", protect, authorize("ADMIN"), getStudentById);
 router.put("/:id", protect, authorize("ADMIN"), updateStudent);
-router.delete("/:id", protect, authorize("ADMIN"), deleteStudent);
-router.post("/:id/restore", protect, authorize("ADMIN"), restoreStudent);
-router.delete("/:id/permanent", protect, authorize("ADMIN"), permanentDeleteStudent);
+router.delete("/:id", protect, authorize("ADMIN"), deleteStudent);  // Soft delete - move to trash
+router.post("/:id/restore", protect, authorize("ADMIN"), restoreStudent);  // Restore from trash
+router.delete("/:id/permanent", protect, authorize("ADMIN"), permanentDeleteStudent);  // Permanent delete
+router.post("/:id/activate", protect, authorize("ADMIN"), activateStudent);
+router.post("/:id/deactivate", protect, authorize("ADMIN"), deactivateStudent);
 
 export default router;

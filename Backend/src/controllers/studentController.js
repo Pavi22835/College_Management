@@ -9,13 +9,22 @@ const prisma = new PrismaClient();
 
 /*
 ---------------------------------------
-GET ALL STUDENTS (ADMIN)
+GET ALL STUDENTS (ADMIN) - UPDATED WITH INCLUDE TRASHED OPTION
 ---------------------------------------
 */
 export const getAllStudents = async (req, res) => {
   try {
+    const { includeTrashed } = req.query;
+    
+    let whereCondition = {};
+    
+    // If includeTrashed is false or not provided, exclude deleted staff
+    if (includeTrashed !== 'true') {
+      whereCondition = { deletedAt: null };
+    }
+    
     const students = await prisma.student.findMany({
-      where: { deletedAt: null },
+      where: whereCondition,
       include: {
         user: {
           select: {
@@ -147,7 +156,7 @@ export const getStudentById = async (req, res) => {
       }
     });
 
-    if (!student || student.deletedAt) {
+    if (!student) {
       return res.status(404).json({
         success: false,
         message: "Student not found"
@@ -359,7 +368,8 @@ export const createStudent = async (req, res) => {
           motherName: motherName || null,
           previousCollege: previousCollege || null,
           previousPercentage: previousPercentage ? parseFloat(previousPercentage) : null,
-          section: section || null
+          section: section || null,
+          deletedAt: null
         },
         include: {
           user: {
@@ -421,7 +431,6 @@ export const createStudent = async (req, res) => {
       meta: error.meta
     });
 
-    // Handle specific Prisma errors
     if (error.code === 'P2002') {
       const target = error.meta?.target?.[0] || 'field';
       return res.status(400).json({
@@ -456,14 +465,12 @@ export const updateStudent = async (req, res) => {
 
     console.log("📥 Updating student:", id, "with data:", updateData);
 
-    // Remove fields that shouldn't be updated directly
     delete updateData.id;
     delete updateData.userId;
     delete updateData.createdAt;
     delete updateData.attendances;
     delete updateData.enrollments;
 
-    // Check if student exists
     const existingStudent = await prisma.student.findUnique({
       where: { id: Number(id) },
       include: { user: true }
@@ -476,7 +483,13 @@ export const updateStudent = async (req, res) => {
       });
     }
 
-    // Check if email is being changed and already exists
+    if (existingStudent.deletedAt) {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot update student that is in trash. Please restore first."
+      });
+    }
+
     if (updateData.email && updateData.email !== existingStudent.email) {
       const emailExists = await prisma.user.findUnique({
         where: { email: updateData.email }
@@ -489,7 +502,6 @@ export const updateStudent = async (req, res) => {
       }
     }
 
-    // Check if rollNo is being changed and already exists
     if (updateData.rollNo && updateData.rollNo !== existingStudent.rollNo) {
       const rollExists = await prisma.student.findUnique({
         where: { rollNo: updateData.rollNo }
@@ -502,7 +514,6 @@ export const updateStudent = async (req, res) => {
       }
     }
 
-    // Check if teacher exists if teacherId is provided
     if (updateData.teacherId) {
       const teacher = await prisma.staff.findUnique({
         where: { id: parseInt(updateData.teacherId) }
@@ -515,7 +526,6 @@ export const updateStudent = async (req, res) => {
       }
     }
 
-    // Check if course exists if courseId is provided
     let courseRecord = null;
     if (updateData.courseId) {
       const parsedCourseId = parseInt(updateData.courseId);
@@ -537,9 +547,7 @@ export const updateStudent = async (req, res) => {
       }
     }
 
-    // Update student and user in transaction
     const result = await prisma.$transaction(async (prisma) => {
-      // Update student
       const student = await prisma.student.update({
         where: { id: Number(id) },
         data: {
@@ -586,7 +594,6 @@ export const updateStudent = async (req, res) => {
         }
       });
 
-      // Create/ensure enrollment if courseId was provided
       if (courseRecord) {
         try {
           await prisma.enrollment.upsert({
@@ -607,7 +614,6 @@ export const updateStudent = async (req, res) => {
         }
       }
 
-      // Update user name and email if changed
       if (updateData.name || updateData.email) {
         await prisma.user.update({
           where: { id: existingStudent.userId },
@@ -646,7 +652,7 @@ export const updateStudent = async (req, res) => {
 
 /*
 ---------------------------------------
-DELETE STUDENT (SOFT DELETE) - ADMIN - UPDATED WITH DEACTIVATION
+DELETE STUDENT (SOFT DELETE)
 ---------------------------------------
 */
 export const deleteStudent = async (req, res) => {
@@ -665,20 +671,28 @@ export const deleteStudent = async (req, res) => {
       });
     }
 
-    // Soft delete student and deactivate user
+    if (student.deletedAt) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Student is already in trash" 
+      });
+    }
+
+    const now = new Date();
+    
     await prisma.$transaction([
       prisma.student.update({
         where: { id: Number(id) },
-        data: { deletedAt: new Date() }
+        data: { deletedAt: now }
       }),
       prisma.user.update({
         where: { id: student.userId },
         data: { 
           isActive: false,
           status: "deactivated",
-          deactivatedAt: new Date(),
+          deactivatedAt: now,
           deactivatedReason: "Student moved to trash",
-          deactivatedBy: req.user.id
+          deactivatedBy: req.user?.id || null
         }
       })
     ]);
@@ -692,7 +706,7 @@ export const deleteStudent = async (req, res) => {
     console.error("Delete student error:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to delete student"
+      message: "Failed to move student to trash"
     });
   }
 };
@@ -791,22 +805,20 @@ export const deactivateStudent = async (req, res) => {
 };
 
 /* ========================================
-   STUDENT DASHBOARD METHODS - WITH DEBUG LOGGING
+   STUDENT DASHBOARD METHODS
    ======================================== */
 
 /*
 ---------------------------------------
-GET STUDENT DASHBOARD DATA - WITH DEBUG
+GET STUDENT DASHBOARD DATA
 ---------------------------------------
 */
 export const getStudentDashboard = async (req, res) => {
   try {
     const userId = req.user.id;
     console.log("\n========== STUDENT DASHBOARD DEBUG ==========");
-    console.log("1. User ID from token:", userId);
-    console.log("2. Full user object:", req.user);
+    console.log("User ID from token:", userId);
 
-    // Get student details
     const student = await prisma.student.findUnique({
       where: { userId: userId },
       include: {
@@ -830,14 +842,7 @@ export const getStudentDashboard = async (req, res) => {
       }
     });
 
-    console.log("3. Student found?", !!student);
-    if (student) {
-      console.log("4. Student ID:", student.id);
-      console.log("5. Student name:", student.name);
-      console.log("6. Student rollNo:", student.rollNo);
-      console.log("7. Student course:", student.course);
-      console.log("8. Student semester:", student.semester);
-    } else {
+    if (!student) {
       console.log("❌ Student not found for user:", userId);
       return res.status(404).json({
         success: false,
@@ -845,7 +850,8 @@ export const getStudentDashboard = async (req, res) => {
       });
     }
 
-    // Get enrollments with course details
+    console.log("Student found:", student.name);
+
     const enrollments = await prisma.enrollment.findMany({
       where: {
         studentId: student.id,
@@ -873,29 +879,8 @@ export const getStudentDashboard = async (req, res) => {
       }
     });
 
-    console.log(`9. Found ${enrollments.length} enrolled courses`);
-    enrollments.forEach((e, i) => {
-      console.log(`   Course ${i+1}: ${e.course.name} (${e.course.code}) - Teacher: ${e.course.teacher?.name || 'N/A'}`);
-    });
+    console.log(`Found ${enrollments.length} enrolled courses`);
 
-    // Fallback: if no enrollments but student has a course name set, show it in dashboard
-    if (enrollments.length === 0 && student.course) {
-      console.log("⚠️ No enrollments found; using student.course as fallback");
-      enrollments.push({
-        course: {
-          id: null,
-          name: student.course,
-          code: '',
-          schedule: 'TBD',
-          room: 'TBD',
-          teacher: {
-            name: student.teacher?.name || 'Not Assigned'
-          }
-        }
-      });
-    }
-
-    // Get attendance records
     const attendances = await prisma.attendance.findMany({
       where: {
         studentId: student.id
@@ -914,21 +899,12 @@ export const getStudentDashboard = async (req, res) => {
       }
     });
 
-    console.log(`10. Found ${attendances.length} attendance records`);
-    attendances.slice(0, 3).forEach((a, i) => {
-      console.log(`    Attendance ${i+1}: ${a.course.name} - ${a.status} on ${a.date}`);
-    });
-
-    // Calculate attendance percentage
     const totalClasses = attendances.length;
     const presentCount = attendances.filter(a => a.status === "PRESENT").length;
     const attendancePercentage = totalClasses > 0 
       ? Math.round((presentCount / totalClasses) * 100) 
       : 0;
 
-    console.log(`11. Attendance: ${presentCount}/${totalClasses} = ${attendancePercentage}%`);
-
-    // Format courses with progress
     const courses = enrollments.map(enrollment => {
       const courseAttendances = attendances.filter(a => a.courseId === enrollment.courseId);
       const courseTotal = courseAttendances.length;
@@ -972,7 +948,6 @@ export const getStudentDashboard = async (req, res) => {
       }))
     };
 
-    console.log("12. Sending response data:", JSON.stringify(responseData, null, 2));
     console.log("==========================================\n");
 
     res.json({
@@ -982,7 +957,6 @@ export const getStudentDashboard = async (req, res) => {
 
   } catch (error) {
     console.error("❌ Get student dashboard error:", error);
-    console.error("Error stack:", error.stack);
     res.status(500).json({
       success: false,
       message: "Failed to fetch dashboard data"
@@ -1038,24 +1012,6 @@ export const getStudentCourses = async (req, res) => {
       }
     });
 
-    // Fallback: if no enrollments but student has a course string, show it
-    if (enrollments.length === 0 && student.course) {
-      enrollments.push({
-        course: {
-          id: null,
-          code: '',
-          name: student.course,
-          semester: student.semester,
-          schedule: 'TBD',
-          room: 'TBD',
-          teacher: {
-            name: student.teacher?.name || 'Not Assigned'
-          }
-        }
-      });
-    }
-
-    // Get attendance for each course
     const attendances = await prisma.attendance.findMany({
       where: {
         studentId: student.id
@@ -1136,7 +1092,6 @@ export const getStudentAttendance = async (req, res) => {
       }
     });
 
-    // Group by course
     const byCourse = {};
     attendances.forEach(a => {
       const courseName = a.course.name;
@@ -1162,7 +1117,6 @@ export const getStudentAttendance = async (req, res) => {
       });
     });
 
-    // Calculate percentages
     Object.keys(byCourse).forEach(key => {
       byCourse[key].percentage = Math.round((byCourse[key].present / byCourse[key].total) * 100);
     });
@@ -1208,7 +1162,7 @@ export const getStudentGrades = async (req, res) => {
       });
     }
 
-    // No grades table in schema, return empty data
+    // Return empty data for now - can be expanded when grades table is added
     res.json({
       success: true,
       data: {
@@ -1470,7 +1424,6 @@ export const getTeacherAllStudents = async (req, res) => {
       }
     });
 
-    // Group by course
     const studentsByCourse = {};
     courses.forEach(course => {
       studentsByCourse[course.name] = enrollments
@@ -1486,7 +1439,6 @@ export const getTeacherAllStudents = async (req, res) => {
         }));
     });
 
-    // Get unique students list
     const uniqueStudents = [];
     const studentIds = new Set();
     
@@ -1581,7 +1533,6 @@ export const getStudentAttendanceForTeacher = async (req, res) => {
       }
     });
 
-    // Group by course
     const attendanceByCourse = {};
     attendances.forEach(a => {
       const courseName = a.course.name;
@@ -1668,7 +1619,7 @@ export const getTrashedStudents = async (req, res) => {
 
 /*
 ---------------------------------------
-RESTORE STUDENT FROM TRASH (ADMIN) - UPDATED
+RESTORE STUDENT FROM TRASH (ADMIN)
 ---------------------------------------
 */
 export const restoreStudent = async (req, res) => {
@@ -1687,6 +1638,15 @@ export const restoreStudent = async (req, res) => {
       });
     }
 
+    if (!student.deletedAt) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Student is not in trash" 
+      });
+    }
+
+    const now = new Date();
+    
     await prisma.$transaction([
       prisma.student.update({
         where: { id: Number(id) },
@@ -1699,14 +1659,32 @@ export const restoreStudent = async (req, res) => {
           status: "active",
           deactivatedAt: null,
           deactivatedReason: null,
-          activatedAt: new Date()
+          deactivatedBy: null,
+          activatedAt: now
         }
       })
     ]);
 
+    const restoredStudent = await prisma.student.findUnique({
+      where: { id: Number(id) },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            isActive: true,
+            status: true,
+            activatedAt: true
+          }
+        }
+      }
+    });
+
     res.json({
       success: true,
-      message: "Student restored successfully"
+      message: "Student restored successfully",
+      data: restoredStudent
     });
 
   } catch (error) {
@@ -1728,7 +1706,8 @@ export const permanentDeleteStudent = async (req, res) => {
     const { id } = req.params;
 
     const student = await prisma.student.findUnique({
-      where: { id: Number(id) }
+      where: { id: Number(id) },
+      include: { user: true }
     });
 
     if (!student) {
@@ -1737,6 +1716,9 @@ export const permanentDeleteStudent = async (req, res) => {
         message: "Student not found"
       });
     }
+
+    const studentName = student.name;
+    const userEmail = student.user?.email;
 
     await prisma.$transaction([
       prisma.attendance.deleteMany({
@@ -1755,7 +1737,12 @@ export const permanentDeleteStudent = async (req, res) => {
 
     res.json({
       success: true,
-      message: "Student permanently deleted"
+      message: `Student "${studentName}" (${userEmail}) permanently deleted`,
+      data: {
+        id: student.id,
+        name: studentName,
+        email: userEmail
+      }
     });
 
   } catch (error) {
@@ -1765,29 +1752,4 @@ export const permanentDeleteStudent = async (req, res) => {
       message: "Failed to permanently delete student"
     });
   }
-};
-
-/* ========================================
-   HELPER FUNCTIONS
-   ======================================== */
-
-const getGradeFromMarks = (obtained, total) => {
-  const percentage = (obtained / total) * 100;
-  if (percentage >= 90) return 'A+';
-  if (percentage >= 80) return 'A';
-  if (percentage >= 70) return 'B+';
-  if (percentage >= 60) return 'B';
-  if (percentage >= 50) return 'C';
-  if (percentage >= 40) return 'D';
-  return 'F';
-};
-
-const getGradePoint = (percentage) => {
-  if (percentage >= 90) return 10;
-  if (percentage >= 80) return 9;
-  if (percentage >= 70) return 8;
-  if (percentage >= 60) return 7;
-  if (percentage >= 50) return 6;
-  if (percentage >= 40) return 5;
-  return 4;
 };
