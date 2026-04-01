@@ -43,6 +43,7 @@ import {
 } from 'react-icons/fi';
 import staffApi from '../../api/staffApi';
 import courseApi from '../../api/courseApi';
+import studentApi from '../../api/studentApi';
 import { departmentApi } from '../../api/adminApi';
 import { useAuth } from '../../context/AuthContext';
 import './StaffCourses.css';
@@ -75,12 +76,6 @@ const StaffCourses = () => {
     duration: '30 mins',
     description: ''
   });
-  const [materialForm, setMaterialForm] = useState({
-    title: '',
-    type: 'document',
-    url: '',
-    description: ''
-  });
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [showStudentModal, setShowStudentModal] = useState(false);
   const [courseStudents, setCourseStudents] = useState([]);
@@ -104,9 +99,9 @@ const StaffCourses = () => {
 
   useEffect(() => {
     fetchCourses();
-    fetchAvailableStudents();
+    fetchAvailableStudentsFromAPI();
     fetchDepartments();
-    fetchBatchesFromCourses(); // Get batches from existing courses
+    fetchBatchesFromAPI();
   }, []);
 
   useEffect(() => {
@@ -127,6 +122,33 @@ const StaffCourses = () => {
     setFilteredCourses(filtered);
   }, [searchTerm, batchFilter, courses]);
 
+  // Fetch batches from student API
+  const fetchBatchesFromAPI = async () => {
+    try {
+      const response = await studentApi.getStudents();
+      let studentsData = [];
+      if (response?.success && response?.data) {
+        studentsData = response.data;
+      } else if (Array.isArray(response)) {
+        studentsData = response;
+      } else if (response?.data && Array.isArray(response.data)) {
+        studentsData = response.data;
+      }
+      
+      // Extract unique batches from student data
+      const uniqueBatches = [...new Set(studentsData.map(s => s.batch).filter(Boolean))];
+      
+      if (uniqueBatches.length > 0) {
+        setBatchList(uniqueBatches.sort());
+      } else {
+        setBatchList(defaultBatches);
+      }
+    } catch (error) {
+      console.error('Error fetching batches from API:', error);
+      setBatchList(defaultBatches);
+    }
+  };
+
   const fetchDepartments = async () => {
     try {
       const response = await departmentApi.getAll();
@@ -139,33 +161,6 @@ const StaffCourses = () => {
       setDepartments(deptsData);
     } catch (err) {
       console.error('Error fetching departments:', err);
-    }
-  };
-
-  // Fetch batches from existing courses instead of separate API
-  const fetchBatchesFromCourses = async () => {
-    try {
-      const response = await staffApi.getCourses().catch(err => {
-        console.warn('Courses fetch failed:', err);
-        return { data: [] };
-      });
-      
-      let coursesData = [];
-      if (response.data && Array.isArray(response.data)) {
-        coursesData = response.data;
-      } else if (Array.isArray(response)) {
-        coursesData = response;
-      }
-      
-      const uniqueBatches = [...new Set(coursesData.map(c => c.batch).filter(Boolean))];
-      if (uniqueBatches.length > 0) {
-        setBatchList(uniqueBatches.sort());
-      } else {
-        setBatchList(defaultBatches);
-      }
-    } catch (error) {
-      console.error('Error fetching batches from courses:', error);
-      setBatchList(defaultBatches);
     }
   };
 
@@ -194,40 +189,19 @@ const StaffCourses = () => {
       const enhancedCourses = coursesData.map(course => ({
         ...course,
         batch: course.batch || '',
-        materials: course.materials || [
-          {
-            id: 1,
-            title: 'Introduction to Programming',
-            duration: '45 mins',
-            description: 'Basic concepts of programming, algorithms, and problem solving',
-            materials: []
-          },
-          {
-            id: 2,
-            title: 'Variables and Data Types',
-            duration: '35 mins',
-            description: 'Understanding variables, constants, and different data types',
-            materials: []
-          },
-          {
-            id: 3,
-            title: 'Control Structures',
-            duration: '50 mins',
-            description: 'If-else statements, loops, and conditional logic',
-            materials: []
-          }
-        ],
-        syllabus: course.syllabus || 'Introduction to computer science concepts and programming fundamentals',
+        materials: course.materials || [],
+        syllabus: course.syllabus || '',
         students: course.students || [],
         assignments: course.assignments || 0,
-        progress: course.progress || Math.floor(Math.random() * 100),
-        attendance: course.attendance || Math.floor(Math.random() * 30) + 70,
-        studentsCount: course.studentsCount || Math.floor(Math.random() * 40) + 10
+        progress: course.progress || 0,
+        attendance: course.attendance || 0,
+        studentsCount: course.studentsCount || 0
       }));
 
-      const uniqueBatches = [...new Set(enhancedCourses.map(c => c.batch).filter(Boolean))];
-      if (uniqueBatches.length > 0) {
-        setBatchList(prev => [...new Set([...prev, ...uniqueBatches])].sort());
+      // Update batch list from courses
+      const courseBatches = [...new Set(enhancedCourses.map(c => c.batch).filter(Boolean))];
+      if (courseBatches.length > 0) {
+        setBatchList(prev => [...new Set([...prev, ...courseBatches])].sort());
       }
 
       let dashboardStats = {
@@ -259,28 +233,35 @@ const StaffCourses = () => {
     }
   };
 
-  const fetchAvailableStudents = async () => {
+  const fetchAvailableStudentsFromAPI = async () => {
     try {
-      const response = await staffApi.getStudents();
+      const response = await studentApi.getStudents();
       let studentsData = [];
-      if (response.data && Array.isArray(response.data)) {
+      if (response?.success && response?.data) {
         studentsData = response.data;
       } else if (Array.isArray(response)) {
         studentsData = response;
+      } else if (response?.data && Array.isArray(response.data)) {
+        studentsData = response.data;
       }
       
+      // Enhanced students with additional data
       const enhancedStudents = studentsData.map(student => ({
         ...student,
-        attendance: Math.floor(Math.random() * 30) + 70,
-        progress: Math.floor(Math.random() * 100),
+        attendance: student.attendance || Math.floor(Math.random() * 30) + 70,
+        progress: student.progress || Math.floor(Math.random() * 100),
         grade: ['A+', 'A', 'A-', 'B+', 'B', 'B-'][Math.floor(Math.random() * 6)]
       }));
       
-      const batches = [...new Set(enhancedStudents.map(s => s.batch).filter(Boolean))];
-      setBatchList(prev => [...new Set([...prev, ...batches])].sort());
+      // Extract batches from students
+      const studentBatches = [...new Set(enhancedStudents.map(s => s.batch).filter(Boolean))];
+      if (studentBatches.length > 0) {
+        setBatchList(prev => [...new Set([...prev, ...studentBatches])].sort());
+      }
+      
       setAvailableStudents(enhancedStudents);
     } catch (error) {
-      console.error('Error fetching students:', error);
+      console.error('Error fetching students from API:', error);
     }
   };
 
@@ -296,9 +277,9 @@ const StaffCourses = () => {
       
       const enhancedEnrolled = enrolledStudents.map(student => ({
         ...student,
-        attendance: Math.floor(Math.random() * 30) + 70,
-        progress: Math.floor(Math.random() * 100),
-        grade: ['A+', 'A', 'A-', 'B+', 'B', 'B-'][Math.floor(Math.random() * 6)]
+        attendance: student.attendance || Math.floor(Math.random() * 30) + 70,
+        progress: student.progress || Math.floor(Math.random() * 100),
+        grade: student.grade || ['A+', 'A', 'A-', 'B+', 'B', 'B-'][Math.floor(Math.random() * 6)]
       }));
       
       setCourseStudents(enhancedEnrolled);
@@ -736,7 +717,7 @@ const StaffCourses = () => {
         </div>
       </div>
 
-      {/* Search and Filter Bar */}
+      {/* Search and Filter Bar with Batch Filter */}
       <div className="tc-search-filter-bar">
         <div className="tc-search-box">
           <FiSearch className="tc-search-icon" />
@@ -832,7 +813,7 @@ const StaffCourses = () => {
         )}
       </div>
 
-      {/* Add Course Modal with Batch Dropdown */}
+      {/* Add Course Modal with Batch Dropdown from Student Data */}
       {showAddCourseModal && (
         <div className="modal-overlay" onClick={() => setShowAddCourseModal(false)}>
           <div className="modal-content modal-lg" onClick={(e) => e.stopPropagation()}>
@@ -889,7 +870,7 @@ const StaffCourses = () => {
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label>Batch (e.g., 2019-2023)</label>
+                  <label>Batch (from student data)</label>
                   <select
                     value={newCourse.batch}
                     onChange={(e) => setNewCourse({...newCourse, batch: e.target.value})}
@@ -906,7 +887,7 @@ const StaffCourses = () => {
                       ))
                     )}
                   </select>
-                  <small className="form-hint-text">Select the batch for this course</small>
+                  <small className="form-hint-text">Select the batch for this course (based on student data)</small>
                 </div>
               </div>
               <div className="form-group">
@@ -1055,7 +1036,7 @@ const StaffCourses = () => {
         </div>
       )}
 
-      {/* Student Assignment Modal with Batch Filter */}
+      {/* Student Assignment Modal with Batch Filter from Student Data */}
       {showStudentAssignmentModal && selectedCourse && (
         <div className="modal-overlay" onClick={() => setShowStudentAssignmentModal(false)}>
           <div className="manage-modal-container" onClick={(e) => e.stopPropagation()}>
@@ -1150,6 +1131,7 @@ const StaffCourses = () => {
           </div>
         </div>
       )}
+      
 
       {/* Student Details Modal */}
       {showStudentModal && selectedStudent && (
@@ -1162,6 +1144,8 @@ const StaffCourses = () => {
         </div>
       )}
     </div>
+
+    
   );
 };
 

@@ -25,11 +25,28 @@ import {
 const router = express.Router();
 
 /* ========================================
+   ADMIN ROUTES (with /admin prefix)
+   ======================================== */
+// Admin course management routes
+router.get("/admin/courses", protect, authorize("ADMIN"), getCourses);
+router.get("/admin/courses/trash", protect, authorize("ADMIN"), getTrashedCourses);
+router.post("/admin/courses", protect, authorize("ADMIN"), createCourse);
+router.get("/admin/courses/:id", protect, authorize("ADMIN"), getCourseById);
+router.put("/admin/courses/:id", protect, authorize("ADMIN"), updateCourse);
+router.delete("/admin/courses/:id", protect, authorize("ADMIN"), deleteCourse);
+router.post("/admin/courses/:id/restore", protect, authorize("ADMIN"), restoreCourse);
+router.delete("/admin/courses/:id/permanent", protect, authorize("ADMIN"), permanentDeleteCourse);
+
+// Admin enrollment routes
+router.post("/admin/courses/:courseId/students", protect, authorize("ADMIN"), enrollStudent);
+router.delete("/admin/courses/:courseId/students/:studentId", protect, authorize("ADMIN"), removeStudent);
+
+/* ========================================
    PUBLIC ROUTES (Accessible by authenticated users)
    ======================================== */
 // These routes are accessible by both ADMIN and TEACHER
-router.get("/", protect, getCourses);
-router.get("/:id", protect, getCourseById);
+router.get("/courses", protect, getCourses);
+router.get("/courses/:id", protect, getCourseById);
 
 /* ========================================
    TEACHER ROUTES (Teacher only)
@@ -37,22 +54,5 @@ router.get("/:id", protect, getCourseById);
 // Teachers can view their assigned courses
 router.get("/staff/my-courses", protect, authorize("STAFF"), getCoursesByTeacher);
 router.get("/staff/:courseId", protect, authorize("STAFF"), getTeacherCourseDetails);
-
-/* ========================================
-   ADMIN ONLY ROUTES
-   ======================================== */
-// Course management (Admin only)
-router.post("/", protect, authorize("ADMIN"), createCourse);
-router.put("/:id", protect, authorize("ADMIN"), updateCourse);
-router.delete("/:id", protect, authorize("ADMIN"), deleteCourse);
-
-// Enrollment management (Admin only)
-router.post("/enroll", protect, authorize("ADMIN"), enrollStudent);
-router.delete("/:courseId/students/:studentId", protect, authorize("ADMIN"), removeStudent);
-
-// Trash management (Admin only)
-router.get("/trash/all", protect, authorize("ADMIN"), getTrashedCourses);
-router.post("/:id/restore", protect, authorize("ADMIN"), restoreCourse);
-router.delete("/:id/permanent", protect, authorize("ADMIN"), permanentDeleteCourse);
 
 export default router;

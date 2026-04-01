@@ -3,18 +3,23 @@ import axiosInstance from "./axiosConfig";
 const courseApi = {
   // ========== BASIC COURSE OPERATIONS ==========
   
-  // Get all courses
-  getCourses: async () => {
+  // Get all courses (active only by default, optionally include trashed)
+  getCourses: async (includeTrashed = false, filters = {}) => {
     try {
-      const response = await axiosInstance.get("/courses");
+      const params = {};
+      if (includeTrashed) params.includeTrashed = 'true';
+      if (filters.batch) params.batch = filters.batch;
+      if (filters.department) params.department = filters.department;
+      if (filters.semester) params.semester = filters.semester;
+      if (filters.status) params.status = filters.status;
+      
+      const response = await axiosInstance.get("/admin/courses", { params });
       console.log("Get courses response:", response.data);
       
       if (response.data?.success && response.data?.data) {
         return response.data.data;
       } else if (Array.isArray(response.data)) {
         return response.data;
-      } else if (response.data?.data && Array.isArray(response.data.data)) {
-        return response.data.data;
       }
       return [];
     } catch (error) {
@@ -23,15 +28,33 @@ const courseApi = {
     }
   },
 
-  // Get all courses (alias for getCourses)
-  getAll: async () => {
-    return courseApi.getCourses();
+  // Get all courses (alias for getCourses, excludes trashed by default)
+  getAll: async (filters = {}) => {
+    return courseApi.getCourses(false, filters);
+  },
+
+  // Get trashed courses (soft deleted)
+  getTrashedCourses: async () => {
+    try {
+      const response = await axiosInstance.get("/admin/courses/trash");
+      console.log("Get trashed courses response:", response.data);
+      
+      if (response.data?.success && response.data?.data) {
+        return response.data.data;
+      } else if (Array.isArray(response.data)) {
+        return response.data;
+      }
+      return [];
+    } catch (error) {
+      console.error("Error fetching trashed courses:", error);
+      throw error;
+    }
   },
 
   // Get course by ID
   getCourseById: async (id) => {
     try {
-      const response = await axiosInstance.get(`/courses/${id}`);
+      const response = await axiosInstance.get(`/admin/courses/${id}`);
       return response.data;
     } catch (error) {
       console.error("Error fetching course:", error);
@@ -42,8 +65,15 @@ const courseApi = {
   // Create new course
   createCourse: async (data) => {
     try {
-      console.log("Creating course with data:", data);
-      const response = await axiosInstance.post("/courses", data);
+      console.log("Creating course with data:", JSON.stringify(data, null, 2));
+      
+      // Validate required fields
+      if (!data.code) throw new Error("Course code is required");
+      if (!data.name) throw new Error("Course name is required");
+      if (!data.department) throw new Error("Department is required");
+      if (!data.credits) throw new Error("Credits are required");
+      
+      const response = await axiosInstance.post("/admin/courses", data);
       console.log("Create course response:", response.data);
       
       if (response.data?.success) {
@@ -51,11 +81,7 @@ const courseApi = {
       }
       throw new Error(response.data?.message || "Failed to create course");
     } catch (error) {
-      console.error("Error creating course:", {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status
-      });
+      console.error("Error creating course:", error);
       throw error;
     }
   },
@@ -63,7 +89,7 @@ const courseApi = {
   // Update course
   updateCourse: async (id, data) => {
     try {
-      const response = await axiosInstance.put(`/courses/${id}`, data);
+      const response = await axiosInstance.put(`/admin/courses/${id}`, data);
       return response.data;
     } catch (error) {
       console.error("Error updating course:", error);
@@ -71,15 +97,57 @@ const courseApi = {
     }
   },
 
-  // Delete course
-  deleteCourse: async (id) => {
+  // Soft delete course (move to trash)
+  softDeleteCourse: async (id) => {
     try {
-      const response = await axiosInstance.delete(`/courses/${id}`);
-      return response.data;
+      const response = await axiosInstance.delete(`/admin/courses/${id}`);
+      console.log(`🗑️ Course (ID: ${id}) moved to trash:`, response.data);
+      
+      if (response.data?.success) {
+        return response.data;
+      }
+      throw new Error(response.data?.message || "Failed to move course to trash");
     } catch (error) {
-      console.error("Error deleting course:", error);
+      console.error("❌ Error soft deleting course:", error);
       throw error;
     }
+  },
+
+  // Restore course from trash
+  restoreCourse: async (id) => {
+    try {
+      const response = await axiosInstance.post(`/admin/courses/${id}/restore`);
+      console.log(`🔄 Course (ID: ${id}) restored:`, response.data);
+      
+      if (response.data?.success) {
+        return response.data;
+      }
+      throw new Error(response.data?.message || "Failed to restore course");
+    } catch (error) {
+      console.error("❌ Error restoring course:", error);
+      throw error;
+    }
+  },
+
+  // Permanently delete course
+  permanentDeleteCourse: async (id) => {
+    try {
+      const response = await axiosInstance.delete(`/admin/courses/${id}/permanent`);
+      console.log(`🗑️ Course (ID: ${id}) permanently deleted:`, response.data);
+      
+      if (response.data?.success) {
+        return response.data;
+      }
+      throw new Error(response.data?.message || "Failed to permanently delete course");
+    } catch (error) {
+      console.error("❌ Error permanently deleting course:", error);
+      throw error;
+    }
+  },
+
+  // Delete course (alias for soft delete - moves to trash)
+  deleteCourse: async (id) => {
+    return courseApi.softDeleteCourse(id);
   },
 
   // ========== TEACHER METHODS ==========
@@ -87,8 +155,40 @@ const courseApi = {
   // Get all teachers (for dropdown)
   getTeachers: async () => {
     try {
-      const response = await axiosInstance.get("/staff");
+      const response = await axiosInstance.get("/admin/staff");
       console.log("Get teachers response:", response.data);
+      
+      let staffData = [];
+      if (response.data?.success && response.data?.data) {
+        staffData = response.data.data;
+      } else if (Array.isArray(response.data)) {
+        staffData = response.data;
+      }
+      
+      // Filter faculty members (exclude HODs and Mentors)
+      const faculty = staffData.filter(staff => 
+        staff.staffRole === 'FACULTY' || 
+        (staff.designation && 
+         !staff.designation.toLowerCase().includes('head') &&
+         !staff.designation.toLowerCase().includes('hod') &&
+         !staff.designation.toLowerCase().includes('mentor'))
+      );
+      
+      console.log(`Found ${faculty.length} faculty members`);
+      return faculty;
+    } catch (error) {
+      console.error("Error fetching teachers:", error);
+      return [];
+    }
+  },
+
+  // ========== DEPARTMENT METHODS ==========
+  
+  // Get all departments
+  getDepartments: async () => {
+    try {
+      const response = await axiosInstance.get("/admin/departments");
+      console.log("Get departments response:", response.data);
       
       if (response.data?.success && response.data?.data) {
         return response.data.data;
@@ -97,8 +197,43 @@ const courseApi = {
       }
       return [];
     } catch (error) {
-      console.error("Error fetching teachers:", error);
+      console.error("Error fetching departments:", error);
       return [];
+    }
+  },
+
+  // ========== BATCH METHODS ==========
+  
+  // Get courses by batch
+  getCoursesByBatch: async (batch, includeTrashed = false) => {
+    try {
+      const params = includeTrashed ? { includeTrashed: 'true' } : {};
+      const response = await axiosInstance.get(`/admin/courses/batch/${encodeURIComponent(batch)}`, { params });
+      console.log(`Get courses by batch ${batch}:`, response.data);
+      
+      if (response.data?.success && response.data?.data) {
+        return response.data.data;
+      }
+      return [];
+    } catch (error) {
+      console.error(`Error fetching courses by batch ${batch}:`, error);
+      throw error;
+    }
+  },
+
+  // Get available batches from courses
+  getAvailableBatches: async () => {
+    try {
+      const response = await axiosInstance.get("/admin/courses/batches/available");
+      console.log("Get available batches response:", response.data);
+      
+      if (response.data?.success && response.data?.data) {
+        return response.data.data;
+      }
+      return [];
+    } catch (error) {
+      console.error("Error fetching available batches:", error);
+      throw error;
     }
   },
 
@@ -107,14 +242,10 @@ const courseApi = {
   // Get enrolled students for a course
   getEnrolledStudents: async (courseId) => {
     try {
-      const response = await axiosInstance.get(`/courses/${courseId}/students`);
+      const response = await axiosInstance.get(`/admin/courses/${courseId}/students`);
       console.log(`Get enrolled students for course ${courseId}:`, response.data);
       
       if (response.data?.success && response.data?.data) {
-        return response.data.data;
-      } else if (Array.isArray(response.data)) {
-        return response.data;
-      } else if (response.data?.data && Array.isArray(response.data.data)) {
         return response.data.data;
       }
       return [];
@@ -128,9 +259,8 @@ const courseApi = {
   assignStudents: async (courseId, studentIds) => {
     try {
       console.log(`Assigning ${studentIds.length} students to course ${courseId}:`, studentIds);
-      const response = await axiosInstance.post(`/courses/${courseId}/students`, { 
-        studentIds,
-        courseId 
+      const response = await axiosInstance.post(`/admin/courses/${courseId}/students`, { 
+        studentIds 
       });
       console.log("Assign students response:", response.data);
       return response.data;
@@ -143,7 +273,7 @@ const courseApi = {
   // Remove a single student from a course
   removeStudent: async (courseId, studentId) => {
     try {
-      const response = await axiosInstance.delete(`/courses/${courseId}/students/${studentId}`);
+      const response = await axiosInstance.delete(`/admin/courses/${courseId}/students/${studentId}`);
       console.log(`Remove student ${studentId} from course ${courseId}:`, response.data);
       return response.data;
     } catch (error) {
@@ -152,34 +282,9 @@ const courseApi = {
     }
   },
 
-  // Remove multiple students from a course
-  removeStudents: async (courseId, studentIds) => {
-    try {
-      const response = await axiosInstance.post(`/courses/${courseId}/students/remove`, { 
-        studentIds 
-      });
-      console.log(`Remove ${studentIds.length} students from course ${courseId}:`, response.data);
-      return response.data;
-    } catch (error) {
-      console.error("Error removing students:", error);
-      throw error;
-    }
-  },
-
-  // Check if a student is enrolled in a course
-  checkEnrollment: async (courseId, studentId) => {
-    try {
-      const response = await axiosInstance.get(`/courses/${courseId}/students/${studentId}/check`);
-      return response.data;
-    } catch (error) {
-      console.error("Error checking enrollment:", error);
-      throw error;
-    }
-  },
-
   // ========== BULK OPERATIONS ==========
   
-  // Bulk create courses from array
+  // Bulk create courses
   bulkCreateCourses: async (courses) => {
     try {
       const results = [];
@@ -222,7 +327,7 @@ const courseApi = {
   // Get course statistics
   getCourseStats: async () => {
     try {
-      const response = await axiosInstance.get("/courses/stats");
+      const response = await axiosInstance.get("/admin/courses/stats");
       console.log("Course stats response:", response.data);
       return response.data;
     } catch (error) {
@@ -231,10 +336,10 @@ const courseApi = {
     }
   },
 
-  // Get course enrollment statistics
+  // Get enrollment statistics
   getEnrollmentStats: async () => {
     try {
-      const response = await axiosInstance.get("/courses/enrollment/stats");
+      const response = await axiosInstance.get("/admin/courses/enrollment/stats");
       return response.data;
     } catch (error) {
       console.error("Error fetching enrollment stats:", error);
@@ -245,7 +350,7 @@ const courseApi = {
   // Get department-wise course distribution
   getDepartmentDistribution: async () => {
     try {
-      const response = await axiosInstance.get("/courses/department/distribution");
+      const response = await axiosInstance.get("/admin/courses/department/distribution");
       return response.data;
     } catch (error) {
       console.error("Error fetching department distribution:", error);
@@ -256,7 +361,7 @@ const courseApi = {
   // Get batch-wise enrollment
   getBatchEnrollment: async () => {
     try {
-      const response = await axiosInstance.get("/courses/enrollment/batch");
+      const response = await axiosInstance.get("/admin/courses/enrollment/batch");
       return response.data;
     } catch (error) {
       console.error("Error fetching batch enrollment:", error);
@@ -269,7 +374,7 @@ const courseApi = {
   // Search courses by name, code, or department
   searchCourses: async (query) => {
     try {
-      const response = await axiosInstance.get(`/courses/search?q=${encodeURIComponent(query)}`);
+      const response = await axiosInstance.get(`/admin/courses/search?q=${encodeURIComponent(query)}`);
       return response.data;
     } catch (error) {
       console.error("Error searching courses:", error);
@@ -280,7 +385,7 @@ const courseApi = {
   // Filter courses by department
   getCoursesByDepartment: async (department) => {
     try {
-      const response = await axiosInstance.get(`/courses/department/${encodeURIComponent(department)}`);
+      const response = await axiosInstance.get(`/admin/courses/department/${encodeURIComponent(department)}`);
       return response.data;
     } catch (error) {
       console.error("Error fetching courses by department:", error);
@@ -291,7 +396,7 @@ const courseApi = {
   // Filter courses by semester
   getCoursesBySemester: async (semester) => {
     try {
-      const response = await axiosInstance.get(`/courses/semester/${semester}`);
+      const response = await axiosInstance.get(`/admin/courses/semester/${semester}`);
       return response.data;
     } catch (error) {
       console.error("Error fetching courses by semester:", error);
@@ -302,7 +407,7 @@ const courseApi = {
   // Filter courses by teacher
   getCoursesByTeacher: async (teacherId) => {
     try {
-      const response = await axiosInstance.get(`/courses/teacher/${teacherId}`);
+      const response = await axiosInstance.get(`/admin/courses/teacher/${teacherId}`);
       return response.data;
     } catch (error) {
       console.error("Error fetching courses by teacher:", error);
@@ -311,9 +416,9 @@ const courseApi = {
   },
 
   // Filter courses by batch
-  getCoursesByBatch: async (batch) => {
+  getCoursesByBatchFilter: async (batch) => {
     try {
-      const response = await axiosInstance.get(`/courses/batch/${encodeURIComponent(batch)}`);
+      const response = await axiosInstance.get(`/admin/courses/batch/${encodeURIComponent(batch)}`);
       return response.data;
     } catch (error) {
       console.error("Error fetching courses by batch:", error);
@@ -321,58 +426,34 @@ const courseApi = {
     }
   },
 
-  // ========== TRASH & RESTORE ==========
+  // ========== TRASH & RESTORE (Aliases) ==========
   
-  // Get trashed courses (soft deleted)
-  getTrashedCourses: async () => {
-    try {
-      const response = await axiosInstance.get("/courses/trash");
-      return response.data;
-    } catch (error) {
-      console.error("Error fetching trashed courses:", error);
-      throw error;
-    }
+  // Get trashed courses (alias)
+  getTrashed: async () => {
+    return courseApi.getTrashedCourses();
   },
 
-  // Restore a trashed course
-  restoreCourse: async (id) => {
-    try {
-      const response = await axiosInstance.post(`/courses/${id}/restore`);
-      return response.data;
-    } catch (error) {
-      console.error("Error restoring course:", error);
-      throw error;
-    }
+  // Restore (alias)
+  restore: async (id) => {
+    return courseApi.restoreCourse(id);
   },
 
-  // Permanently delete a course
-  permanentDeleteCourse: async (id) => {
-    try {
-      const response = await axiosInstance.delete(`/courses/${id}/permanent`);
-      return response.data;
-    } catch (error) {
-      console.error("Error permanently deleting course:", error);
-      throw error;
-    }
-  },
-
-  // Empty trashed courses
-  emptyTrash: async () => {
-    try {
-      const response = await axiosInstance.delete("/courses/trash/empty");
-      return response.data;
-    } catch (error) {
-      console.error("Error emptying course trash:", error);
-      throw error;
-    }
+  // Permanent delete (alias)
+  permanentDelete: async (id) => {
+    return courseApi.permanentDeleteCourse(id);
   },
 
   // ========== EXPORT METHODS ==========
   
   // Export courses to Excel
-  exportToExcel: async () => {
+  exportToExcel: async (filters = {}) => {
     try {
-      const response = await axiosInstance.get("/courses/export/excel", {
+      const params = new URLSearchParams();
+      if (filters.batch) params.append('batch', filters.batch);
+      if (filters.department) params.append('department', filters.department);
+      if (filters.semester) params.append('semester', filters.semester);
+      
+      const response = await axiosInstance.get(`/admin/courses/export/excel?${params.toString()}`, {
         responseType: 'blob'
       });
       return response.data;
@@ -383,9 +464,14 @@ const courseApi = {
   },
 
   // Export courses to PDF
-  exportToPDF: async () => {
+  exportToPDF: async (filters = {}) => {
     try {
-      const response = await axiosInstance.get("/courses/export/pdf", {
+      const params = new URLSearchParams();
+      if (filters.batch) params.append('batch', filters.batch);
+      if (filters.department) params.append('department', filters.department);
+      if (filters.semester) params.append('semester', filters.semester);
+      
+      const response = await axiosInstance.get(`/admin/courses/export/pdf?${params.toString()}`, {
         responseType: 'blob'
       });
       return response.data;
@@ -398,7 +484,7 @@ const courseApi = {
   // Export enrollment data
   exportEnrollmentData: async (courseId) => {
     try {
-      const response = await axiosInstance.get(`/courses/${courseId}/export`, {
+      const response = await axiosInstance.get(`/admin/courses/${courseId}/export`, {
         responseType: 'blob'
       });
       return response.data;
@@ -420,9 +506,9 @@ const courseApi = {
     return courseApi.updateCourse(id, data);
   },
 
-  // Alias for deleteCourse
+  // Alias for softDeleteCourse
   delete: async (id) => {
-    return courseApi.deleteCourse(id);
+    return courseApi.softDeleteCourse(id);
   },
 
   // Alias for getCourseById
@@ -443,6 +529,16 @@ const courseApi = {
   // Alias for removeStudent
   unenrollStudent: async (courseId, studentId) => {
     return courseApi.removeStudent(courseId, studentId);
+  },
+
+  // Alias for getCoursesByBatch
+  getByBatch: async (batch, includeTrashed = false) => {
+    return courseApi.getCoursesByBatch(batch, includeTrashed);
+  },
+
+  // Alias for getAvailableBatches
+  getBatches: async () => {
+    return courseApi.getAvailableBatches();
   }
 };
 

@@ -1,7 +1,7 @@
 import prisma from "../prisma/client.js";
 
 /* ========================================
-   ADMIN METHODS (EXISTING - MODIFIED)
+   ADMIN METHODS
    ======================================== */
 
 /* ===============================
@@ -9,15 +9,39 @@ import prisma from "../prisma/client.js";
 ================================ */
 export const getCourses = async (req, res) => {
   try {
+    const { includeTrashed, batch, department, semester, status } = req.query;
+    
+    let whereCondition = {};
+    
+    // If includeTrashed is false or not provided, exclude deleted courses
+    if (includeTrashed !== 'true') {
+      whereCondition = { deletedAt: null };
+    }
+    
+    // Apply filters
+    if (batch) {
+      whereCondition.batch = batch;
+    }
+    if (department) {
+      whereCondition.department = department;
+    }
+    if (semester) {
+      whereCondition.semester = Number(semester);
+    }
+    if (status) {
+      whereCondition.status = status.toUpperCase();
+    }
+    
     const courses = await prisma.course.findMany({
-      where: { deletedAt: null },
+      where: whereCondition,
       include: {
         teacher: {
           select: {
             id: true,
             name: true,
             email: true,
-            department: true
+            department: true,
+            designation: true
           }
         },
         enrollments: {
@@ -51,6 +75,42 @@ export const getCourses = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to load courses"
+    });
+  }
+};
+
+/* ===============================
+   GET TRASHED COURSES (ADMIN)
+================================ */
+export const getTrashedCourses = async (req, res) => {
+  try {
+    const courses = await prisma.course.findMany({
+      where: {
+        deletedAt: { not: null }
+      },
+      include: {
+        teacher: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            department: true
+          }
+        }
+      },
+      orderBy: { deletedAt: "desc" }
+    });
+
+    res.json({
+      success: true,
+      data: courses
+    });
+
+  } catch (error) {
+    console.error("Get trashed courses error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch trashed courses"
     });
   }
 };
@@ -96,7 +156,7 @@ export const getCourseById = async (req, res) => {
       }
     });
 
-    if (!course || course.deletedAt) {
+    if (!course) {
       return res.status(404).json({
         success: false,
         message: "Course not found"
@@ -125,6 +185,8 @@ export const getCourseById = async (req, res) => {
 ================================ */
 export const createCourse = async (req, res) => {
   try {
+    console.log("📥 Received course data:", JSON.stringify(req.body, null, 2));
+    
     const {
       code,
       name,
@@ -134,8 +196,23 @@ export const createCourse = async (req, res) => {
       semester,
       schedule,
       room,
-      teacherId
+      teacherId,
+      batch
     } = req.body;
+
+    // Validate required fields
+    const missingFields = [];
+    if (!code) missingFields.push('code');
+    if (!name) missingFields.push('name');
+    if (!department) missingFields.push('department');
+    if (!credits) missingFields.push('credits');
+
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Missing required fields: ${missingFields.join(', ')}`
+      });
+    }
 
     // Check if course code already exists
     const existingCourse = await prisma.course.findUnique({
@@ -149,24 +226,42 @@ export const createCourse = async (req, res) => {
       });
     }
 
+    // Check if teacher exists if teacherId is provided
+    let parsedTeacherId = null;
+    if (teacherId) {
+      parsedTeacherId = Number(teacherId);
+      const teacher = await prisma.staff.findUnique({
+        where: { id: parsedTeacherId }
+      });
+      if (!teacher) {
+        return res.status(400).json({
+          success: false,
+          message: "Selected teacher does not exist"
+        });
+      }
+    }
+
     const course = await prisma.course.create({
       data: {
         code,
         name,
-        description,
+        description: description || null,
         credits: Number(credits),
         department,
-        semester: Number(semester),
-        schedule,
-        room,
-        teacherId: teacherId ? Number(teacherId) : null
+        semester: semester ? Number(semester) : null,
+        schedule: schedule || null,
+        room: room || null,
+        teacherId: parsedTeacherId,
+        status: "ACTIVE",
+        batch: batch || null
       },
       include: {
         teacher: {
           select: {
             id: true,
             name: true,
-            email: true
+            email: true,
+            department: true
           }
         }
       }
@@ -190,7 +285,7 @@ export const createCourse = async (req, res) => {
 
     res.status(500).json({
       success: false,
-      message: "Failed to create course"
+      message: "Failed to create course: " + error.message
     });
   }
 };
@@ -211,7 +306,8 @@ export const updateCourse = async (req, res) => {
       schedule,
       room,
       teacherId,
-      status
+      status,
+      batch
     } = req.body;
 
     // Check if course exists
@@ -219,10 +315,18 @@ export const updateCourse = async (req, res) => {
       where: { id: Number(id) }
     });
 
-    if (!existingCourse || existingCourse.deletedAt) {
+    if (!existingCourse) {
       return res.status(404).json({
         success: false,
         message: "Course not found"
+      });
+    }
+
+    // Check if course is in trash
+    if (existingCourse.deletedAt) {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot update course that is in trash. Please restore first."
       });
     }
 
@@ -239,26 +343,43 @@ export const updateCourse = async (req, res) => {
       }
     }
 
+    // Check if teacher exists if teacherId is provided
+    let parsedTeacherId = null;
+    if (teacherId) {
+      parsedTeacherId = Number(teacherId);
+      const teacher = await prisma.staff.findUnique({
+        where: { id: parsedTeacherId }
+      });
+      if (!teacher) {
+        return res.status(400).json({
+          success: false,
+          message: "Selected teacher does not exist"
+        });
+      }
+    }
+
     const updatedCourse = await prisma.course.update({
       where: { id: Number(id) },
       data: {
-        code,
-        name,
-        description,
-        credits: credits ? Number(credits) : undefined,
-        department,
-        semester: semester ? Number(semester) : undefined,
-        schedule,
-        room,
-        teacherId: teacherId ? Number(teacherId) : null,
-        status
+        code: code || existingCourse.code,
+        name: name || existingCourse.name,
+        description: description !== undefined ? description : existingCourse.description,
+        credits: credits ? Number(credits) : existingCourse.credits,
+        department: department || existingCourse.department,
+        semester: semester ? Number(semester) : existingCourse.semester,
+        schedule: schedule !== undefined ? schedule : existingCourse.schedule,
+        room: room !== undefined ? room : existingCourse.room,
+        teacherId: teacherId ? parsedTeacherId : existingCourse.teacherId,
+        status: status || existingCourse.status,
+        batch: batch !== undefined ? batch : existingCourse.batch
       },
       include: {
         teacher: {
           select: {
             id: true,
             name: true,
-            email: true
+            email: true,
+            department: true
           }
         }
       }
@@ -294,14 +415,37 @@ export const deleteCourse = async (req, res) => {
   try {
     const { id } = req.params;
 
+    const existingCourse = await prisma.course.findUnique({
+      where: { id: Number(id) }
+    });
+
+    if (!existingCourse) {
+      return res.status(404).json({
+        success: false,
+        message: "Course not found"
+      });
+    }
+
+    // Check if already deleted
+    if (existingCourse.deletedAt) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Course is already in trash" 
+      });
+    }
+
     const course = await prisma.course.update({
       where: { id: Number(id) },
-      data: { deletedAt: new Date() }
+      data: { 
+        deletedAt: new Date(),
+        deletedBy: req.user?.id || null
+      }
     });
 
     res.json({
       success: true,
-      message: "Course deleted successfully"
+      data: course,
+      message: "Course moved to trash successfully"
     });
 
   } catch (error) {
@@ -309,6 +453,190 @@ export const deleteCourse = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to delete course"
+    });
+  }
+};
+
+/* ===============================
+   RESTORE COURSE FROM TRASH (ADMIN)
+================================ */
+export const restoreCourse = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const existingCourse = await prisma.course.findUnique({
+      where: { id: Number(id) }
+    });
+
+    if (!existingCourse) {
+      return res.status(404).json({
+        success: false,
+        message: "Course not found"
+      });
+    }
+
+    // Check if not in trash
+    if (!existingCourse.deletedAt) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Course is not in trash" 
+      });
+    }
+
+    const course = await prisma.course.update({
+      where: { id: Number(id) },
+      data: { 
+        deletedAt: null,
+        deletedBy: null
+      }
+    });
+
+    res.json({
+      success: true,
+      data: course,
+      message: "Course restored successfully"
+    });
+
+  } catch (error) {
+    console.error("Restore course error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to restore course"
+    });
+  }
+};
+
+/* ===============================
+   PERMANENTLY DELETE COURSE (ADMIN)
+================================ */
+export const permanentDeleteCourse = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const existingCourse = await prisma.course.findUnique({
+      where: { id: Number(id) }
+    });
+
+    if (!existingCourse) {
+      return res.status(404).json({
+        success: false,
+        message: "Course not found"
+      });
+    }
+
+    const courseName = existingCourse.name;
+
+    // First delete related enrollments
+    await prisma.enrollment.deleteMany({
+      where: { courseId: Number(id) }
+    });
+
+    // Then delete the course
+    await prisma.course.delete({
+      where: { id: Number(id) }
+    });
+
+    res.json({
+      success: true,
+      message: `Course "${courseName}" permanently deleted`
+    });
+
+  } catch (error) {
+    console.error("Permanent delete course error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to permanently delete course"
+    });
+  }
+};
+
+/* ===============================
+   ENROLL STUDENT IN COURSE (ADMIN)
+================================ */
+export const enrollStudent = async (req, res) => {
+  try {
+    const { courseId } = req.params;
+    const { studentIds } = req.body;
+
+    if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide at least one student ID"
+      });
+    }
+
+    const results = [];
+    
+    for (const studentId of studentIds) {
+      try {
+        // Check if enrollment already exists
+        const existingEnrollment = await prisma.enrollment.findUnique({
+          where: {
+            studentId_courseId: {
+              studentId: Number(studentId),
+              courseId: Number(courseId)
+            }
+          }
+        });
+
+        if (!existingEnrollment) {
+          const enrollment = await prisma.enrollment.create({
+            data: {
+              studentId: Number(studentId),
+              courseId: Number(courseId),
+              status: "ACTIVE"
+            }
+          });
+          results.push({ success: true, studentId, enrollment });
+        } else {
+          results.push({ success: false, studentId, message: "Already enrolled" });
+        }
+      } catch (err) {
+        results.push({ success: false, studentId, error: err.message });
+      }
+    }
+
+    res.json({
+      success: true,
+      data: results,
+      message: `${results.filter(r => r.success).length} students enrolled successfully`
+    });
+
+  } catch (error) {
+    console.error("Enroll student error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to enroll student"
+    });
+  }
+};
+
+/* ===============================
+   REMOVE STUDENT FROM COURSE (ADMIN)
+================================ */
+export const removeStudent = async (req, res) => {
+  try {
+    const { courseId, studentId } = req.params;
+
+    await prisma.enrollment.delete({
+      where: {
+        studentId_courseId: {
+          studentId: Number(studentId),
+          courseId: Number(courseId)
+        }
+      }
+    });
+
+    res.json({
+      success: true,
+      message: "Student removed from course successfully"
+    });
+
+  } catch (error) {
+    console.error("Remove student error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to remove student"
     });
   }
 };
@@ -322,23 +650,23 @@ export const deleteCourse = async (req, res) => {
 ================================ */
 export const getCoursesByTeacher = async (req, res) => {
   try {
-    const teacherId = req.user.id; // From auth middleware
+    const userId = req.user.id;
 
-    // Get teacher record
-    const teacher = await prisma.teacher.findUnique({
-      where: { userId: teacherId }
+    // Get staff record
+    const staff = await prisma.staff.findUnique({
+      where: { userId: userId }
     });
 
-    if (!teacher) {
+    if (!staff) {
       return res.status(404).json({
         success: false,
-        message: "Teacher not found"
+        message: "Staff not found"
       });
     }
 
     const courses = await prisma.course.findMany({
       where: {
-        teacherId: teacher.id,
+        teacherId: staff.id,
         deletedAt: null
       },
       include: {
@@ -379,6 +707,7 @@ export const getCoursesByTeacher = async (req, res) => {
       semester: course.semester,
       schedule: course.schedule,
       room: course.room,
+      batch: course.batch,
       status: course.status,
       studentsCount: course.enrollments.length,
       students: course.enrollments.map(e => ({
@@ -409,25 +738,25 @@ export const getCoursesByTeacher = async (req, res) => {
 ================================ */
 export const getTeacherCourseDetails = async (req, res) => {
   try {
-    const teacherId = req.user.id;
+    const userId = req.user.id;
     const { courseId } = req.params;
 
-    // Get teacher record
-    const teacher = await prisma.teacher.findUnique({
-      where: { userId: teacherId }
+    // Get staff record
+    const staff = await prisma.staff.findUnique({
+      where: { userId: userId }
     });
 
-    if (!teacher) {
+    if (!staff) {
       return res.status(404).json({
         success: false,
-        message: "Teacher not found"
+        message: "Staff not found"
       });
     }
 
     const course = await prisma.course.findFirst({
       where: {
         id: Number(courseId),
-        teacherId: teacher.id,
+        teacherId: staff.id,
         deletedAt: null
       },
       include: {
@@ -484,9 +813,10 @@ export const getTeacherCourseDetails = async (req, res) => {
         email: enrollment.student.email,
         rollNo: enrollment.student.rollNo,
         phone: enrollment.student.phone,
+        batch: enrollment.student.batch,
         attendancePercentage,
         lastAttendance: attendances[0]?.date || null,
-        attendances: attendances.slice(0, 5) // Last 5 attendance records
+        attendances: attendances.slice(0, 5)
       };
     });
 
@@ -502,6 +832,7 @@ export const getTeacherCourseDetails = async (req, res) => {
         semester: course.semester,
         schedule: course.schedule,
         room: course.room,
+        batch: course.batch,
         studentsCount: studentsWithStats.length,
         students: studentsWithStats
       }
@@ -516,190 +847,82 @@ export const getTeacherCourseDetails = async (req, res) => {
   }
 };
 
-/* ========================================
-   COURSE ENROLLMENT METHODS
-   ======================================== */
-
 /* ===============================
-   ENROLL STUDENT IN COURSE (ADMIN)
+   GET COURSES BY BATCH (ADMIN/TEACHER)
 ================================ */
-export const enrollStudent = async (req, res) => {
+export const getCoursesByBatch = async (req, res) => {
   try {
-    const { courseId, studentId } = req.body;
-
-    // Check if enrollment already exists
-    const existingEnrollment = await prisma.enrollment.findUnique({
-      where: {
-        studentId_courseId: {
-          studentId: Number(studentId),
-          courseId: Number(courseId)
-        }
-      }
-    });
-
-    if (existingEnrollment) {
-      return res.status(400).json({
-        success: false,
-        message: "Student already enrolled in this course"
-      });
+    const { batch } = req.params;
+    const { includeTrashed } = req.query;
+    
+    let whereCondition = { batch: batch };
+    
+    if (includeTrashed !== 'true') {
+      whereCondition.deletedAt = null;
     }
-
-    const enrollment = await prisma.enrollment.create({
-      data: {
-        studentId: Number(studentId),
-        courseId: Number(courseId),
-        status: "ACTIVE"
-      },
+    
+    const courses = await prisma.course.findMany({
+      where: whereCondition,
       include: {
-        student: {
-          include: {
-            user: {
-              select: {
-                name: true,
-                email: true
-              }
-            }
-          }
-        },
-        course: {
+        teacher: {
           select: {
             id: true,
-            code: true,
-            name: true
+            name: true,
+            email: true
           }
+        },
+        enrollments: {
+          where: {
+            student: { deletedAt: null }
+          },
+          select: { studentId: true }
         }
-      }
+      },
+      orderBy: { name: "asc" }
     });
+
+    const coursesWithCount = courses.map(course => ({
+      ...course,
+      studentsCount: course.enrollments.length
+    }));
 
     res.json({
       success: true,
-      data: enrollment,
-      message: "Student enrolled successfully"
+      data: coursesWithCount
     });
 
   } catch (error) {
-    console.error("Enroll student error:", error);
+    console.error("Get courses by batch error:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to enroll student"
+      message: "Failed to fetch courses by batch"
     });
   }
 };
 
 /* ===============================
-   REMOVE STUDENT FROM COURSE (ADMIN)
+   GET AVAILABLE BATCHES (ADMIN/TEACHER)
 ================================ */
-export const removeStudent = async (req, res) => {
-  try {
-    const { courseId, studentId } = req.params;
-
-    await prisma.enrollment.delete({
-      where: {
-        studentId_courseId: {
-          studentId: Number(studentId),
-          courseId: Number(courseId)
-        }
-      }
-    });
-
-    res.json({
-      success: true,
-      message: "Student removed from course successfully"
-    });
-
-  } catch (error) {
-    console.error("Remove student error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to remove student"
-    });
-  }
-};
-
-/* ========================================
-   TRASH METHODS
-   ======================================== */
-
-/* ===============================
-   GET TRASHED COURSES (ADMIN)
-================================ */
-export const getTrashedCourses = async (req, res) => {
+export const getAvailableBatches = async (req, res) => {
   try {
     const courses = await prisma.course.findMany({
-      where: {
-        deletedAt: { not: null }
-      },
-      orderBy: { deletedAt: "desc" }
+      where: { deletedAt: null },
+      select: { batch: true },
+      distinct: ['batch']
     });
-
+    
+    const batches = courses.map(c => c.batch).filter(b => b);
+    
     res.json({
       success: true,
-      data: courses
+      data: batches.sort()
     });
 
   } catch (error) {
-    console.error("Get trashed courses error:", error);
+    console.error("Get available batches error:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to fetch trashed courses"
-    });
-  }
-};
-
-/* ===============================
-   RESTORE COURSE FROM TRASH (ADMIN)
-================================ */
-export const restoreCourse = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const course = await prisma.course.update({
-      where: { id: Number(id) },
-      data: { deletedAt: null }
-    });
-
-    res.json({
-      success: true,
-      data: course,
-      message: "Course restored successfully"
-    });
-
-  } catch (error) {
-    console.error("Restore course error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to restore course"
-    });
-  }
-};
-
-/* ===============================
-   PERMANENTLY DELETE COURSE (ADMIN)
-================================ */
-export const permanentDeleteCourse = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    // First delete related enrollments
-    await prisma.enrollment.deleteMany({
-      where: { courseId: Number(id) }
-    });
-
-    // Then delete the course
-    await prisma.course.delete({
-      where: { id: Number(id) }
-    });
-
-    res.json({
-      success: true,
-      message: "Course permanently deleted"
-    });
-
-  } catch (error) {
-    console.error("Permanent delete course error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to permanently delete course"
+      message: "Failed to fetch available batches"
     });
   }
 };
