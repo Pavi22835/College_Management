@@ -167,7 +167,7 @@ const Dashboard = () => {
             onClick={() => navigate("/admin/staff")}  // Updated path
           >
             <span className="action-icon">➕</span>
-            <span className="action-text">Add Teacher</span>
+            <span className="action-text">Add Staff</span>
           </button>
 
           <button 
