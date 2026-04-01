@@ -151,6 +151,7 @@ model Course {
   status      String       @default("ACTIVE")
   schedule    String?
   room        String?
+  batch       String?      // 👈 ADDED: Batch for the course (e.g., "2019-2023", "2020-2024")
   deletedAt   DateTime?
   deletedBy   Int?
   createdAt   DateTime     @default(now())
@@ -163,6 +164,7 @@ model Course {
   @@index([teacherId])
   @@index([deletedAt])
   @@index([status])
+  @@index([batch])  // 👈 ADDED: Index for faster batch queries
 }
 
 model Enrollment {
