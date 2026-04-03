@@ -129,6 +129,27 @@ const StaffCourses = () => {
     setFilteredCourses(filtered);
   }, [searchTerm, batchFilter, courses]);
 
+  // Fetch lessons when course details modal is opened
+  useEffect(() => {
+    if (showCourseDetailsModal && selectedCourse && selectedCourse.id) {
+      const fetchLessons = async () => {
+        try {
+          const lessons = await courseApi.getLessons(selectedCourse.id);
+          if (lessons && Array.isArray(lessons)) {
+            setSelectedCourse(prev => ({
+              ...prev,
+              lessons: lessons
+            }));
+          }
+        } catch (error) {
+          console.error('Error fetching lessons:', error);
+        }
+      };
+      
+      fetchLessons();
+    }
+  }, [showCourseDetailsModal, selectedCourse?.id]);
+
   const updateBatchList = async () => {
     try {
       setBatchLoading(true);
@@ -1101,36 +1122,23 @@ const StaffCourses = () => {
                     {lesson.description && <p className="lesson-grid-description">{lesson.description}</p>}
                     
                     {lesson.materials && lesson.materials.length > 0 && (
-                      <div className="lesson-materials-section-enhanced">
-                        <div className="materials-header-enhanced">
-                          <span>Materials ({lesson.materials.length})</span>
-                        </div>
-                        <div className="materials-grid-enhanced">
-                          {lesson.materials.map((material, idx) => (
-                            <div key={idx} className={`material-card-enhanced ${getMaterialBadgeClass(material.type)}`}>
-                              <div className="material-icon-enhanced">
-                                {getMaterialIcon(material.type)}
-                              </div>
-                              <div className="material-info-enhanced">
-                                <span className="material-title-enhanced">{material.title}</span>
-                                <span className="material-size-enhanced">{material.size ? `${material.size} KB` : '—'}</span>
-                              </div>
-                              <div className="material-actions-enhanced">
-                                <a href={material.url} target="_blank" rel="noopener noreferrer" className="material-open-btn">
-                                  <FiExternalLink size={14} />
-                                  <span>Open</span>
-                                </a>
-                                <button 
-                                  className="material-delete-btn"
-                                  onClick={() => handleDeleteMaterial(lesson.id, material.id)}
-                                  title="Delete"
-                                >
-                                  <FiTrash2 size={14} />
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                      <div className="lesson-materials-simple">
+                        {lesson.materials.map((material, idx) => (
+                          <div key={idx} className="material-item-simple">
+                            {getMaterialIcon(material.type)}
+                            <span className="material-name-simple">{material.title}</span>
+                            <a href={material.url} target="_blank" rel="noopener noreferrer" className="material-action-simple" title="Open">
+                              <FiExternalLink size={14} />
+                            </a>
+                            <button 
+                              className="material-action-simple delete"
+                              onClick={() => handleDeleteMaterial(lesson.id, material.id)}
+                              title="Delete"
+                            >
+                              <FiTrash2 size={14} />
+                            </button>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
