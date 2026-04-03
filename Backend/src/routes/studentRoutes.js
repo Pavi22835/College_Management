@@ -12,13 +12,15 @@ import {
   getStudentsByTeacher,
   getStudentDashboard,
   getStudentCourses,
+  getStudentCourseDetail,
   getStudentAttendance,
   getStudentGrades,
   getTrashedStudents,
   restoreStudent,
   permanentDeleteStudent,
   activateStudent,
-  deactivateStudent
+  deactivateStudent,
+  getStaffStudentBatches
 } from "../controllers/studentController.js";
 
 const router = express.Router();
@@ -29,6 +31,7 @@ const router = express.Router();
    ======================================== */
 router.get("/dashboard", protect, authorize("STUDENT"), getStudentDashboard);
 router.get("/courses", protect, authorize("STUDENT"), getStudentCourses);
+router.get("/courses/:courseId", protect, authorize("STUDENT"), getStudentCourseDetail);
 router.get("/attendance", protect, authorize("STUDENT"), getStudentAttendance);
 router.get("/grades", protect, authorize("STUDENT"), getStudentGrades);
 
@@ -36,6 +39,7 @@ router.get("/grades", protect, authorize("STUDENT"), getStudentGrades);
    STAFF ROUTES
    ======================================== */
 router.get("/staff/all", protect, authorize("STAFF"), getTeacherAllStudents);
+router.get("/staff/batches", protect, authorize("STAFF"), getStaffStudentBatches);
 router.get("/staff/:teacherId", protect, authorize("ADMIN", "STAFF"), getStudentsByTeacher);
 router.get("/staff/attendance/:studentId", protect, authorize("STAFF"), getStudentAttendanceForTeacher);
 router.get("/course/:courseId", protect, authorize("STAFF"), getStudentsByCourse);

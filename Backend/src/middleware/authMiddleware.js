@@ -9,7 +9,8 @@ export const protect = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
-    console.log("========== PROTECT MIDDLEWARE ==========");
+    console.log("\n========== PROTECT MIDDLEWARE ==========");
+    console.log("📨 Request to:", req.method, req.path);
     console.log("Auth header exists?", !!authHeader);
     
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -21,7 +22,7 @@ export const protect = async (req, res, next) => {
     }
 
     const token = authHeader.split(" ")[1];
-    console.log("Token received (first 20 chars):", token.substring(0, 20) + "...");
+    console.log("✅ Token extracted (first 20 chars):", token.substring(0, 20) + "...");
 
     let decoded;
     try {

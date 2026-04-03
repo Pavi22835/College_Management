@@ -1,8 +1,6 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import prisma from "../prisma/client.js";
 
 /* ========================================
    REGISTER USER
@@ -259,7 +257,6 @@ export const login = async (req, res) => {
         employeeId: user.staff.employeeId,
         department: user.staff.department,
         designation: user.staff.designation,
-        staffRole: user.staff.staffRole,
         phone: user.staff.phone
       };
     }

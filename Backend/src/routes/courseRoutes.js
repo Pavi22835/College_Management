@@ -11,6 +11,7 @@ import {
   // Teacher methods
   getCoursesByTeacher,
   getTeacherCourseDetails,
+  getAvailableBatches,
   
   // Enrollment methods
   enrollStudent,
@@ -40,6 +41,9 @@ router.delete("/admin/courses/:id/permanent", protect, authorize("ADMIN"), perma
 // Admin enrollment routes
 router.post("/admin/courses/:courseId/students", protect, authorize("ADMIN"), enrollStudent);
 router.delete("/admin/courses/:courseId/students/:studentId", protect, authorize("ADMIN"), removeStudent);
+
+// Batch list route (available for teachers and admins)
+router.get("/batches/available", protect, getAvailableBatches);
 
 /* ========================================
    PUBLIC ROUTES (Accessible by authenticated users)

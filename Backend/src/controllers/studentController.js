@@ -1,7 +1,5 @@
-import { PrismaClient } from "@prisma/client";
+import prisma from "../prisma/client.js";
 import bcrypt from "bcryptjs";
-
-const prisma = new PrismaClient();
 
 /* ========================================
    ADMIN METHODS
@@ -1054,6 +1052,105 @@ export const getStudentCourses = async (req, res) => {
   }
 };
 
+/* ========================================
+   GET STUDENT COURSE DETAIL (WITH LESSONS/MATERIALS/ASSIGNMENTS)
+================================ */
+export const getStudentCourseDetail = async (req, res) => {
+  try {
+    const { courseId } = req.params;
+    const userId = req.user.id;
+
+    // Verify student is enrolled in this course
+    const student = await prisma.student.findUnique({
+      where: { userId: userId }
+    });
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: "Student not found"
+      });
+    }
+
+    const enrollment = await prisma.enrollment.findUnique({
+      where: {
+        studentId_courseId: {
+          studentId: student.id,
+          courseId: Number(courseId)
+        }
+      }
+    });
+
+    if (!enrollment) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not enrolled in this course"
+      });
+    }
+
+    // Get course with all details
+    const course = await prisma.course.findUnique({
+      where: { id: Number(courseId) },
+      include: {
+        teacher: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            department: true
+          }
+        },
+        lessons: {
+          orderBy: { order: 'asc' }
+        },
+        materials: true,
+        assignments: true
+      }
+    });
+
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        message: "Course not found"
+      });
+    }
+
+    // Get attendance for progress calculation
+    const attendances = await prisma.attendance.findMany({
+      where: {
+        studentId: student.id,
+        courseId: Number(courseId)
+      }
+    });
+
+    const totalClasses = attendances.length;
+    const presentCount = attendances.filter(a => a.status === "PRESENT").length;
+    const attendancePercentage = totalClasses > 0 ? Math.round((presentCount / totalClasses) * 100) : 0;
+
+    // For now, return course with empty arrays for lessons/materials/assignments
+    // In a real implementation, these would come from separate tables
+    const courseDetail = {
+      ...course,
+      progress: attendancePercentage,
+      lessons: course.lessons || [], // Now using actual lessons
+      materials: course.materials || [],
+      assignments: course.assignments || []
+    };
+
+    res.json({
+      success: true,
+      data: courseDetail
+    });
+
+  } catch (error) {
+    console.error("❌ Get student course detail error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch course details"
+    });
+  }
+};
+
 /*
 ---------------------------------------
 GET STUDENT ATTENDANCE
@@ -1477,7 +1574,43 @@ export const getTeacherAllStudents = async (req, res) => {
     console.error("Get teacher all students error:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to fetch students"
+      message: "Failed to fetch teacher students"
+    });
+  }
+};
+
+/* ---------------------------------------
+   GET DISTINCT BATCHES FOR STAFF
+--------------------------------------- */
+export const getStaffStudentBatches = async (req, res) => {
+  try {
+    const batches = await prisma.student.findMany({
+      where: {
+        deletedAt: null
+      },
+      select: {
+        batch: true
+      },
+      distinct: ['batch']
+    });
+
+    const cleaned = batches
+      .map(item => item.batch)
+      .filter(batch => typeof batch === 'string' && batch.trim().length > 0)
+      .map(batch => batch.trim())
+      .filter((batch, index, array) => array.indexOf(batch) === index)
+      .sort();
+
+    res.json({
+      success: true,
+      data: cleaned
+    });
+
+  } catch (error) {
+    console.error("Get staff student batches error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch batch list"
     });
   }
 };

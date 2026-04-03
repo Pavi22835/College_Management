@@ -34,7 +34,22 @@ export const getCourses = async (req, res) => {
     
     const courses = await prisma.course.findMany({
       where: whereCondition,
-      include: {
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        description: true,
+        department: true,
+        credits: true,
+        semester: true,
+        status: true,
+        schedule: true,
+        room: true,
+        batch: true,
+        teacherId: true,
+        createdAt: true,
+        updatedAt: true,
+        deletedAt: true,
         teacher: {
           select: {
             id: true,
@@ -688,6 +703,12 @@ export const getCoursesByTeacher = async (req, res) => {
               }
             }
           }
+        },
+        lessons: {
+          include: {
+            materials: true
+          },
+          orderBy: { order: 'asc' }
         }
       },
       orderBy: [
@@ -709,6 +730,7 @@ export const getCoursesByTeacher = async (req, res) => {
       room: course.room,
       batch: course.batch,
       status: course.status,
+      lessons: course.lessons,
       studentsCount: course.enrollments.length,
       students: course.enrollments.map(e => ({
         id: e.student.id,

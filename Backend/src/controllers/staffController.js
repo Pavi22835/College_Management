@@ -911,7 +911,11 @@ export const getStaffCourses = async (req, res) => {
 
     const courses = await prisma.course.findMany({
       where: { teacherId: staff.id, deletedAt: null },
-      include: { enrollments: { where: { student: { deletedAt: null } }, select: { studentId: true } } },
+      include: { 
+        enrollments: { where: { student: { deletedAt: null } }, select: { studentId: true } },
+        lessons: { orderBy: { order: 'asc' } },
+        materials: true
+      },
       orderBy: [{ semester: "asc" }, { name: "asc" }]
     });
 
