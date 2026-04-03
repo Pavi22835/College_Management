@@ -3,6 +3,11 @@ import cors from "cors";
 import dotenv from "dotenv";
 import morgan from "morgan";
 import helmet from "helmet";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /* -------------------- Routes -------------------- */
 import authRoutes from "./src/routes/authRoutes.js";
@@ -12,6 +17,8 @@ import adminRoutes from "./src/routes/adminRoutes.js";
 import dashboardRoutes from "./src/routes/dashboardRoutes.js";
 import courseRoutes from "./src/routes/courseRoutes.js";
 import attendanceRoutes from "./src/routes/attendanceRoutes.js";
+import lessonRoutes from "./src/routes/lessonRoutes.js";
+import materialRoutes from "./src/routes/materialRoutes.js";
 
 dotenv.config();
 
@@ -38,6 +45,9 @@ app.use(
 /* -------------------- Body Parser -------------------- */
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+
+/* -------------------- Static Files -------------------- */
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 /* -------------------- Request Logger (Optional) -------------------- */
 app.use((req, res, next) => {
@@ -82,6 +92,12 @@ app.use("/api/admin/courses", courseRoutes);
 // Attendance routes
 app.use("/api/attendance", attendanceRoutes);
 
+// Lesson routes
+app.use("/api", lessonRoutes);
+
+// Material routes (file uploads)
+app.use("/api/materials", materialRoutes);
+
 /* -------------------- Root Route -------------------- */
 app.get("/", (req, res) => {
   res.json({
@@ -97,7 +113,8 @@ app.get("/", (req, res) => {
       admin: "/api/admin",
       courses: "/api/courses",
       attendance: "/api/attendance",
-      dashboard: "/api/dashboard"
+      dashboard: "/api/dashboard",
+      lessons: "/api/courses/:courseId/lessons"
     }
   });
 });

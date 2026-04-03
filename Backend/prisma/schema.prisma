@@ -54,17 +54,15 @@ model Student {
   previousPercentage Float?
   section            String?
   teacherId          Int?
-  mentorId           Int?
   attendances        Attendance[]
   enrollments        Enrollment[]
+  assignmentSubmissions AssignmentSubmission[]
   teacher            Staff?       @relation("TeacherStudents", fields: [teacherId], references: [id])
-  mentor             Staff?       @relation("MentorStudents", fields: [mentorId], references: [id])
   user               User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([email])
   @@index([rollNo])
   @@index([teacherId])
-  @@index([mentorId])
   @@index([course])
   @@index([batch])
   @@index([deletedAt])
@@ -77,36 +75,19 @@ model Staff {
   department       String
   designation      String
   phone            String?
-  staffRole        StaffRole    @default(FACULTY)
-  appointedDate    DateTime?
-  studentsCount    Int?         @default(0)
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
   deletedAt        DateTime?
   email            String       @unique
   name             String
-  deletedBy        Int?
-  deletedReason    String?
-  restoredAt       DateTime?
-  restoredBy       Int?
   courses          Course[]
   teacherStudents  Student[]    @relation("TeacherStudents")
-  mentorStudents   Student[]    @relation("MentorStudents")
-  department_rel   Department?  @relation("DepartmentHOD")
   user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([email])
   @@index([department])
-  @@index([staffRole])
   @@index([deletedAt])
-  @@index([deletedBy])
   @@index([employeeId])
-}
-
-enum StaffRole {
-  HOD
-  FACULTY
-  MENTOR
 }
 
 model Admin {
@@ -132,7 +113,6 @@ model Department {
   updatedAt        DateTime  @updatedAt
   deletedAt        DateTime?
   deletedBy        Int?
-  hod              Staff?    @relation("DepartmentHOD", fields: [hodId], references: [id])
 
   @@index([code])
   @@index([hodId])
@@ -159,12 +139,88 @@ model Course {
   attendances Attendance[]
   teacher     Staff?       @relation(fields: [teacherId], references: [id])
   enrollments Enrollment[]
+  lessons     Lesson[]
+  materials   Material[]
+  assignments Assignment[]
 
   @@index([department])
   @@index([teacherId])
   @@index([deletedAt])
   @@index([status])
-  @@index([batch])  // 👈 ADDED: Index for faster batch queries
+  @@index([batch])
+}
+
+model Lesson {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  duration    String?  // e.g., "30 mins", "1 hour"
+  content     String?  // Lesson content or video URL
+  videoUrl    String?  // URL or path to video file
+  pdfUrl      String?  // URL or path to PDF file
+  order       Int      @default(0) // For ordering lessons
+  courseId    Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  materials   Material[]
+
+  @@index([courseId])
+  @@index([order])
+}
+
+model Material {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  fileName    String
+  filePath    String   // Path to stored file
+  fileSize    Int      // File size in bytes
+  fileType    String   // MIME type (e.g., "application/pdf", "video/mp4")
+  uploadedBy  Int      // Staff user ID who uploaded
+  lessonId    Int
+  courseId    Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId])
+  @@index([lessonId])
+  @@index([uploadedBy])
+}
+
+model Assignment {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  dueDate     DateTime?
+  points      Int      @default(100)
+  filePath    String?  // Optional assignment file
+  courseId    Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  submissions AssignmentSubmission[] // 👈 ADDED: Assignment submissions
+
+  @@index([courseId])
+  @@index([dueDate])
+}
+
+model AssignmentSubmission {
+  id            Int      @id @default(autoincrement())
+  assignmentId  Int
+  studentId     Int
+  filePath      String?  // Submitted file path
+  submittedAt   DateTime @default(now())
+  grade         Float?   // Grade out of 100
+  feedback      String?  // Teacher feedback
+  assignment    Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([assignmentId, studentId])
+  @@index([assignmentId])
+  @@index([studentId])
 }
 
 model Enrollment {
