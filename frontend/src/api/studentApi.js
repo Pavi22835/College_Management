@@ -1,7 +1,7 @@
 import axiosInstance from "./axiosConfig";
 
 const studentApi = {
-  // Get all students (active only by default)
+  // Get all students (admin) - still required for admin panel
   getStudents: async (includeTrashed = false) => {
     try {
       const params = includeTrashed ? { includeTrashed: 'true' } : {};
@@ -18,6 +18,42 @@ const studentApi = {
       return [];
     } catch (error) {
       console.error("Error fetching students:", error);
+      return [];
+    }
+  },
+
+  // Get teacher's students (staff route)
+  getTeacherStudents: async () => {
+    try {
+      const response = await axiosInstance.get("/students/staff/all");
+      console.log("Get teacher students response:", response.data);
+      if (response.data?.success && response.data?.data) {
+        return response.data.data.students || response.data.data || [];
+      } else if (Array.isArray(response.data)) {
+        return response.data;
+      } else if (response.data?.data && Array.isArray(response.data.data)) {
+        return response.data.data;
+      }
+      return [];
+    } catch (error) {
+      console.error("Error fetching teacher students:", error);
+      return [];
+    }
+  },
+
+  // Get batch options from staff-allowed students list
+  getTeacherStudentBatches: async () => {
+    try {
+      const response = await axiosInstance.get("/students/staff/batches");
+      console.log("Get teacher student batches response:", response.data);
+      if (response.data?.success && Array.isArray(response.data?.data)) {
+        return response.data.data;
+      } else if (Array.isArray(response.data)) {
+        return response.data;
+      }
+      return [];
+    } catch (error) {
+      console.error("Error fetching teacher student batches:", error);
       return [];
     }
   },
@@ -66,6 +102,19 @@ const studentApi = {
       return response.data;
     } catch (error) {
       console.error("❌ Error fetching student courses:", error);
+      throw error;
+    }
+  },
+
+  // Get detailed course information for enrolled student
+  getCourseDetail: async (courseId) => {
+    try {
+      console.log(`📡 Fetching course detail for course ${courseId}...`);
+      const response = await axiosInstance.get(`/students/courses/${courseId}`);
+      console.log("📥 Course detail response:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("❌ Error fetching course detail:", error);
       throw error;
     }
   },

@@ -36,6 +36,7 @@ import StaffCommunication from '../pages/staff/Communication';
 // Student Pages
 import StudentDashboard from '../pages/student/StudentDashboard';
 import StudentCourses from '../pages/student/Courses';
+import StudentCourseDetail from '../pages/student/StudentCourseDetail';
 import StudentAttendance from '../pages/student/Attendance';
 import StudentGrades from '../pages/student/Grades';
 import StudentAssignments from '../pages/student/Assignments';
@@ -158,6 +159,7 @@ const AppRoutes = () => {
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<StudentDashboard />} />
           <Route path="courses" element={<StudentCourses />} />
+          <Route path="courses/:courseId" element={<StudentCourseDetail />} />
           <Route path="attendance" element={<StudentAttendance />} />
           <Route path="grades" element={<StudentGrades />} />
           <Route path="assignments" element={<StudentAssignments />} />

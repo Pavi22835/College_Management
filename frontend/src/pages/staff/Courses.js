@@ -44,7 +44,7 @@ import {
 import staffApi from '../../api/staffApi';
 import courseApi from '../../api/courseApi';
 import studentApi from '../../api/studentApi';
-import { departmentApi } from '../../api/adminApi';
+import { departmentApi, batchApi } from '../../api/adminApi';
 import { useAuth } from '../../context/AuthContext';
 import './StaffCourses.css';
 
@@ -83,6 +83,7 @@ const StaffCourses = () => {
   const [selectedStudents, setSelectedStudents] = useState([]);
   const [studentBatchFilter, setStudentBatchFilter] = useState('');
   const [batchList, setBatchList] = useState([]);
+  const [batchLoading, setBatchLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [manageSearchTerm, setManageSearchTerm] = useState('');
@@ -94,15 +95,21 @@ const StaffCourses = () => {
     completedCourses: 0
   });
 
-  // Default batches as fallback
-  const defaultBatches = ['2019-2023', '2020-2024', '2021-2025', '2022-2026', '2023-2027'];
+  // Default batches as fallback (empty here for true dynamic behavior)
+  const defaultBatches = [];
 
   useEffect(() => {
     fetchCourses();
     fetchAvailableStudentsFromAPI();
     fetchDepartments();
-    fetchBatchesFromAPI();
+    // Immediately try to load batch list from API
+    updateBatchList();
   }, []);
+
+  useEffect(() => {
+    // Automatically update batch list when courses or availableStudents change
+    updateBatchList();
+  }, [courses, availableStudents]);
 
   useEffect(() => {
     let filtered = courses;
@@ -122,30 +129,65 @@ const StaffCourses = () => {
     setFilteredCourses(filtered);
   }, [searchTerm, batchFilter, courses]);
 
-  // Fetch batches from student API
-  const fetchBatchesFromAPI = async () => {
+  const updateBatchList = async () => {
     try {
-      const response = await studentApi.getStudents();
-      let studentsData = [];
-      if (response?.success && response?.data) {
-        studentsData = response.data;
-      } else if (Array.isArray(response)) {
-        studentsData = response;
-      } else if (response?.data && Array.isArray(response.data)) {
-        studentsData = response.data;
+      setBatchLoading(true);
+      // Primary source: staff-allowed student batch index
+      const studentBatches = await studentApi.getTeacherStudentBatches();
+
+      if (Array.isArray(studentBatches) && studentBatches.length > 0) {
+        setBatchList(studentBatches.map(b => b.trim()).filter(Boolean).sort());
+        console.log('Batch list sourced from /api/students/staff/batches:', studentBatches);
+        return;
       }
-      
-      // Extract unique batches from student data
-      const uniqueBatches = [...new Set(studentsData.map(s => s.batch).filter(Boolean))];
-      
-      if (uniqueBatches.length > 0) {
-        setBatchList(uniqueBatches.sort());
+
+      // 2nd priority: teacher student list (for older fallback)
+      const teacherStudents = await studentApi.getTeacherStudents();
+      const teacherStudentBatches = Array.isArray(teacherStudents)
+        ? [...new Set(teacherStudents.map(s => typeof s.batch === 'string' ? s.batch.trim() : '').filter(Boolean))]
+        : [];
+
+      if (teacherStudentBatches.length > 0) {
+        setBatchList(teacherStudentBatches.sort());
+        console.log('Batch list sourced from /api/students/staff/all:', teacherStudentBatches);
+        return;
+      }
+
+      // Fallbacks: if /api/students is empty, use other sources
+      let batches = [];
+
+      try {
+        const response = await courseApi.getAvailableBatches();
+        if (Array.isArray(response)) {
+          batches = [...batches, ...response];
+        } else if (response?.success && Array.isArray(response.data)) {
+          batches = [...batches, ...response.data];
+        }
+      } catch (err) {
+        console.warn('courseApi.getAvailableBatches unavailable or failed', err);
+      }
+
+      const courseStateBatches = courses
+        .map(c => c.batch)
+        .filter(Boolean);
+
+      const normalized = [...batches, ...courseStateBatches]
+        .map(batch => (typeof batch === 'string' ? batch.trim() : ''))
+        .filter(Boolean);
+
+      const uniqueSorted = [...new Set(normalized)].sort();
+
+      if (uniqueSorted.length > 0) {
+        setBatchList(uniqueSorted);
       } else {
-        setBatchList(defaultBatches);
+        console.warn('No dynamic batches found, batch list will be empty');
+        setBatchList([]);
       }
     } catch (error) {
-      console.error('Error fetching batches from API:', error);
-      setBatchList(defaultBatches);
+      console.error('Error updating batch list:', error);
+      setBatchList([]);
+    } finally {
+      setBatchLoading(false);
     }
   };
 
@@ -157,11 +199,30 @@ const StaffCourses = () => {
         deptsData = response.data;
       } else if (Array.isArray(response)) {
         deptsData = response;
+      } else if (Array.isArray(response?.data)) {
+        deptsData = response.data;
       }
-      setDepartments(deptsData);
+
+      if (Array.isArray(deptsData) && deptsData.length > 0) {
+        setDepartments(deptsData);
+        return;
+      }
     } catch (err) {
-      console.error('Error fetching departments:', err);
+      console.warn('Department fetch denied/admin-only; using local fallback.', err);
     }
+
+    // Fallback: derive departments from courses and students (staff-friendly)
+    const studentDepartments = availableStudents
+      .map(s => typeof s.department === 'string' ? s.department.trim() : '')
+      .filter(Boolean);
+
+    const courseDepartments = courses
+      .map(c => typeof c.department === 'string' ? c.department.trim() : '')
+      .filter(Boolean);
+
+    const combined = [...new Set([...studentDepartments, ...courseDepartments])].sort();
+
+    setDepartments(combined);
   };
 
   const fetchCourses = async () => {
@@ -225,6 +286,7 @@ const StaffCourses = () => {
       setStats(dashboardStats);
       setCourses(enhancedCourses);
       setFilteredCourses(enhancedCourses);
+      await updateBatchList();
     } catch (error) {
       console.error('Error fetching courses:', error);
       setErrorMessage('Failed to load courses');
@@ -235,7 +297,7 @@ const StaffCourses = () => {
 
   const fetchAvailableStudentsFromAPI = async () => {
     try {
-      const response = await studentApi.getStudents();
+      const response = await studentApi.getTeacherStudents();
       let studentsData = [];
       if (response?.success && response?.data) {
         studentsData = response.data;
@@ -243,6 +305,8 @@ const StaffCourses = () => {
         studentsData = response;
       } else if (response?.data && Array.isArray(response.data)) {
         studentsData = response.data;
+      } else if (response?.students && Array.isArray(response.students)) {
+        studentsData = response.students;
       }
       
       // Enhanced students with additional data
@@ -260,6 +324,7 @@ const StaffCourses = () => {
       }
       
       setAvailableStudents(enhancedStudents);
+      await updateBatchList();
     } catch (error) {
       console.error('Error fetching students from API:', error);
     }
@@ -351,30 +416,34 @@ const StaffCourses = () => {
     }
 
     try {
-      const newLesson = {
-        id: Date.now(),
+      const lessonData = {
         title: lessonForm.title,
-        duration: lessonForm.duration,
         description: lessonForm.description,
-        materials: []
+        duration: lessonForm.duration,
+        order: (selectedCourse.lessons || []).length
       };
 
-      const updatedCourse = {
-        ...selectedCourse,
-        materials: [...(selectedCourse.materials || []), newLesson]
-      };
+      const response = await courseApi.createLesson(selectedCourse.id, lessonData);
 
-      setSelectedCourse(updatedCourse);
-      setShowLessonModal(false);
-      setLessonForm({ title: '', duration: '30 mins', description: '' });
-      setEditingLesson(null);
-      
-      setCourses(courses.map(c => 
-        c.id === selectedCourse.id ? updatedCourse : c
-      ));
-      
-      setSuccessMessage('Lesson added successfully!');
-      setTimeout(() => setSuccessMessage(''), 3000);
+      if (response.success) {
+        // Update the course with the new lesson
+        const updatedCourse = {
+          ...selectedCourse,
+          lessons: [...(selectedCourse.lessons || []), response.data]
+        };
+
+        setSelectedCourse(updatedCourse);
+        setCourses(courses.map(c => 
+          c.id === selectedCourse.id ? updatedCourse : c
+        ));
+        
+        setShowLessonModal(false);
+        setLessonForm({ title: '', duration: '30 mins', description: '' });
+        setEditingLesson(null);
+        
+        setSuccessMessage('Lesson added successfully!');
+        setTimeout(() => setSuccessMessage(''), 3000);
+      }
     } catch (error) {
       console.error('Error adding lesson:', error);
       setErrorMessage('Failed to add lesson');
@@ -400,26 +469,37 @@ const StaffCourses = () => {
     }
 
     try {
-      const updatedMaterials = selectedCourse.materials.map(m => 
-        m.id === editingLesson.id ? { ...m, title: lessonForm.title, duration: lessonForm.duration, description: lessonForm.description } : m
-      );
-
-      const updatedCourse = {
-        ...selectedCourse,
-        materials: updatedMaterials
+      const lessonData = {
+        title: lessonForm.title,
+        description: lessonForm.description,
+        duration: lessonForm.duration
       };
 
-      setSelectedCourse(updatedCourse);
-      setShowLessonModal(false);
-      setLessonForm({ title: '', duration: '30 mins', description: '' });
-      setEditingLesson(null);
-      
-      setCourses(courses.map(c => 
-        c.id === selectedCourse.id ? updatedCourse : c
-      ));
-      
-      setSuccessMessage('Lesson updated successfully!');
-      setTimeout(() => setSuccessMessage(''), 3000);
+      const response = await courseApi.updateLesson(editingLesson.id, lessonData);
+
+      if (response.success) {
+        // Update the course with the updated lesson
+        const updatedLessons = selectedCourse.lessons.map(l => 
+          l.id === editingLesson.id ? response.data : l
+        );
+
+        const updatedCourse = {
+          ...selectedCourse,
+          lessons: updatedLessons
+        };
+
+        setSelectedCourse(updatedCourse);
+        setCourses(courses.map(c => 
+          c.id === selectedCourse.id ? updatedCourse : c
+        ));
+
+        setShowLessonModal(false);
+        setLessonForm({ title: '', duration: '30 mins', description: '' });
+        setEditingLesson(null);
+        
+        setSuccessMessage('Lesson updated successfully!');
+        setTimeout(() => setSuccessMessage(''), 3000);
+      }
     } catch (error) {
       console.error('Error updating lesson:', error);
       setErrorMessage('Failed to update lesson');
@@ -431,18 +511,25 @@ const StaffCourses = () => {
     if (!window.confirm('Are you sure you want to delete this lesson?')) return;
 
     try {
-      const updatedCourse = {
-        ...selectedCourse,
-        materials: selectedCourse.materials.filter(m => m.id !== lessonId)
-      };
+      const response = await courseApi.deleteLesson(lessonId);
 
-      setSelectedCourse(updatedCourse);
-      setCourses(courses.map(c => 
-        c.id === selectedCourse.id ? updatedCourse : c
-      ));
-      
-      setSuccessMessage('Lesson deleted successfully!');
-      setTimeout(() => setSuccessMessage(''), 3000);
+      if (response.success) {
+        // Remove the lesson from the course
+        const updatedLessons = selectedCourse.lessons.filter(l => l.id !== lessonId);
+        
+        const updatedCourse = {
+          ...selectedCourse,
+          lessons: updatedLessons
+        };
+
+        setSelectedCourse(updatedCourse);
+        setCourses(courses.map(c => 
+          c.id === selectedCourse.id ? updatedCourse : c
+        ));
+        
+        setSuccessMessage('Lesson deleted successfully!');
+        setTimeout(() => setSuccessMessage(''), 3000);
+      }
     } catch (error) {
       console.error('Error deleting lesson:', error);
       setErrorMessage('Failed to delete lesson');
@@ -457,30 +544,54 @@ const StaffCourses = () => {
       return;
     }
 
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setErrorMessage('You are not logged in. Please refresh the page.');
+      setTimeout(() => setErrorMessage(''), 3000);
+      return;
+    }
+
     try {
-      const fileType = file.type;
-      let materialType = 'document';
-      
-      if (fileType.includes('pdf')) {
-        materialType = 'pdf';
-      } else if (fileType.includes('word') || fileType.includes('document')) {
-        materialType = 'word';
-      } else if (fileType.includes('video')) {
-        materialType = 'video';
-      } else if (fileType.includes('image')) {
-        materialType = 'image';
+      // Create FormData for file upload
+      const formData = new FormData();
+      formData.append('file', file);
+
+      console.log('🔑 Token from localStorage:', token ? `${token.substring(0, 20)}...` : 'NO TOKEN');
+      console.log('📤 Uploading file:', file.name, 'to lesson:', lessonId);
+
+      // Upload file to backend
+      const uploadResponse = await fetch(`http://localhost:3003/api/materials/lesson/${lessonId}/upload`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      console.log('📬 Upload response status:', uploadResponse.status);
+
+      if (!uploadResponse.ok) {
+        const errorData = await uploadResponse.text();
+        console.error('❌ Upload error response:', errorData);
+        throw new Error(`Upload failed with status ${uploadResponse.status}: ${errorData}`);
+      }
+
+      const uploadedData = await uploadResponse.json();
+
+      if (!uploadedData.success) {
+        throw new Error(uploadedData.message || 'Upload failed');
       }
 
       const newMaterial = {
-        id: Date.now(),
-        title: file.name,
-        type: materialType,
-        url: URL.createObjectURL(file),
-        size: (file.size / 1024).toFixed(2),
-        uploadedAt: new Date().toISOString()
+        id: uploadedData.data.id,
+        title: uploadedData.data.title,
+        type: uploadedData.data.type,
+        url: `http://localhost:3003${uploadedData.data.url}`,
+        size: uploadedData.data.size,
+        uploadedAt: uploadedData.data.uploadedAt
       };
 
-      const updatedMaterials = selectedCourse.materials.map(lesson => {
+      const updatedLessons = selectedCourse.lessons.map(lesson => {
         if (lesson.id === lessonId) {
           return {
             ...lesson,
@@ -492,7 +603,7 @@ const StaffCourses = () => {
 
       const updatedCourse = {
         ...selectedCourse,
-        materials: updatedMaterials
+        lessons: updatedLessons
       };
 
       setSelectedCourse(updatedCourse);
@@ -513,7 +624,19 @@ const StaffCourses = () => {
     if (!window.confirm('Are you sure you want to delete this material?')) return;
 
     try {
-      const updatedMaterials = selectedCourse.materials.map(lesson => {
+      // Delete from backend
+      const deleteResponse = await fetch(`http://localhost:3003/api/materials/${materialId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      if (!deleteResponse.ok) {
+        throw new Error('Delete failed');
+      }
+
+      const updatedLessons = selectedCourse.lessons.map(lesson => {
         if (lesson.id === lessonId) {
           return {
             ...lesson,
@@ -525,7 +648,7 @@ const StaffCourses = () => {
 
       const updatedCourse = {
         ...selectedCourse,
-        materials: updatedMaterials
+        lessons: updatedLessons
       };
 
       setSelectedCourse(updatedCourse);
@@ -735,8 +858,11 @@ const StaffCourses = () => {
             className="tc-filter-select"
             value={batchFilter}
             onChange={(e) => setBatchFilter(e.target.value)}
+            disabled={batchLoading}
           >
-            <option value="">All Batches</option>
+            <option value="">
+              {batchLoading ? 'Loading batches...' : 'All Batches'}
+            </option>
             {batchList.map(batch => (
               <option key={batch} value={batch}>{batch}</option>
             ))}
@@ -875,19 +1001,20 @@ const StaffCourses = () => {
                     value={newCourse.batch}
                     onChange={(e) => setNewCourse({...newCourse, batch: e.target.value})}
                     className="batch-select-dropdown"
+                    disabled={batchLoading}
                   >
-                    <option value="">Select Batch</option>
+                    <option value="">
+                      {batchLoading ? 'Loading batches...' : 'Select Batch'}
+                    </option>
                     {batchList.length > 0 ? (
                       batchList.map(batch => (
                         <option key={batch} value={batch}>{batch}</option>
                       ))
-                    ) : (
-                      defaultBatches.map(batch => (
-                        <option key={batch} value={batch}>{batch}</option>
-                      ))
+                    ) : !batchLoading && (
+                      <option value="" disabled>No batches yet (load student/course data)</option>
                     )}
                   </select>
-                  <small className="form-hint-text">Select the batch for this course (based on student data)</small>
+                  <small className="form-hint-text">Select the batch for this course (based on student/course data)</small>
                 </div>
               </div>
               <div className="form-group">
@@ -921,6 +1048,9 @@ const StaffCourses = () => {
                 <h2>{selectedCourse.name}</h2>
                 <div className="course-details-badges">
                   <span className="badge-code">{selectedCourse.code}</span>
+                  {selectedCourse.department && (
+                    <span className="badge-department">{selectedCourse.department}</span>
+                  )}
                   <span className="badge-semester">Semester {selectedCourse.semester}</span>
                   {selectedCourse.batch && (
                     <span className="badge-batch">{selectedCourse.batch}</span>
@@ -941,8 +1071,8 @@ const StaffCourses = () => {
             </div>
 
             <div className="lessons-grid">
-              {selectedCourse.materials && selectedCourse.materials.length > 0 ? (
-                selectedCourse.materials.map((lesson, index) => (
+              {selectedCourse.lessons && selectedCourse.lessons.length > 0 ? (
+                selectedCourse.lessons.map((lesson, index) => (
                   <div key={lesson.id} className="lesson-grid-card">
                     <div className="lesson-card-header">
                       <div className="lesson-number">Lesson {index + 1}</div>
@@ -1070,8 +1200,10 @@ const StaffCourses = () => {
               
               <div className="manage-batch-filter">
                 <FiHash size={14} />
-                <select value={studentBatchFilter} onChange={(e) => setStudentBatchFilter(e.target.value)}>
-                  <option value="">All Batches</option>
+                <select value={studentBatchFilter} onChange={(e) => setStudentBatchFilter(e.target.value)} disabled={batchLoading}>
+                  <option value="">
+                    {batchLoading ? 'Loading batches...' : 'All Batches'}
+                  </option>
                   {batchList.map(batch => (
                     <option key={batch} value={batch}>{batch}</option>
                   ))}

@@ -224,9 +224,18 @@ const courseApi = {
   // Get available batches from courses
   getAvailableBatches: async () => {
     try {
-      const response = await axiosInstance.get("/admin/courses/batches/available");
+      // Teacher/Staff route first (no ADMIN role required)
+      let endpoint = "/courses/batches/available";
+      let response;
+
+      try {
+        response = await axiosInstance.get(endpoint);
+      } catch (err) {
+        console.warn(`Fallback to admin endpoint ${endpoint} failed, trying admin route`, err);
+        response = await axiosInstance.get("/admin/courses/batches/available");
+      }
+
       console.log("Get available batches response:", response.data);
-      
       if (response.data?.success && response.data?.data) {
         return response.data.data;
       }
@@ -539,6 +548,81 @@ const courseApi = {
   // Alias for getAvailableBatches
   getBatches: async () => {
     return courseApi.getAvailableBatches();
+  },
+
+  // ========== LESSON METHODS ==========
+
+  // Create lesson
+  createLesson: async (courseId, lessonData) => {
+    try {
+      const response = await axiosInstance.post(`/courses/${courseId}/lessons`, lessonData);
+      return response.data;
+    } catch (error) {
+      console.error("Error creating lesson:", error);
+      throw error;
+    }
+  },
+
+  // Get lessons by course
+  getLessons: async (courseId) => {
+    try {
+      const response = await axiosInstance.get(`/courses/${courseId}/lessons`);
+      console.log("Get lessons response:", response.data);
+
+      if (response.data?.success && response.data?.data) {
+        return response.data.data;
+      } else if (Array.isArray(response.data)) {
+        return response.data;
+      }
+      return [];
+    } catch (error) {
+      console.error("Error fetching lessons:", error);
+      throw error;
+    }
+  },
+
+  // Get lesson by ID
+  getLessonById: async (lessonId) => {
+    try {
+      const response = await axiosInstance.get(`/lessons/${lessonId}`);
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching lesson:", error);
+      throw error;
+    }
+  },
+
+  // Update lesson
+  updateLesson: async (lessonId, lessonData) => {
+    try {
+      const response = await axiosInstance.put(`/lessons/${lessonId}`, lessonData);
+      return response.data;
+    } catch (error) {
+      console.error("Error updating lesson:", error);
+      throw error;
+    }
+  },
+
+  // Delete lesson
+  deleteLesson: async (lessonId) => {
+    try {
+      const response = await axiosInstance.delete(`/lessons/${lessonId}`);
+      return response.data;
+    } catch (error) {
+      console.error("Error deleting lesson:", error);
+      throw error;
+    }
+  },
+
+  // Reorder lessons
+  reorderLessons: async (courseId, lessonOrders) => {
+    try {
+      const response = await axiosInstance.put(`/courses/${courseId}/lessons/reorder`, { lessonOrders });
+      return response.data;
+    } catch (error) {
+      console.error("Error reordering lessons:", error);
+      throw error;
+    }
   }
 };
 
