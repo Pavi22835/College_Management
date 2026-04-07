@@ -1127,12 +1127,10 @@ export const getStudentCourseDetail = async (req, res) => {
     const presentCount = attendances.filter(a => a.status === "PRESENT").length;
     const attendancePercentage = totalClasses > 0 ? Math.round((presentCount / totalClasses) * 100) : 0;
 
-    // For now, return course with empty arrays for lessons/materials/assignments
-    // In a real implementation, these would come from separate tables
     const courseDetail = {
       ...course,
       progress: attendancePercentage,
-      lessons: course.lessons || [], // Now using actual lessons
+      lessons: course.lessons || [],
       materials: course.materials || [],
       assignments: course.assignments || []
     };
@@ -1153,12 +1151,13 @@ export const getStudentCourseDetail = async (req, res) => {
 
 /*
 ---------------------------------------
-GET STUDENT ATTENDANCE
+GET STUDENT ATTENDANCE - ENHANCED WITH FILTERS
 ---------------------------------------
 */
 export const getStudentAttendance = async (req, res) => {
   try {
     const userId = req.user.id;
+    const { month, courseId } = req.query;
 
     const student = await prisma.student.findUnique({
       where: { userId: userId }
@@ -1171,62 +1170,109 @@ export const getStudentAttendance = async (req, res) => {
       });
     }
 
+    // Build filter conditions
+    let whereClause = {
+      studentId: student.id
+    };
+
+    // Filter by course
+    if (courseId && courseId !== 'all') {
+      whereClause.courseId = parseInt(courseId);
+    }
+
+    // Filter by month
+    if (month && month !== 'all') {
+      const [year, monthNum] = month.split('-');
+      const startDate = new Date(parseInt(year), parseInt(monthNum) - 1, 1);
+      const endDate = new Date(parseInt(year), parseInt(monthNum), 0);
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(23, 59, 59, 999);
+      
+      whereClause.date = {
+        gte: startDate,
+        lte: endDate
+      };
+    }
+
+    // Get attendance records
     const attendances = await prisma.attendance.findMany({
-      where: {
-        studentId: student.id
-      },
+      where: whereClause,
       include: {
         course: {
           select: {
             id: true,
+            code: true,
             name: true,
-            code: true
+            department: true
           }
         }
       },
-      orderBy: {
-        date: "desc"
+      orderBy: { date: 'desc' }
+    });
+
+    // Calculate statistics
+    const presentCount = attendances.filter(a => a.status === 'PRESENT').length;
+    const absentCount = attendances.filter(a => a.status === 'ABSENT').length;
+    const lateCount = attendances.filter(a => a.status === 'LATE').length;
+    const total = attendances.length;
+    const overallPercentage = total > 0 ? Math.round((presentCount / total) * 100) : 0;
+
+    // Get course-wise statistics
+    const courseStatsMap = new Map();
+    attendances.forEach(att => {
+      const courseName = att.course?.name || 'Unknown';
+      if (!courseStatsMap.has(courseName)) {
+        courseStatsMap.set(courseName, { total: 0, present: 0 });
+      }
+      const stat = courseStatsMap.get(courseName);
+      stat.total++;
+      if (att.status === 'PRESENT') stat.present++;
+    });
+
+    const courseStats = Array.from(courseStatsMap.entries()).map(([name, data]) => ({
+      name: name,
+      attendance: data.total > 0 ? Math.round((data.present / data.total) * 100) : 0,
+      total: data.total,
+      present: data.present
+    }));
+
+    // Get unique courses for filter
+    const uniqueCourseIds = [...new Set(attendances.map(a => a.courseId))];
+    const courses = await prisma.course.findMany({
+      where: {
+        id: { in: uniqueCourseIds },
+        deletedAt: null
+      },
+      select: {
+        id: true,
+        name: true,
+        code: true
       }
     });
 
-    const byCourse = {};
-    attendances.forEach(a => {
-      const courseName = a.course.name;
-      if (!byCourse[courseName]) {
-        byCourse[courseName] = {
-          course: a.course,
-          total: 0,
-          present: 0,
-          absent: 0,
-          late: 0,
-          records: []
-        };
-      }
-      byCourse[courseName].total++;
-      if (a.status === "PRESENT") byCourse[courseName].present++;
-      else if (a.status === "ABSENT") byCourse[courseName].absent++;
-      else if (a.status === "LATE") byCourse[courseName].late++;
-      
-      byCourse[courseName].records.push({
-        date: a.date,
-        status: a.status,
-        markedAt: a.markedAt
-      });
-    });
-
-    Object.keys(byCourse).forEach(key => {
-      byCourse[key].percentage = Math.round((byCourse[key].present / byCourse[key].total) * 100);
-    });
+    // Format records for response
+    const formattedRecords = attendances.map(att => ({
+      id: att.id,
+      date: att.date.toISOString().split('T')[0],
+      course: att.course?.name || 'Unknown',
+      courseCode: att.course?.code || '',
+      time: att.markedAt ? new Date(att.markedAt).toLocaleTimeString() : '-',
+      status: att.status
+    }));
 
     res.json({
       success: true,
       data: {
-        total: attendances.length,
-        present: attendances.filter(a => a.status === "PRESENT").length,
-        absent: attendances.filter(a => a.status === "ABSENT").length,
-        late: attendances.filter(a => a.status === "LATE").length,
-        byCourse: byCourse,
-        records: attendances.slice(0, 20)
+        records: formattedRecords,
+        stats: {
+          overall: overallPercentage,
+          present: presentCount,
+          absent: absentCount,
+          late: lateCount,
+          total: total
+        },
+        courseStats: courseStats,
+        courses: courses
       }
     });
 
@@ -1234,7 +1280,153 @@ export const getStudentAttendance = async (req, res) => {
     console.error("❌ Get student attendance error:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to fetch attendance"
+      message: "Failed to fetch attendance records",
+      error: error.message
+    });
+  }
+};
+
+/*
+---------------------------------------
+GET STUDENT ATTENDANCE STATISTICS
+---------------------------------------
+*/
+export const getStudentAttendanceStats = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const student = await prisma.student.findUnique({
+      where: { userId: userId }
+    });
+    
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: "Student not found"
+      });
+    }
+    
+    // Get all attendance
+    const attendances = await prisma.attendance.findMany({
+      where: { studentId: student.id },
+      include: { course: true }
+    });
+    
+    // Calculate overall stats
+    const total = attendances.length;
+    const present = attendances.filter(a => a.status === 'PRESENT').length;
+    const absent = attendances.filter(a => a.status === 'ABSENT').length;
+    const late = attendances.filter(a => a.status === 'LATE').length;
+    
+    // Calculate monthly stats
+    const monthlyStats = {};
+    attendances.forEach(att => {
+      const monthKey = att.date.toISOString().slice(0, 7);
+      if (!monthlyStats[monthKey]) {
+        monthlyStats[monthKey] = { present: 0, absent: 0, late: 0, total: 0 };
+      }
+      monthlyStats[monthKey][att.status.toLowerCase()]++;
+      monthlyStats[monthKey].total++;
+    });
+    
+    res.json({
+      success: true,
+      data: {
+        summary: {
+          total,
+          present,
+          absent,
+          late,
+          percentage: total > 0 ? Math.round((present / total) * 100) : 0
+        },
+        monthlyStats
+      }
+    });
+    
+  } catch (error) {
+    console.error("❌ Get student attendance stats error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch attendance statistics"
+    });
+  }
+};
+
+/*
+---------------------------------------
+GET STUDENT ATTENDANCE BY COURSE
+---------------------------------------
+*/
+export const getStudentAttendanceByCourse = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { courseId } = req.params;
+    const { month } = req.query;
+
+    const student = await prisma.student.findUnique({
+      where: { userId: userId }
+    });
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: "Student not found"
+      });
+    }
+
+    let whereClause = {
+      studentId: student.id,
+      courseId: parseInt(courseId)
+    };
+
+    if (month && month !== 'all') {
+      const [year, monthNum] = month.split('-');
+      const startDate = new Date(parseInt(year), parseInt(monthNum) - 1, 1);
+      const endDate = new Date(parseInt(year), parseInt(monthNum), 0);
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(23, 59, 59, 999);
+      
+      whereClause.date = {
+        gte: startDate,
+        lte: endDate
+      };
+    }
+
+    const attendances = await prisma.attendance.findMany({
+      where: whereClause,
+      include: {
+        course: {
+          select: {
+            id: true,
+            code: true,
+            name: true
+          }
+        }
+      },
+      orderBy: { date: 'desc' }
+    });
+
+    const presentCount = attendances.filter(a => a.status === 'PRESENT').length;
+    const total = attendances.length;
+    const percentage = total > 0 ? Math.round((presentCount / total) * 100) : 0;
+
+    res.json({
+      success: true,
+      data: {
+        records: attendances,
+        stats: {
+          total,
+          present: presentCount,
+          percentage
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error("❌ Get student attendance by course error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch attendance by course"
     });
   }
 };
@@ -1885,4 +2077,29 @@ export const permanentDeleteStudent = async (req, res) => {
       message: "Failed to permanently delete student"
     });
   }
+};
+
+export default {
+  getAllStudents,
+  getStudentById,
+  createStudent,
+  updateStudent,
+  deleteStudent,
+  activateStudent,
+  deactivateStudent,
+  getStudentDashboard,
+  getStudentCourses,
+  getStudentCourseDetail,
+  getStudentAttendance,
+  getStudentAttendanceStats,
+  getStudentAttendanceByCourse,
+  getStudentGrades,
+  getStudentsByTeacher,
+  getStudentsByCourse,
+  getTeacherAllStudents,
+  getStaffStudentBatches,
+  getStudentAttendanceForTeacher,
+  getTrashedStudents,
+  restoreStudent,
+  permanentDeleteStudent
 };

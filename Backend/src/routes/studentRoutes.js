@@ -14,6 +14,8 @@ import {
   getStudentCourses,
   getStudentCourseDetail,
   getStudentAttendance,
+  getStudentAttendanceStats,
+  getStudentAttendanceByCourse,
   getStudentGrades,
   getTrashedStudents,
   restoreStudent,
@@ -32,7 +34,12 @@ const router = express.Router();
 router.get("/dashboard", protect, authorize("STUDENT"), getStudentDashboard);
 router.get("/courses", protect, authorize("STUDENT"), getStudentCourses);
 router.get("/courses/:courseId", protect, authorize("STUDENT"), getStudentCourseDetail);
+
+// Student Attendance Routes
 router.get("/attendance", protect, authorize("STUDENT"), getStudentAttendance);
+router.get("/attendance/stats", protect, authorize("STUDENT"), getStudentAttendanceStats);
+router.get("/attendance/course/:courseId", protect, authorize("STUDENT"), getStudentAttendanceByCourse);
+
 router.get("/grades", protect, authorize("STUDENT"), getStudentGrades);
 
 /* ========================================

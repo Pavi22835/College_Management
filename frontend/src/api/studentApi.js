@@ -119,13 +119,26 @@ const studentApi = {
     }
   },
 
-  // Get student attendance
-  getAttendance: async () => {
+  // Get student attendance with filters
+  getAttendance: async (params = {}) => {
     try {
-      const response = await axiosInstance.get("/students/attendance");
-      return response.data;
+      console.log("📡 Fetching student attendance with params:", params);
+      const response = await axiosInstance.get("/students/attendance", { params });
+      console.log("📥 Attendance response:", response.data);
+      
+      // Handle different response structures
+      if (response.data?.success) {
+        return response.data;
+      }
+      
+      // If the response is already the data
+      return { success: true, data: response.data };
     } catch (error) {
-      console.error("❌ Error fetching attendance:", error);
+      console.error("❌ Error fetching attendance:", {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
       throw error;
     }
   },
@@ -237,6 +250,45 @@ const studentApi = {
       throw new Error(response.data?.message || "Failed to permanently delete student");
     } catch (error) {
       console.error("❌ Error permanently deleting student:", error);
+      throw error;
+    }
+  },
+
+  // Get attendance statistics
+  getAttendanceStats: async (params = {}) => {
+    try {
+      console.log("📡 Fetching attendance stats with params:", params);
+      const response = await axiosInstance.get("/students/attendance/stats", { params });
+      console.log("📥 Attendance stats response:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("❌ Error fetching attendance stats:", error);
+      throw error;
+    }
+  },
+
+  // Get attendance by course
+  getAttendanceByCourse: async (courseId, params = {}) => {
+    try {
+      console.log(`📡 Fetching attendance for course ${courseId}...`);
+      const response = await axiosInstance.get(`/students/attendance/course/${courseId}`, { params });
+      console.log("📥 Attendance by course response:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("❌ Error fetching attendance by course:", error);
+      throw error;
+    }
+  },
+
+  // Get attendance by month
+  getAttendanceByMonth: async (month, params = {}) => {
+    try {
+      console.log(`📡 Fetching attendance for month ${month}...`);
+      const response = await axiosInstance.get(`/students/attendance/month/${month}`, { params });
+      console.log("📥 Attendance by month response:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("❌ Error fetching attendance by month:", error);
       throw error;
     }
   },
