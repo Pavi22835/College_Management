@@ -281,7 +281,7 @@ export const createStaff = async (req, res) => {
           employeeId: finalEmployeeId,
           phone: phone || null,
           appointedDate: appointedDate ? new Date(appointedDate) : null,
-          deletedAt: null // Explicitly set to null for new staff
+          deletedAt: null
         },
         include: {
           user: {
@@ -420,7 +420,7 @@ export const updateStaff = async (req, res) => {
 };
 
 /* -----------------------------------------
-SOFT DELETE STAFF (MOVE TO TRASH) - UPDATED
+SOFT DELETE STAFF (MOVE TO TRASH)
 ------------------------------------------*/
 export const deleteStaff = async (req, res) => {
   try {
@@ -435,7 +435,6 @@ export const deleteStaff = async (req, res) => {
       return res.status(404).json({ success: false, message: "Staff not found" });
     }
 
-    // Check if already deleted
     if (staff.deletedAt) {
       return res.status(400).json({ 
         success: false, 
@@ -445,13 +444,10 @@ export const deleteStaff = async (req, res) => {
 
     const now = new Date();
     
-    // Soft delete staff and deactivate user
     await prisma.$transaction([
       prisma.staff.update({ 
         where: { id: Number(id) }, 
-        data: { 
-          deletedAt: now
-        } 
+        data: { deletedAt: now } 
       }),
       prisma.user.update({ 
         where: { id: staff.userId }, 
@@ -500,7 +496,6 @@ export const restoreStaff = async (req, res) => {
       return res.status(404).json({ success: false, message: "Staff not found" });
     }
 
-    // Check if not in trash
     if (!staff.deletedAt) {
       return res.status(400).json({ 
         success: false, 
@@ -510,13 +505,10 @@ export const restoreStaff = async (req, res) => {
 
     const now = new Date();
     
-    // Restore staff and reactivate user
     await prisma.$transaction([
       prisma.staff.update({ 
         where: { id: Number(id) }, 
-        data: { 
-          deletedAt: null
-        } 
+        data: { deletedAt: null } 
       }),
       prisma.user.update({ 
         where: { id: staff.userId }, 
@@ -531,7 +523,6 @@ export const restoreStaff = async (req, res) => {
       })
     ]);
 
-    // Get the restored staff data
     const restoredStaff = await prisma.staff.findUnique({
       where: { id: Number(id) },
       include: {
@@ -579,11 +570,9 @@ export const permanentDeleteStaff = async (req, res) => {
       return res.status(404).json({ success: false, message: "Staff not found" });
     }
 
-    // Store names for response
     const staffName = staff.name;
     const userEmail = staff.user?.email;
 
-    // Permanently delete staff and associated user
     await prisma.$transaction([
       prisma.staff.delete({ where: { id: Number(id) } }),
       prisma.user.delete({ where: { id: staff.userId } })
@@ -713,7 +702,7 @@ export const getMentors = async (req, res) => {
 };
 
 /* -----------------------------------------
-GET STAFF STATISTICS (UPDATED WITH TRASH COUNT)
+GET STAFF STATISTICS
 ------------------------------------------*/
 export const getStaffStats = async (req, res) => {
   try {
@@ -965,5 +954,267 @@ export const getStaffTodaySchedule = async (req, res) => {
   } catch (error) {
     console.error("Get staff schedule error:", error);
     res.status(500).json({ success: false, message: "Failed to fetch schedule" });
+  }
+};
+
+/* ========================================
+   NEW: STAFF COURSE MANAGEMENT METHODS
+   ======================================== */
+
+// Create a new course (Staff)
+export const createStaffCourse = async (req, res) => {
+  try {
+    const { 
+      name, 
+      code, 
+      semester, 
+      department, 
+      batch, 
+      description, 
+      credits 
+    } = req.body;
+    
+    const userId = req.user.id;
+    
+    // Get staff ID from user ID
+    const staff = await prisma.staff.findUnique({
+      where: { userId: userId }
+    });
+    
+    if (!staff) {
+      return res.status(404).json({
+        success: false,
+        message: "Staff profile not found"
+      });
+    }
+    
+    // Validate required fields
+    if (!name || !code || !semester || !department) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields: name, code, semester, department"
+      });
+    }
+    
+    // Check if course code already exists
+    const existingCourse = await prisma.course.findFirst({
+      where: { code: code.toUpperCase() }
+    });
+    
+    if (existingCourse) {
+      return res.status(400).json({
+        success: false,
+        message: `Course with code ${code} already exists`
+      });
+    }
+    
+    // Create the course - FIXED: Use 'teacher' connect instead of teacherId
+    const course = await prisma.course.create({
+      data: {
+        name,
+        code: code.toUpperCase(),
+        semester: parseInt(semester),
+        department,
+        batch: batch || null,
+        description: description || "",
+        credits: credits || 3,
+        teacher: {
+          connect: { id: staff.id }
+        },
+        status: "active",
+        progress: 0,
+        studentsCount: 0
+      }
+    });
+    
+    res.status(201).json({
+      success: true,
+      data: course,
+      message: "Course created successfully"
+    });
+    
+  } catch (error) {
+    console.error("Error creating course:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to create course"
+    });
+  }
+};
+
+// Get course by ID (Staff)
+export const getStaffCourseById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    
+    const staff = await prisma.staff.findUnique({
+      where: { userId: userId }
+    });
+    
+    if (!staff) {
+      return res.status(404).json({
+        success: false,
+        message: "Staff profile not found"
+      });
+    }
+    
+    const course = await prisma.course.findFirst({
+      where: { 
+        id: parseInt(id),
+        teacherId: staff.id
+      },
+      include: {
+        lessons: {
+          orderBy: { order: 'asc' }
+        },
+        materials: true,
+        enrollments: {
+          include: {
+            student: {
+              include: {
+                user: {
+                  select: {
+                    name: true,
+                    email: true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+    
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        message: "Course not found"
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: course
+    });
+    
+  } catch (error) {
+    console.error("Error fetching course:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// Update course (Staff)
+export const updateStaffCourse = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const { name, code, semester, department, batch, description, credits } = req.body;
+    
+    const staff = await prisma.staff.findUnique({
+      where: { userId: userId }
+    });
+    
+    if (!staff) {
+      return res.status(404).json({
+        success: false,
+        message: "Staff profile not found"
+      });
+    }
+    
+    const course = await prisma.course.findFirst({
+      where: { 
+        id: parseInt(id),
+        teacherId: staff.id
+      }
+    });
+    
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        message: "Course not found or you don't have permission to update it"
+      });
+    }
+    
+    // Update course
+    const updatedCourse = await prisma.course.update({
+      where: { id: parseInt(id) },
+      data: {
+        name: name || course.name,
+        code: code ? code.toUpperCase() : course.code,
+        semester: semester || course.semester,
+        department: department || course.department,
+        batch: batch !== undefined ? batch : course.batch,
+        description: description !== undefined ? description : course.description,
+        credits: credits || course.credits
+      }
+    });
+    
+    res.status(200).json({
+      success: true,
+      data: updatedCourse,
+      message: "Course updated successfully"
+    });
+    
+  } catch (error) {
+    console.error("Error updating course:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// Delete course (Soft delete - Staff)
+export const deleteStaffCourse = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    
+    const staff = await prisma.staff.findUnique({
+      where: { userId: userId }
+    });
+    
+    if (!staff) {
+      return res.status(404).json({
+        success: false,
+        message: "Staff profile not found"
+      });
+    }
+    
+    const course = await prisma.course.findFirst({
+      where: { 
+        id: parseInt(id),
+        teacherId: staff.id
+      }
+    });
+    
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        message: "Course not found or you don't have permission to delete it"
+      });
+    }
+    
+    // Soft delete (set deletedAt)
+    await prisma.course.update({
+      where: { id: parseInt(id) },
+      data: { deletedAt: new Date() }
+    });
+    
+    res.status(200).json({
+      success: true,
+      message: "Course deleted successfully"
+    });
+    
+  } catch (error) {
+    console.error("Error deleting course:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
   }
 };

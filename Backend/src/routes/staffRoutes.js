@@ -19,7 +19,13 @@ import {
   getStaffDashboardStats,
   getStaffCourses,
   getStaffStudents,
-  getStaffTodaySchedule
+  getStaffTodaySchedule,
+  
+  // NEW: Staff Course Management methods
+  createStaffCourse,
+  getStaffCourseById,
+  updateStaffCourse,
+  deleteStaffCourse
 } from "../controllers/staffController.js";
 
 const router = express.Router();
@@ -37,6 +43,24 @@ router.get("/dashboard/stats", protect, authorize("STAFF"), getStaffDashboardSta
 router.get("/dashboard/courses", protect, authorize("STAFF"), getStaffCourses);
 router.get("/dashboard/students", protect, authorize("STAFF"), getStaffStudents);
 router.get("/dashboard/schedule/today", protect, authorize("STAFF"), getStaffTodaySchedule);
+
+/* ========================================
+   NEW: STAFF COURSE MANAGEMENT ROUTES
+   ======================================== */
+// Create a new course
+router.post("/courses", protect, authorize("STAFF", "ADMIN"), createStaffCourse);
+
+// Get staff's courses (already exists but keeping for clarity)
+// router.get("/courses", protect, authorize("STAFF"), getStaffCourses);
+
+// Get specific course by ID
+router.get("/courses/:id", protect, authorize("STAFF", "ADMIN"), getStaffCourseById);
+
+// Update a course
+router.put("/courses/:id", protect, authorize("STAFF", "ADMIN"), updateStaffCourse);
+
+// Delete a course (soft delete)
+router.delete("/courses/:id", protect, authorize("STAFF", "ADMIN"), deleteStaffCourse);
 
 /* ========================================
    ADMIN ROUTES

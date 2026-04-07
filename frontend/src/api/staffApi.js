@@ -304,6 +304,67 @@ const staffApi = {
     }
   },
 
+  // ✅ NEW: Create a new course (Staff version - uses staff endpoint)
+  createCourse: async (courseData) => {
+    try {
+      console.log("📤 Creating course with data:", courseData);
+      
+      const response = await axiosInstance.post("/staff/courses", courseData);
+      console.log("✅ Create course response:", response.data);
+      
+      if (response.data?.success) {
+        return response.data.data || response.data;
+      }
+      return response.data;
+    } catch (error) {
+      console.error("❌ Error creating course:", {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      throw error;
+    }
+  },
+
+  // Get course details by ID (Staff version)
+  getCourseById: async (courseId) => {
+    try {
+      const response = await axiosInstance.get(`/staff/courses/${courseId}`);
+      console.log(`📊 Get course ${courseId} response:`, response.data);
+      return response.data?.data || response.data;
+    } catch (error) {
+      console.error("❌ Error fetching course:", error);
+      throw error;
+    }
+  },
+
+  // Update course (Staff version)
+  updateCourse: async (courseId, courseData) => {
+    try {
+      console.log(`📤 Updating course ${courseId} with data:`, courseData);
+      
+      const response = await axiosInstance.put(`/staff/courses/${courseId}`, courseData);
+      console.log("✅ Update course response:", response.data);
+      
+      return response.data?.data || response.data;
+    } catch (error) {
+      console.error("❌ Error updating course:", error);
+      throw error;
+    }
+  },
+
+  // Delete course (Soft delete - Staff version)
+  deleteCourse: async (courseId) => {
+    try {
+      const response = await axiosInstance.delete(`/staff/courses/${courseId}`);
+      console.log(`🗑️ Delete course ${courseId} response:`, response.data);
+      return response.data;
+    } catch (error) {
+      console.error("❌ Error deleting course:", error);
+      throw error;
+    }
+  },
+
   // Get teacher's students
   getStudents: async () => {
     try {
