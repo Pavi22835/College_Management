@@ -42,6 +42,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { staffApi, userApi } from '../../../api/adminApi';
+import { DEPARTMENTS } from '../../../constants/departments';
 import * as XLSX from 'xlsx';
 import './AdminStaff.css';
 
@@ -97,22 +98,8 @@ const AdminStaff = () => {
     address: ''
   });
 
-  // Department options
-  const departmentOptions = [
-    "Computer Science",
-    "Computer Science and Engineering",
-    "Information Technology",
-    "Mechanical Engineering",
-    "Electronics and Communication Engineering",
-    "Civil Engineering",
-    "Electrical and Electronics Engineering",
-    "Mathematics",
-    "Physics",
-    "Chemistry",
-    "English",
-    "Commerce",
-    "Business Administration"
-  ];
+  // Department options from centralized constant (all 25 departments)
+  const departmentOptions = DEPARTMENTS;
 
   // Filter departments based on search term
   const filteredDepartments = departmentOptions.filter(dept =>
