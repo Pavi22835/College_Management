@@ -12,6 +12,9 @@ export const createLesson = async (req, res) => {
     const { courseId } = req.params;
     const { title, description, duration, content, videoUrl, pdfUrl, order } = req.body;
 
+    console.log("📝 Creating lesson for courseId:", courseId);
+    console.log("📋 Lesson data:", { title, description, duration });
+
     // Validate required fields
     if (!title) {
       return res.status(400).json({
@@ -20,17 +23,32 @@ export const createLesson = async (req, res) => {
       });
     }
 
+    // Validate and parse courseId
+    const parsedCourseId = parseInt(courseId);
+    if (isNaN(parsedCourseId)) {
+      console.error("❌ Invalid courseId format:", courseId);
+      return res.status(400).json({
+        success: false,
+        message: "Invalid course ID format"
+      });
+    }
+
     // Check if course exists
+    console.log("🔍 Looking for course with ID:", parsedCourseId);
     const course = await prisma.course.findUnique({
-      where: { id: parseInt(courseId) }
+      where: { id: parsedCourseId }
     });
 
     if (!course) {
+      console.error("❌ Course not found with ID:", parsedCourseId);
       return res.status(404).json({
         success: false,
-        message: "Course not found"
+        message: "Course not found",
+        details: `Course with ID ${parsedCourseId} does not exist in database`
       });
     }
+
+    console.log("✅ Course found:", course.name);
 
     // Create lesson
     const lesson = await prisma.lesson.create({
@@ -42,9 +60,11 @@ export const createLesson = async (req, res) => {
         videoUrl,
         pdfUrl,
         order: order || 0,
-        courseId: parseInt(courseId)
+        courseId: parsedCourseId
       }
     });
+
+    console.log("✅ Lesson created successfully:", lesson.id);
 
     res.status(201).json({
       success: true,
@@ -53,7 +73,8 @@ export const createLesson = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Error creating lesson:", error);
+    console.error("❌ Error creating lesson:", error.message);
+    console.error("Error details:", error);
     res.status(500).json({
       success: false,
       message: "Failed to create lesson",
