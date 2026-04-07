@@ -11,7 +11,7 @@ export const getAllAttendance = async (req, res) => {
   try {
     const { 
       page = 1, 
-      limit = 50, 
+      limit = 1000, 
       courseId, 
       date, 
       studentId,
@@ -39,7 +39,7 @@ export const getAllAttendance = async (req, res) => {
     // Get total count for pagination
     const total = await prisma.attendance.count({ where });
 
-    // Get attendance records with pagination
+    // Get attendance records - REMOVED markedBy relation
     const attendances = await prisma.attendance.findMany({
       where,
       include: {
@@ -61,13 +61,6 @@ export const getAllAttendance = async (req, res) => {
             department: true,
             semester: true
           }
-        },
-        markedBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true
-          }
         }
       },
       orderBy: [
@@ -80,14 +73,12 @@ export const getAllAttendance = async (req, res) => {
 
     res.json({
       success: true,
-      data: {
-        attendances,
-        pagination: {
-          page: Number(page),
-          limit: Number(limit),
-          total,
-          pages: Math.ceil(total / Number(limit))
-        }
+      data: attendances,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        pages: Math.ceil(total / Number(limit))
       }
     });
 
@@ -95,7 +86,8 @@ export const getAllAttendance = async (req, res) => {
     console.error("Get all attendance error:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to fetch attendance records"
+      message: "Failed to fetch attendance records",
+      error: error.message
     });
   }
 };
@@ -112,7 +104,7 @@ export const getAttendanceStats = async (req, res) => {
     const end = endDate ? new Date(endDate) : new Date();
     
     if (!startDate) {
-      start.setMonth(start.getMonth() - 1); // Default to last 30 days
+      start.setMonth(start.getMonth() - 1);
     }
 
     start.setHours(0, 0, 0, 0);
@@ -134,20 +126,33 @@ export const getAttendanceStats = async (req, res) => {
       _count: true
     });
 
-    // Get daily statistics
-    const dailyStats = await prisma.$queryRaw`
-      SELECT 
-        DATE(date) as date,
-        COUNT(*) as total,
-        SUM(CASE WHEN status = 'PRESENT' THEN 1 ELSE 0 END) as present,
-        SUM(CASE WHEN status = 'ABSENT' THEN 1 ELSE 0 END) as absent,
-        SUM(CASE WHEN status = 'LATE' THEN 1 ELSE 0 END) as late
-      FROM attendance
-      WHERE date >= ${start} AND date <= ${end}
-      ${courseId ? prisma.$raw`AND courseId = ${Number(courseId)}` : prisma.$raw``}
-      GROUP BY DATE(date)
-      ORDER BY date DESC
-    `;
+    // Get all attendances for daily grouping (without $raw)
+    const allAttendances = await prisma.attendance.findMany({
+      where,
+      select: {
+        date: true,
+        status: true
+      },
+      orderBy: {
+        date: 'desc'
+      }
+    });
+
+    // Group by date manually
+    const dailyMap = new Map();
+    allAttendances.forEach(att => {
+      const dateStr = att.date.toISOString().split('T')[0];
+      if (!dailyMap.has(dateStr)) {
+        dailyMap.set(dateStr, { date: att.date, present: 0, absent: 0, late: 0, total: 0 });
+      }
+      const dayStat = dailyMap.get(dateStr);
+      dayStat.total++;
+      if (att.status === 'PRESENT') dayStat.present++;
+      else if (att.status === 'ABSENT') dayStat.absent++;
+      else if (att.status === 'LATE') dayStat.late++;
+    });
+
+    const dailyStats = Array.from(dailyMap.values());
 
     // Calculate percentages
     const total = stats.reduce((acc, curr) => acc + curr._count, 0);
@@ -155,18 +160,43 @@ export const getAttendanceStats = async (req, res) => {
     const absentCount = stats.find(s => s.status === 'ABSENT')?._count || 0;
     const lateCount = stats.find(s => s.status === 'LATE')?._count || 0;
 
+    // Get unique courses count
+    const uniqueCourses = await prisma.attendance.groupBy({
+      by: ['courseId'],
+      where,
+      _count: true
+    });
+
+    // Get unique students count
+    const uniqueStudents = await prisma.attendance.groupBy({
+      by: ['studentId'],
+      where,
+      _count: true
+    });
+
     res.json({
       success: true,
       data: {
         summary: {
-          total,
+          total: total,
           present: presentCount,
           absent: absentCount,
           late: lateCount,
+          average: total > 0 ? Math.round((presentCount / total) * 100) : 0,
+          overallAverage: total > 0 ? Math.round((presentCount / total) * 100) : 0,
           presentPercentage: total > 0 ? Math.round((presentCount / total) * 100) : 0,
           absentPercentage: total > 0 ? Math.round((absentCount / total) * 100) : 0,
           latePercentage: total > 0 ? Math.round((lateCount / total) * 100) : 0
         },
+        today: {
+          present: presentCount,
+          absent: absentCount,
+          late: lateCount
+        },
+        dailyStats,
+        courseStats: [],
+        totalCourses: uniqueCourses.length,
+        totalStudents: uniqueStudents.length,
         byStatus: stats,
         daily: dailyStats
       }
@@ -176,7 +206,190 @@ export const getAttendanceStats = async (req, res) => {
     console.error("Get attendance stats error:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to fetch attendance statistics"
+      message: "Failed to fetch attendance statistics",
+      error: error.message
+    });
+  }
+};
+
+/* -----------------------------------------
+MARK SINGLE ATTENDANCE
+------------------------------------------*/
+export const markSingleAttendance = async (req, res) => {
+  try {
+    const { courseId, studentId } = req.params;
+    const { date, status } = req.body;
+    
+    // Validate required fields
+    if (!courseId || !studentId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Course ID and Student ID are required'
+      });
+    }
+    
+    // Validate status
+    const validStatuses = ['PRESENT', 'ABSENT', 'LATE'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid status. Must be PRESENT, ABSENT, or LATE'
+      });
+    }
+    
+    const attendanceDate = date ? new Date(date) : new Date();
+    attendanceDate.setHours(0, 0, 0, 0);
+    
+    // Check if attendance already exists
+    const existingAttendance = await prisma.attendance.findFirst({
+      where: {
+        studentId: parseInt(studentId),
+        courseId: parseInt(courseId),
+        date: {
+          gte: attendanceDate,
+          lt: new Date(attendanceDate.getTime() + 24 * 60 * 60 * 1000)
+        }
+      }
+    });
+    
+    let attendance;
+    
+    if (existingAttendance) {
+      attendance = await prisma.attendance.update({
+        where: { id: existingAttendance.id },
+        data: {
+          status,
+          markedAt: new Date()
+        },
+        include: {
+          student: {
+            include: {
+              user: {
+                select: { name: true, email: true }
+              }
+            }
+          },
+          course: true
+        }
+      });
+    } else {
+      attendance = await prisma.attendance.create({
+        data: {
+          studentId: parseInt(studentId),
+          courseId: parseInt(courseId),
+          date: attendanceDate,
+          status,
+          markedAt: new Date()
+        },
+        include: {
+          student: {
+            include: {
+              user: {
+                select: { name: true, email: true }
+              }
+            }
+          },
+          course: true
+        }
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: attendance,
+      message: `Attendance marked as ${status} successfully`
+    });
+    
+  } catch (error) {
+    console.error("Error in markSingleAttendance:", error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to mark attendance',
+      error: error.message
+    });
+  }
+};
+
+/* -----------------------------------------
+MARK BULK ATTENDANCE
+------------------------------------------*/
+export const markBulkAttendance = async (req, res) => {
+  try {
+    const { courseId, date, records } = req.body;
+
+    if (!courseId || !date || !records || !Array.isArray(records)) {
+      return res.status(400).json({
+        success: false,
+        message: "Course ID, date, and records array are required"
+      });
+    }
+
+    const attendanceDate = new Date(date);
+    attendanceDate.setHours(0, 0, 0, 0);
+
+    const results = [];
+    
+    for (const record of records) {
+      const { studentId, status } = record;
+      
+      const existingAttendance = await prisma.attendance.findFirst({
+        where: {
+          studentId: parseInt(studentId),
+          courseId: parseInt(courseId),
+          date: {
+            gte: attendanceDate,
+            lt: new Date(attendanceDate.getTime() + 24 * 60 * 60 * 1000)
+          }
+        }
+      });
+      
+      let result;
+      if (existingAttendance) {
+        result = await prisma.attendance.update({
+          where: { id: existingAttendance.id },
+          data: {
+            status,
+            markedAt: new Date()
+          }
+        });
+      } else {
+        result = await prisma.attendance.create({
+          data: {
+            studentId: parseInt(studentId),
+            courseId: parseInt(courseId),
+            date: attendanceDate,
+            status,
+            markedAt: new Date()
+          }
+        });
+      }
+      results.push(result);
+    }
+
+    const presentCount = results.filter(r => r.status === 'PRESENT').length;
+    const absentCount = results.filter(r => r.status === 'ABSENT').length;
+    const lateCount = results.filter(r => r.status === 'LATE').length;
+
+    res.json({
+      success: true,
+      data: {
+        courseId: parseInt(courseId),
+        date: attendanceDate,
+        total: results.length,
+        present: presentCount,
+        absent: absentCount,
+        late: lateCount,
+        records: results
+      },
+      message: `Attendance marked successfully for ${results.length} students`
+    });
+
+  } catch (error) {
+    console.error("Error in markBulkAttendance:", error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to mark bulk attendance',
+      error: error.message
     });
   }
 };
@@ -230,31 +443,12 @@ export const getAttendanceByDate = async (req, res) => {
       ]
     });
 
-    // Group by course
-    const byCourse = {};
-    attendances.forEach(a => {
-      const courseKey = a.course.code;
-      if (!byCourse[courseKey]) {
-        byCourse[courseKey] = {
-          course: a.course,
-          students: []
-        };
-      }
-      byCourse[courseKey].students.push({
-        id: a.student.id,
-        name: a.student.name,
-        rollNo: a.student.rollNo,
-        status: a.status,
-        markedAt: a.markedAt
-      });
-    });
-
     res.json({
       success: true,
       data: {
         date,
         total: attendances.length,
-        byCourse
+        attendances
       }
     });
 
@@ -273,20 +467,18 @@ GET ATTENDANCE BY COURSE (ADMIN)
 export const getAttendanceByCourse = async (req, res) => {
   try {
     const { courseId } = req.params;
-    const { startDate, endDate, limit = 30 } = req.query;
+    const { startDate, endDate } = req.query;
 
-    // Date range
     const start = startDate ? new Date(startDate) : new Date();
     const end = endDate ? new Date(endDate) : new Date();
     
     if (!startDate) {
-      start.setDate(start.getDate() - 30); // Last 30 days
+      start.setDate(start.getDate() - 30);
     }
 
     start.setHours(0, 0, 0, 0);
     end.setHours(23, 59, 59, 999);
 
-    // Get course details
     const course = await prisma.course.findUnique({
       where: { id: Number(courseId) },
       include: {
@@ -307,7 +499,6 @@ export const getAttendanceByCourse = async (req, res) => {
       });
     }
 
-    // Get attendance records
     const attendances = await prisma.attendance.findMany({
       where: {
         courseId: Number(courseId),
@@ -352,7 +543,7 @@ export const getAttendanceByCourse = async (req, res) => {
       });
     });
 
-    // Calculate statistics per student
+    // Calculate student statistics
     const studentStats = {};
     attendances.forEach(a => {
       if (!studentStats[a.student.id]) {
@@ -370,7 +561,6 @@ export const getAttendanceByCourse = async (req, res) => {
       studentStats[a.student.id][a.status.toLowerCase()]++;
     });
 
-    // Calculate percentages
     Object.values(studentStats).forEach(stat => {
       stat.percentage = Math.round((stat.present / stat.total) * 100) || 0;
     });
@@ -417,13 +607,11 @@ export const getAttendanceByStudent = async (req, res) => {
     const { studentId } = req.params;
     const { courseId, limit = 50 } = req.query;
 
-    // Build filter
     const where = {
       studentId: Number(studentId)
     };
     if (courseId) where.courseId = Number(courseId);
 
-    // Get student details
     const student = await prisma.student.findUnique({
       where: { id: Number(studentId) },
       include: {
@@ -443,7 +631,6 @@ export const getAttendanceByStudent = async (req, res) => {
       });
     }
 
-    // Get attendance records
     const attendances = await prisma.attendance.findMany({
       where,
       include: {
@@ -461,37 +648,6 @@ export const getAttendanceByStudent = async (req, res) => {
       take: Number(limit)
     });
 
-    // Group by course
-    const byCourse = {};
-    attendances.forEach(a => {
-      const courseKey = a.course.code;
-      if (!byCourse[courseKey]) {
-        byCourse[courseKey] = {
-          course: a.course,
-          records: [],
-          stats: {
-            total: 0,
-            present: 0,
-            absent: 0,
-            late: 0
-          }
-        };
-      }
-      byCourse[courseKey].records.push({
-        date: a.date,
-        status: a.status,
-        markedAt: a.markedAt
-      });
-      byCourse[courseKey].stats.total++;
-      byCourse[courseKey].stats[a.status.toLowerCase()]++;
-    });
-
-    // Calculate percentages per course
-    Object.values(byCourse).forEach(course => {
-      course.stats.percentage = Math.round((course.stats.present / course.stats.total) * 100) || 0;
-    });
-
-    // Overall statistics
     const total = attendances.length;
     const present = attendances.filter(a => a.status === 'PRESENT').length;
     const absent = attendances.filter(a => a.status === 'ABSENT').length;
@@ -516,8 +672,7 @@ export const getAttendanceByStudent = async (req, res) => {
           late,
           attendancePercentage: total > 0 ? Math.round((present / total) * 100) : 0
         },
-        byCourse,
-        recent: attendances.slice(0, 10)
+        attendances
       }
     });
 
@@ -531,7 +686,7 @@ export const getAttendanceByStudent = async (req, res) => {
 };
 
 /* ========================================
-   TEACHER METHODS
+   TEACHER/STAFF METHODS
    ======================================== */
 
 /* -----------------------------------------
@@ -539,10 +694,8 @@ MARK ATTENDANCE (TEACHER)
 ------------------------------------------*/
 export const markAttendance = async (req, res) => {
   try {
-    const teacherId = req.user.id; // From auth middleware
     const { courseId, date, records } = req.body;
 
-    // Validate input
     if (!courseId || !date || !records || !Array.isArray(records)) {
       return res.status(400).json({
         success: false,
@@ -550,125 +703,68 @@ export const markAttendance = async (req, res) => {
       });
     }
 
-    // Get teacher record
-    const teacher = await prisma.teacher.findUnique({
-      where: { userId: teacherId }
-    });
-
-    if (!teacher) {
-      return res.status(404).json({
-        success: false,
-        message: "Teacher not found"
-      });
-    }
-
-    // Verify teacher owns this course
-    const course = await prisma.course.findFirst({
-      where: {
-        id: Number(courseId),
-        teacherId: teacher.id,
-        deletedAt: null
-      }
-    });
-
-    if (!course) {
-      return res.status(403).json({
-        success: false,
-        message: "You don't have permission to mark attendance for this course"
-      });
-    }
-
-    // Parse date
     const attendanceDate = new Date(date);
     attendanceDate.setHours(0, 0, 0, 0);
-    const nextDay = new Date(attendanceDate);
-    nextDay.setDate(nextDay.getDate() + 1);
 
-    // Check if attendance already marked for this date
-    const existingAttendance = await prisma.attendance.findFirst({
-      where: {
-        courseId: Number(courseId),
-        date: {
-          gte: attendanceDate,
-          lt: nextDay
+    const results = [];
+    
+    for (const record of records) {
+      const { studentId, status } = record;
+      
+      const existingAttendance = await prisma.attendance.findFirst({
+        where: {
+          studentId: parseInt(studentId),
+          courseId: parseInt(courseId),
+          date: {
+            gte: attendanceDate,
+            lt: new Date(attendanceDate.getTime() + 24 * 60 * 60 * 1000)
+          }
         }
-      }
-    });
-
-    // Use transaction to mark all attendance records
-    const result = await prisma.$transaction(async (tx) => {
-      // If attendance exists, delete old records first (if teacher wants to override)
-      if (existingAttendance && req.body.override === true) {
-        await tx.attendance.deleteMany({
-          where: {
-            courseId: Number(courseId),
-            date: {
-              gte: attendanceDate,
-              lt: nextDay
-            }
+      });
+      
+      let result;
+      if (existingAttendance) {
+        result = await prisma.attendance.update({
+          where: { id: existingAttendance.id },
+          data: {
+            status,
+            markedAt: new Date()
+          }
+        });
+      } else {
+        result = await prisma.attendance.create({
+          data: {
+            studentId: parseInt(studentId),
+            courseId: parseInt(courseId),
+            date: attendanceDate,
+            status,
+            markedAt: new Date()
           }
         });
       }
+      results.push(result);
+    }
 
-      // Create new attendance records
-      const createdRecords = await Promise.all(
-        records.map(record => 
-          tx.attendance.upsert({
-            where: {
-              studentId_courseId_date: {
-                studentId: Number(record.studentId),
-                courseId: Number(courseId),
-                date: attendanceDate
-              }
-            },
-            update: {
-              status: record.status,
-              markedById: teacher.userId,
-              markedAt: new Date()
-            },
-            create: {
-              studentId: Number(record.studentId),
-              courseId: Number(courseId),
-              date: attendanceDate,
-              status: record.status,
-              markedById: teacher.userId
-            }
-          })
-        )
-      );
-
-      return createdRecords;
-    });
-
-    // Get statistics for response
-    const presentCount = result.filter(r => r.status === 'PRESENT').length;
-    const absentCount = result.filter(r => r.status === 'ABSENT').length;
-    const lateCount = result.filter(r => r.status === 'LATE').length;
+    const presentCount = results.filter(r => r.status === 'PRESENT').length;
+    const absentCount = results.filter(r => r.status === 'ABSENT').length;
+    const lateCount = results.filter(r => r.status === 'LATE').length;
 
     res.json({
       success: true,
       data: {
-        courseId: Number(courseId),
+        courseId: parseInt(courseId),
         date: attendanceDate,
-        total: result.length,
+        total: results.length,
         present: presentCount,
         absent: absentCount,
         late: lateCount,
-        records: result
+        records: results
       },
-      message: `Attendance marked successfully for ${result.length} students`
+      message: `Attendance marked successfully for ${results.length} students`
     });
 
   } catch (error) {
     console.error("Mark attendance error:", error);
-
-    if (error.code === 'P2002') {
-      return res.status(400).json({
-        success: false,
-        message: "Attendance already marked for some students on this date"
-      });
-    }
-
     res.status(500).json({
       success: false,
       message: "Failed to mark attendance"
@@ -681,29 +777,11 @@ GET COURSE ATTENDANCE FOR TEACHER
 ------------------------------------------*/
 export const getTeacherCourseAttendance = async (req, res) => {
   try {
-    const teacherId = req.user.id;
     const { courseId } = req.params;
     const { date } = req.query;
 
-    // Get teacher record
-    const teacher = await prisma.teacher.findUnique({
-      where: { userId: teacherId }
-    });
-
-    if (!teacher) {
-      return res.status(404).json({
-        success: false,
-        message: "Teacher not found"
-      });
-    }
-
-    // Verify teacher owns this course
-    const course = await prisma.course.findFirst({
-      where: {
-        id: Number(courseId),
-        teacherId: teacher.id,
-        deletedAt: null
-      },
+    const course = await prisma.course.findUnique({
+      where: { id: Number(courseId) },
       include: {
         enrollments: {
           where: {
@@ -727,14 +805,13 @@ export const getTeacherCourseAttendance = async (req, res) => {
       }
     });
 
-    if (!course) {
-      return res.status(403).json({
+    if (!course || course.deletedAt) {
+      return res.status(404).json({
         success: false,
-        message: "Course not found or access denied"
+        message: "Course not found"
       });
     }
 
-    // If date is provided, get attendance for that date
     let attendanceRecords = [];
     let selectedDate = null;
 
@@ -755,7 +832,6 @@ export const getTeacherCourseAttendance = async (req, res) => {
       });
     }
 
-    // Combine student list with attendance status
     const studentsWithAttendance = course.enrollments.map(enrollment => {
       const attendance = attendanceRecords.find(a => a.studentId === enrollment.student.id);
       return {
@@ -769,7 +845,6 @@ export const getTeacherCourseAttendance = async (req, res) => {
       };
     });
 
-    // Get recent attendance dates
     const recentDates = await prisma.attendance.findMany({
       where: {
         courseId: Number(courseId)
@@ -818,26 +893,8 @@ GET TEACHER ATTENDANCE STATS
 ------------------------------------------*/
 export const getTeacherAttendanceStats = async (req, res) => {
   try {
-    const teacherId = req.user.id;
-
-    // Get teacher record
-    const teacher = await prisma.teacher.findUnique({
-      where: { userId: teacherId }
-    });
-
-    if (!teacher) {
-      return res.status(404).json({
-        success: false,
-        message: "Teacher not found"
-      });
-    }
-
-    // Get all courses for this teacher
     const courses = await prisma.course.findMany({
-      where: {
-        teacherId: teacher.id,
-        deletedAt: null
-      },
+      where: { deletedAt: null },
       select: { 
         id: true, 
         code: true, 
@@ -848,26 +905,21 @@ export const getTeacherAttendanceStats = async (req, res) => {
 
     const courseIds = courses.map(c => c.id);
 
-    // Get today's date range
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    // Get this week's date range
     const weekStart = new Date(today);
     weekStart.setDate(weekStart.getDate() - weekStart.getDay());
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekEnd.getDate() + 7);
 
-    // Get this month's date range
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
     const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
     monthEnd.setHours(23, 59, 59, 999);
 
-    // Get statistics for different periods
     const [todayStats, weekStats, monthStats, courseStats] = await Promise.all([
-      // Today's stats
       prisma.attendance.groupBy({
         by: ['status'],
         where: {
@@ -879,8 +931,6 @@ export const getTeacherAttendanceStats = async (req, res) => {
         },
         _count: true
       }),
-
-      // This week's stats
       prisma.attendance.groupBy({
         by: ['status'],
         where: {
@@ -892,8 +942,6 @@ export const getTeacherAttendanceStats = async (req, res) => {
         },
         _count: true
       }),
-
-      // This month's stats
       prisma.attendance.groupBy({
         by: ['status'],
         where: {
@@ -905,8 +953,6 @@ export const getTeacherAttendanceStats = async (req, res) => {
         },
         _count: true
       }),
-
-      // Per course stats
       Promise.all(courses.map(async (course) => {
         const stats = await prisma.attendance.groupBy({
           by: ['status'],
@@ -931,7 +977,6 @@ export const getTeacherAttendanceStats = async (req, res) => {
       }))
     ]);
 
-    // Helper function to format stats
     const formatStats = (stats) => {
       const total = stats.reduce((acc, curr) => acc + curr._count, 0);
       const present = stats.find(s => s.status === 'PRESENT')?._count || 0;
@@ -974,37 +1019,9 @@ GET TEACHER RECENT ATTENDANCE
 ------------------------------------------*/
 export const getTeacherRecentAttendance = async (req, res) => {
   try {
-    const teacherId = req.user.id;
     const { limit = 20 } = req.query;
 
-    // Get teacher record
-    const teacher = await prisma.teacher.findUnique({
-      where: { userId: teacherId }
-    });
-
-    if (!teacher) {
-      return res.status(404).json({
-        success: false,
-        message: "Teacher not found"
-      });
-    }
-
-    // Get teacher's courses
-    const courses = await prisma.course.findMany({
-      where: {
-        teacherId: teacher.id,
-        deletedAt: null
-      },
-      select: { id: true }
-    });
-
-    const courseIds = courses.map(c => c.id);
-
-    // Get recent attendance records
     const recentAttendance = await prisma.attendance.findMany({
-      where: {
-        courseId: { in: courseIds }
-      },
       include: {
         student: {
           include: {

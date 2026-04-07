@@ -8,8 +8,10 @@ import {
   getAttendanceByCourse,
   getAttendanceByStudent,
   
-  // Teacher methods
+  // Staff methods
   markAttendance,
+  markSingleAttendance,
+  markBulkAttendance,
   getTeacherCourseAttendance,
   getTeacherAttendanceStats,
   getTeacherRecentAttendance
@@ -25,7 +27,6 @@ router.use(protect);
 /* ========================================
    ADMIN ROUTES
    ======================================== */
-// Admin attendance management
 router.get('/admin', authorize('ADMIN'), getAllAttendance);
 router.get('/admin/stats', authorize('ADMIN'), getAttendanceStats);
 router.get('/admin/date/:date', authorize('ADMIN'), getAttendanceByDate);
@@ -35,8 +36,9 @@ router.get('/admin/student/:studentId', authorize('ADMIN'), getAttendanceByStude
 /* ========================================
    STAFF ROUTES
    ======================================== */
-// Staff attendance management
 router.post('/mark', authorize('STAFF'), markAttendance);
+router.post('/mark/:courseId/:studentId', authorize('STAFF'), markSingleAttendance);
+router.post('/mark/bulk', authorize('STAFF'), markBulkAttendance);
 router.get('/course/:courseId', authorize('STAFF'), getTeacherCourseAttendance);
 router.get('/staff/stats', authorize('STAFF'), getTeacherAttendanceStats);
 router.get('/staff/recent', authorize('STAFF'), getTeacherRecentAttendance);

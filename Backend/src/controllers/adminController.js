@@ -1970,7 +1970,7 @@ export const getUserStats = async (req, res) => {
       prisma.user.count({ where: { isActive: true } }),
       prisma.user.count({ where: { isActive: false } }),
       prisma.user.count({ where: { role: 'STUDENT' } }),
-      prisma.user.count({ where: { role: 'TEACHER' } }),
+      prisma.user.count({ where: { role: 'STAFF' } }),
       prisma.user.count({ where: { role: 'ADMIN' } })
     ]);
 
@@ -2000,22 +2000,12 @@ export const getUserStats = async (req, res) => {
 // ==================== DEPARTMENT MANAGEMENT ====================
 
 /* -----------------------------------------
-GET ALL DEPARTMENTS - FIXED VERSION
+GET ALL DEPARTMENTS - FIXED (REMOVED HOD INCLUDE)
 ------------------------------------------*/
 export const getAllDepartments = async (req, res) => {
   try {
     const departments = await prisma.department.findMany({
       where: { deletedAt: null },
-      include: {
-        hod: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            employeeId: true
-          }
-        }
-      },
       orderBy: { createdAt: 'desc' }
     });
 
@@ -2060,22 +2050,12 @@ export const getAllDepartments = async (req, res) => {
   }
 };
 
-// Get trashed departments
+// Get trashed departments - FIXED
 export const getTrashedDepartments = async (req, res) => {
   try {
     const departments = await prisma.department.findMany({
       where: { 
         NOT: { deletedAt: null } 
-      },
-      include: {
-        hod: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            employeeId: true
-          }
-        }
       },
       orderBy: { deletedAt: 'desc' }
     });
@@ -2095,26 +2075,14 @@ export const getTrashedDepartments = async (req, res) => {
 };
 
 /* -----------------------------------------
-GET DEPARTMENT BY ID - FIXED VERSION
+GET DEPARTMENT BY ID - FIXED (REMOVED HOD INCLUDE)
 ------------------------------------------*/
 export const getDepartmentById = async (req, res) => {
   try {
     const { id } = req.params;
 
     const department = await prisma.department.findUnique({
-      where: { id: parseInt(id) },
-      include: {
-        hod: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            employeeId: true,
-            designation: true,
-            phone: true
-          }
-        }
-      }
+      where: { id: parseInt(id) }
     });
 
     if (!department || department.deletedAt) {
@@ -2122,6 +2090,23 @@ export const getDepartmentById = async (req, res) => {
         success: false, 
         message: 'Department not found' 
       });
+    }
+
+    // Get HOD info separately if hodId exists
+    let hodInfo = null;
+    if (department.hodId) {
+      const hod = await prisma.staff.findUnique({
+        where: { id: department.hodId },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          employeeId: true,
+          designation: true,
+          phone: true
+        }
+      });
+      hodInfo = hod;
     }
 
     // Get courses in this department
@@ -2158,6 +2143,7 @@ export const getDepartmentById = async (req, res) => {
       success: true,
       data: {
         ...department,
+        hod: hodInfo,
         courses,
         teachers,
         stats: {
@@ -2177,7 +2163,7 @@ export const getDepartmentById = async (req, res) => {
 };
 
 /* -----------------------------------------
-CREATE DEPARTMENT - FIXED VERSION (BUDGET REMOVED)
+CREATE DEPARTMENT - FIXED (REMOVED HOD INCLUDE)
 ------------------------------------------*/
 export const createDepartment = async (req, res) => {
   try {
@@ -2225,23 +2211,27 @@ export const createDepartment = async (req, res) => {
           code: code.toUpperCase(),
           name,
           description,
-          // budget field removed - not in schema
           hodId: hodId ? parseInt(hodId) : null,
           phone,
           email,
           location
-        },
-        include: {
-          hod: {
-            select: {
-              id: true,
-              email: true,
-              name: true,
-              employeeId: true
-            }
-          }
         }
       });
+
+      // Get HOD info if exists
+      let hodInfo = null;
+      if (department.hodId) {
+        const hod = await prisma.staff.findUnique({
+          where: { id: department.hodId },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            employeeId: true
+          }
+        });
+        hodInfo = hod;
+      }
 
       // Log the activity
       await prisma.log.create({
@@ -2257,7 +2247,10 @@ export const createDepartment = async (req, res) => {
       res.status(201).json({
         success: true,
         message: 'Department created successfully',
-        data: department
+        data: {
+          ...department,
+          hod: hodInfo
+        }
       });
     } catch (err) {
       if (err.code === 'P2002') {
@@ -2280,7 +2273,7 @@ export const createDepartment = async (req, res) => {
 };
 
 /* -----------------------------------------
-UPDATE DEPARTMENT - FIXED VERSION (BUDGET REMOVED)
+UPDATE DEPARTMENT - FIXED (REMOVED HOD INCLUDE)
 ------------------------------------------*/
 export const updateDepartment = async (req, res) => {
   try {
@@ -2337,24 +2330,28 @@ export const updateDepartment = async (req, res) => {
           code: code ? code.toUpperCase() : undefined,
           name,
           description,
-          // budget field removed - not in schema
           hodId: hodId !== undefined ? (hodId ? parseInt(hodId) : null) : undefined,
           phone,
           email,
           location,
           updatedAt: new Date()
-        },
-        include: {
-          hod: {
-            select: {
-              id: true,
-              email: true,
-              name: true,
-              employeeId: true
-            }
-          }
         }
       });
+
+      // Get HOD info if exists
+      let hodInfo = null;
+      if (updatedDepartment.hodId) {
+        const hod = await prisma.staff.findUnique({
+          where: { id: updatedDepartment.hodId },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            employeeId: true
+          }
+        });
+        hodInfo = hod;
+      }
 
       // Log the activity
       await prisma.log.create({
@@ -2370,7 +2367,10 @@ export const updateDepartment = async (req, res) => {
       res.json({
         success: true,
         message: 'Department updated successfully',
-        data: updatedDepartment
+        data: {
+          ...updatedDepartment,
+          hod: hodInfo
+        }
       });
     } catch (err) {
       if (err.code === 'P2002') {

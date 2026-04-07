@@ -21,7 +21,7 @@ import {
 import attendanceApi from '../../api/attendanceApi';
 import { courseApi, departmentApi } from '../../api/adminApi';
 import studentApi from '../../api/studentApi';
-import staffApi from '../../api/staffApi';  // Changed from teacherApi to staffApi
+import staffApi from '../../api/staffApi';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -55,6 +55,7 @@ const AdminAttendance = () => {
   const [error, setError] = useState(null);
   const [expandedCourse, setExpandedCourse] = useState(null);
   const [courseStats, setCourseStats] = useState([]);
+  const [markingAttendance, setMarkingAttendance] = useState(false);
 
   useEffect(() => {
     fetchInitialData();
@@ -71,39 +72,66 @@ const AdminAttendance = () => {
     try {
       setLoading(true);
       
-      // Fetch all data in parallel
-      const [coursesRes, deptsRes, studentsRes, teachersRes] = await Promise.allSettled([
-        courseApi.getAll(),
-        departmentApi.getAll(),
-        studentApi.getAll(),
-        staffApi.getStaff()  // Changed from teacherApi to staffApi
-      ]);
-
-      // Process courses
-      if (coursesRes.status === 'fulfilled') {
-        const coursesData = coursesRes.value.data || coursesRes.value;
-        setCourses(coursesData || []);
+      // Fetch courses
+      const coursesRes = await courseApi.getAll();
+      let coursesData = [];
+      if (coursesRes?.success && coursesRes?.data) {
+        coursesData = coursesRes.data;
+      } else if (Array.isArray(coursesRes)) {
+        coursesData = coursesRes;
+      } else if (coursesRes?.data && Array.isArray(coursesRes.data)) {
+        coursesData = coursesRes.data;
       }
+      setCourses(coursesData);
 
-      // Process departments
-      if (deptsRes.status === 'fulfilled') {
-        const deptsData = deptsRes.value.data || deptsRes.value;
-        setDepartments(deptsData || []);
+      // Fetch departments
+      const deptsRes = await departmentApi.getAll();
+      let deptsData = [];
+      if (deptsRes?.success && deptsRes?.data) {
+        deptsData = deptsRes.data;
+      } else if (Array.isArray(deptsRes)) {
+        deptsData = deptsRes;
+      } else if (deptsRes?.data && Array.isArray(deptsRes.data)) {
+        deptsData = deptsRes.data;
       }
+      setDepartments(deptsData);
 
-      // Process students
-      if (studentsRes.status === 'fulfilled') {
-        const studentsData = studentsRes.value.data || studentsRes.value;
-        setStudents(studentsData || []);
+      // Fetch students
+      const studentsRes = await studentApi.getStudents();
+      let studentsData = [];
+      if (studentsRes?.success && studentsRes?.data) {
+        studentsData = studentsRes.data;
+      } else if (Array.isArray(studentsRes)) {
+        studentsData = studentsRes;
+      } else if (studentsRes?.data && Array.isArray(studentsRes.data)) {
+        studentsData = studentsRes.data;
       }
+      
+      // Enhance student data with user info
+      const enhancedStudents = studentsData.map(s => ({
+        ...s,
+        name: s.user?.name || s.name,
+        email: s.user?.email || s.email
+      }));
+      setStudents(enhancedStudents);
 
-      // Process teachers
-      if (teachersRes.status === 'fulfilled') {
-        const teachersData = teachersRes.value.data || teachersRes.value;
-        setTeachers(teachersData || []);
+      // Fetch teachers/staff
+      const teachersRes = await staffApi.getStaff();
+      let teachersData = [];
+      if (teachersRes?.success && teachersRes?.data) {
+        teachersData = teachersRes.data;
+      } else if (Array.isArray(teachersRes)) {
+        teachersData = teachersRes;
       }
+      setTeachers(teachersData);
 
-      // Fetch initial attendance data
+      // Set initial stats
+      setStats(prev => ({
+        ...prev,
+        totalStudents: enhancedStudents.length,
+        totalCourses: coursesData.length
+      }));
+
       await fetchAttendanceData();
       await fetchAttendanceStats();
 
@@ -119,36 +147,34 @@ const AdminAttendance = () => {
     try {
       setRefreshing(true);
       
-      // Prepare params for getAllAttendance
       const params = {
         date: selectedDate,
-        limit: 1000 // Get all records for the selected date
+        limit: 1000
       };
       
-      // Add course filter if selected
       if (selectedCourse !== 'all') {
-        params.courseId = selectedCourse;
+        params.courseId = parseInt(selectedCourse);
       }
 
-      // Call the API - using getAllAttendance from your api
       const response = await attendanceApi.getAllAttendance(params);
       
-      // Handle different response structures
       let records = [];
-      if (response?.data) {
+      if (response?.data && Array.isArray(response.data)) {
         records = response.data;
       } else if (Array.isArray(response)) {
         records = response;
-      } else if (response?.records) {
+      } else if (response?.records && Array.isArray(response.records)) {
         records = response.records;
       }
 
-      // Filter by department if needed (client-side filtering since API might not support it)
+      // Filter by department if needed
       if (selectedDepartment !== 'all' && records.length > 0) {
-        records = records.filter(record => 
-          record.department === selectedDepartment || 
-          record.course?.department === selectedDepartment
-        );
+        records = records.filter(record => {
+          const course = courses.find(c => c.id === record.courseId);
+          return course?.department === selectedDepartment || 
+                 record.course?.department === selectedDepartment ||
+                 record.department === selectedDepartment;
+        });
       }
 
       setAttendanceData(records);
@@ -164,10 +190,9 @@ const AdminAttendance = () => {
 
   const fetchAttendanceStats = async () => {
     try {
-      // Prepare params for getAttendanceStats
       const params = {};
       if (selectedCourse !== 'all') {
-        params.courseId = selectedCourse;
+        params.courseId = parseInt(selectedCourse);
       }
       if (selectedDate) {
         params.startDate = selectedDate;
@@ -177,36 +202,54 @@ const AdminAttendance = () => {
       const response = await attendanceApi.getAttendanceStats(params);
       
       if (response?.data) {
-        // Calculate stats from response
         const statsData = response.data;
         
-        // Get today's stats from the response
-        const todayStats = statsData.summary?.today || {};
-        const overallStats = statsData.summary?.overall || {};
+        // Calculate today's stats
+        let presentCount = 0, absentCount = 0, lateCount = 0;
+        
+        if (statsData.dailyStats && statsData.dailyStats[selectedDate]) {
+          const dayStats = statsData.dailyStats[selectedDate];
+          presentCount = dayStats.present || 0;
+          absentCount = dayStats.absent || 0;
+          lateCount = dayStats.late || 0;
+        }
         
         setStats({
-          totalStudents: statsData.totalStudents || students.length || 0,
-          presentToday: todayStats.present || 0,
-          absentToday: todayStats.absent || 0,
-          lateToday: todayStats.late || 0,
-          averageAttendance: overallStats.average || 0,
-          totalCourses: statsData.totalCourses || courses.length || 0
+          totalStudents: students.length,
+          presentToday: presentCount,
+          absentToday: absentCount,
+          lateToday: lateCount,
+          averageAttendance: statsData.overallAverage || 0,
+          totalCourses: courses.length
         });
 
-        // Set course stats if available
-        if (statsData.courseStats) {
-          setCourseStats(statsData.courseStats);
+        // Calculate course-wise stats from attendance records
+        const courseStatsMap = new Map();
+        
+        for (const record of attendanceData) {
+          const course = courses.find(c => c.id === record.courseId);
+          if (!course) continue;
+          
+          if (!courseStatsMap.has(course.id)) {
+            courseStatsMap.set(course.id, {
+              courseId: course.id,
+              courseName: course.name,
+              courseCode: course.code,
+              present: 0,
+              absent: 0,
+              late: 0,
+              total: 0
+            });
+          }
+          
+          const courseStat = courseStatsMap.get(course.id);
+          if (record.status === 'PRESENT') courseStat.present++;
+          else if (record.status === 'ABSENT') courseStat.absent++;
+          else if (record.status === 'LATE') courseStat.late++;
+          courseStat.total++;
         }
-      } else {
-        // Use calculated stats from students
-        setStats({
-          totalStudents: students.length || 0,
-          presentToday: 0,
-          absentToday: 0,
-          lateToday: 0,
-          averageAttendance: 0,
-          totalCourses: courses.length || 0
-        });
+        
+        setCourseStats(Array.from(courseStatsMap.values()));
       }
     } catch (err) {
       console.error('Error fetching attendance stats:', err);
@@ -214,12 +257,16 @@ const AdminAttendance = () => {
   };
 
   const handleMarkAttendance = async (studentId, status) => {
-    try {
-      if (selectedCourse === 'all') {
-        alert('Please select a specific course to mark attendance');
-        return;
-      }
+    if (selectedCourse === 'all') {
+      alert('Please select a specific course to mark attendance');
+      return;
+    }
 
+    if (markingAttendance) return;
+    
+    try {
+      setMarkingAttendance(true);
+      
       const response = await attendanceApi.markSingleAttendance(
         parseInt(selectedCourse),
         selectedDate,
@@ -227,14 +274,22 @@ const AdminAttendance = () => {
         status
       );
 
-      if (response?.success) {
+      if (response?.success || response?.data) {
         // Refresh data
         await fetchAttendanceData();
         await fetchAttendanceStats();
+        
+        // Show success feedback
+        const statusText = status === 'PRESENT' ? 'Present' : status === 'ABSENT' ? 'Absent' : 'Late';
+        alert(`Marked ${statusText} successfully!`);
+      } else {
+        alert('Failed to mark attendance: ' + (response?.message || 'Unknown error'));
       }
     } catch (err) {
       console.error('Error marking attendance:', err);
-      alert('Failed to mark attendance');
+      alert('Failed to mark attendance: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setMarkingAttendance(false);
     }
   };
 
@@ -243,20 +298,27 @@ const AdminAttendance = () => {
     fetchAttendanceStats();
   };
 
-  // Export to Excel
   const exportToExcel = () => {
     try {
       const exportData = filteredData.map(record => ({
         'Roll No': record.rollNo || '',
         'Student Name': record.studentName || '',
         'Course': record.courseName || '',
+        'Course Code': record.courseCode || '',
         'Department': record.department || '',
         'Status': record.status || '',
+        'Date': record.date || selectedDate,
         'Time': formatTime(record.time)
       }));
 
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(exportData);
+      
+      // Set column widths
+      ws['!cols'] = [
+        { wch: 12 }, { wch: 25 }, { wch: 25 }, { wch: 12 }, { wch: 20 }, { wch: 10 }, { wch: 12 }, { wch: 10 }
+      ];
+      
       XLSX.utils.book_append_sheet(wb, ws, 'Attendance');
       XLSX.writeFile(wb, `attendance_${selectedDate}.xlsx`);
       
@@ -267,42 +329,30 @@ const AdminAttendance = () => {
     }
   };
 
-  // Export to PDF
   const exportToPDF = () => {
     try {
       const doc = new jsPDF();
       
-      // Add title
       doc.setFontSize(18);
       doc.text('Attendance Report', 14, 22);
       doc.setFontSize(11);
       doc.text(`Date: ${selectedDate}`, 14, 30);
-      doc.text(`Total Records: ${filteredData.length}`, 14, 36);
+      doc.text(`Course: ${selectedCourse === 'all' ? 'All Courses' : courses.find(c => c.id == selectedCourse)?.name || 'Selected'}`, 14, 36);
+      doc.text(`Total Records: ${filteredData.length}`, 14, 42);
 
-      // Prepare table data
-      const tableColumn = [
-        'Roll No', 
-        'Student Name', 
-        'Course', 
-        'Department', 
-        'Status', 
-        'Time'
-      ];
-      
+      const tableColumn = ['Roll No', 'Student Name', 'Course', 'Status', 'Time'];
       const tableRows = filteredData.map(record => [
         record.rollNo || '',
         record.studentName || '',
         record.courseName || '',
-        record.department || '',
         record.status || '',
         formatTime(record.time)
       ]);
 
-      // Add table
       doc.autoTable({
         head: [tableColumn],
         body: tableRows,
-        startY: 45,
+        startY: 50,
         styles: { fontSize: 8 },
         headStyles: { fillColor: [59, 130, 246] }
       });
@@ -315,7 +365,6 @@ const AdminAttendance = () => {
     }
   };
 
-  // Handle file import
   const handleFileImport = (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -331,7 +380,7 @@ const AdminAttendance = () => {
         const worksheet = workbook.Sheets[sheetName];
         const jsonData = XLSX.utils.sheet_to_json(worksheet);
         
-        setImportPreview(jsonData.slice(0, 5)); // Show first 5 rows as preview
+        setImportPreview(jsonData.slice(0, 5));
         setShowImportPreview(true);
       } catch (err) {
         console.error('Error reading file:', err);
@@ -341,8 +390,9 @@ const AdminAttendance = () => {
     reader.readAsBinaryString(file);
   };
 
-  // Confirm import
   const confirmImport = async () => {
+    if (!importFile) return;
+    
     try {
       setLoading(true);
       
@@ -355,27 +405,36 @@ const AdminAttendance = () => {
           const worksheet = workbook.Sheets[sheetName];
           const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
-          // Import each attendance record
-          for (const row of jsonData) {
-            const attendanceData = {
-              studentId: row['Student ID'] || row['studentId'] || '',
-              courseId: row['Course ID'] || row['courseId'] || '',
-              date: row['Date'] || row['date'] || selectedDate,
-              status: row['Status'] || row['status'] || 'PRESENT',
-              time: row['Time'] || row['time'] || new Date().toISOString()
-            };
+          let successCount = 0;
+          let errorCount = 0;
 
-            if (attendanceData.studentId && attendanceData.courseId) {
-              await attendanceApi.markSingleAttendance(
-                parseInt(attendanceData.courseId),
-                attendanceData.date,
-                parseInt(attendanceData.studentId),
-                attendanceData.status
-              );
+          for (const row of jsonData) {
+            const studentId = row['Student ID'] || row['studentId'];
+            const courseId = row['Course ID'] || row['courseId'];
+            const date = row['Date'] || row['date'] || selectedDate;
+            const status = (row['Status'] || row['status'] || 'PRESENT').toUpperCase();
+            const time = row['Time'] || row['time'];
+
+            if (studentId && courseId) {
+              try {
+                await attendanceApi.markSingleAttendance(
+                  parseInt(courseId),
+                  date,
+                  parseInt(studentId),
+                  status,
+                  time
+                );
+                successCount++;
+              } catch (err) {
+                errorCount++;
+                console.error('Error importing record:', err);
+              }
+            } else {
+              errorCount++;
             }
           }
 
-          alert(`Successfully imported ${jsonData.length} attendance records!`);
+          alert(`Import completed!\nSuccess: ${successCount}\nFailed: ${errorCount}`);
           setShowImportPreview(false);
           setShowImportMenu(false);
           setImportFile(null);
@@ -396,17 +455,16 @@ const AdminAttendance = () => {
     }
   };
 
-  // Download sample Excel template
   const downloadSampleTemplate = () => {
     const sampleData = [
       {
-        'Student ID': '1',
+        'Student ID': 1,
         'Student Name': 'John Doe',
-        'Course ID': '101',
+        'Course ID': 101,
         'Course Name': 'Computer Science',
         'Date': selectedDate,
         'Status': 'PRESENT',
-        'Time': '09:00 AM'
+        'Time': new Date().toLocaleTimeString()
       }
     ];
 
@@ -414,40 +472,37 @@ const AdminAttendance = () => {
     const ws = XLSX.utils.json_to_sheet(sampleData);
     XLSX.utils.book_append_sheet(wb, ws, 'Template');
     XLSX.writeFile(wb, 'attendance_import_template.xlsx');
+    setShowImportMenu(false);
   };
 
-  // Format attendance data for display with real student data
   const formatAttendanceRecord = (record) => {
-    // Find student from our students list
     const student = students.find(s => s.id === record.studentId);
+    const course = courses.find(c => c.id === record.courseId);
     
     return {
       id: record.id,
       studentId: record.studentId,
-      studentName: record.student?.user?.name || record.student?.name || student?.name || record.studentName,
-      rollNo: record.student?.rollNo || student?.rollNo || record.rollNo,
+      studentName: student?.name || record.studentName || 'Unknown',
+      rollNo: student?.rollNo || record.rollNo || '-',
       courseId: record.courseId,
-      courseName: record.course?.name || record.courseName,
-      courseCode: record.course?.code || record.courseCode,
-      department: record.course?.department || record.department,
-      status: record.status,
+      courseName: course?.name || record.courseName || 'Unknown',
+      courseCode: course?.code || record.courseCode || '-',
+      department: course?.department || record.department || '-',
+      status: record.status || 'ABSENT',
       time: record.createdAt || record.time,
-      date: record.date
+      date: record.date || selectedDate
     };
   };
 
-  // Filter data based on search
   const filteredData = attendanceData
     .map(record => formatAttendanceRecord(record))
     .filter(record => {
       const matchesSearch = 
         (record.studentName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-        (record.rollNo?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-        (record.studentId?.toString() || '').includes(searchTerm);
+        (record.rollNo?.toLowerCase() || '').includes(searchTerm.toLowerCase());
       return matchesSearch;
     });
 
-  // Calculate summary
   const summary = {
     present: filteredData.filter(r => r.status === 'PRESENT').length,
     absent: filteredData.filter(r => r.status === 'ABSENT').length,
@@ -487,10 +542,7 @@ const AdminAttendance = () => {
     }
   };
 
-  // Get attendance status options from API
-  const statusOptions = attendanceApi.getAttendanceStatuses();
-
-  if (loading) {
+  if (loading && !refreshing) {
     return (
       <div className="loading-container">
         <div className="spinner"></div>
@@ -506,11 +558,10 @@ const AdminAttendance = () => {
         <div>
           <h1 className="header-title">Attendance Management</h1>
           <p className="header-subtitle">
-            {selectedDate} • {filteredData.length} records found • {students.length} Students • {teachers.length} Teachers
+            {selectedDate} • {filteredData.length} records found • {students.length} Students • {courses.length} Courses
           </p>
         </div>
         <div className="header-actions">
-          {/* Import Button with Text */}
           <div className="import-dropdown">
             <button 
               className="btn-import"
@@ -541,7 +592,6 @@ const AdminAttendance = () => {
             )}
           </div>
 
-          {/* Export Button with Text */}
           <div className="export-dropdown">
             <button 
               className="btn-export"
@@ -592,7 +642,7 @@ const AdminAttendance = () => {
                 Found {importPreview.length} records to import. Preview of first 5 rows:
               </p>
               <div className="import-preview-table">
-                <table>
+                <table className="preview-table">
                   <thead>
                     <tr>
                       {Object.keys(importPreview[0] || {}).map(key => (
@@ -604,7 +654,7 @@ const AdminAttendance = () => {
                     {importPreview.map((row, index) => (
                       <tr key={index}>
                         {Object.values(row).map((value, i) => (
-                          <td key={i}>{value}</td>
+                          <td key={i}>{String(value)}</td>
                         ))}
                       </tr>
                     ))}
@@ -633,7 +683,7 @@ const AdminAttendance = () => {
           </div>
           <div className="stat-info">
             <span className="stat-label">Total Students</span>
-            <span className="stat-value">{students.length || 0}</span>
+            <span className="stat-value">{students.length}</span>
           </div>
         </div>
         <div className="stat-item">
@@ -642,10 +692,10 @@ const AdminAttendance = () => {
           </div>
           <div className="stat-info">
             <span className="stat-label">Present Today</span>
-            <span className="stat-value">{stats.presentToday || 0}</span>
+            <span className="stat-value">{stats.presentToday}</span>
             <span className="stat-percent">
               {students.length > 0 
-                ? Math.round(((stats.presentToday || 0) / students.length) * 100) 
+                ? Math.round((stats.presentToday / students.length) * 100) 
                 : 0}%
             </span>
           </div>
@@ -656,10 +706,10 @@ const AdminAttendance = () => {
           </div>
           <div className="stat-info">
             <span className="stat-label">Absent Today</span>
-            <span className="stat-value">{stats.absentToday || 0}</span>
+            <span className="stat-value">{stats.absentToday}</span>
             <span className="stat-percent">
               {students.length > 0 
-                ? Math.round(((stats.absentToday || 0) / students.length) * 100) 
+                ? Math.round((stats.absentToday / students.length) * 100) 
                 : 0}%
             </span>
           </div>
@@ -670,7 +720,7 @@ const AdminAttendance = () => {
           </div>
           <div className="stat-info">
             <span className="stat-label">Avg Attendance</span>
-            <span className="stat-value">{stats.averageAttendance || 0}%</span>
+            <span className="stat-value">{Math.round(stats.averageAttendance)}%</span>
           </div>
         </div>
       </div>
@@ -781,7 +831,7 @@ const AdminAttendance = () => {
             <Users size={24} />
           </div>
           <div className="summary-details">
-            <span className="summary-label">Total</span>
+            <span className="summary-label">Total Records</span>
             <span className="summary-value">{summary.total}</span>
           </div>
         </div>
@@ -792,23 +842,23 @@ const AdminAttendance = () => {
         <table className="attendance-table">
           <thead>
             <tr>
-              <th style={{ width: '100px' }}>ROLL NO</th>
-              <th style={{ width: '200px' }}>STUDENT NAME</th>
-              <th style={{ width: '200px' }}>COURSE</th>
-              <th style={{ width: '150px' }}>DEPARTMENT</th>
-              <th style={{ width: '120px' }}>STATUS</th>
-              <th style={{ width: '100px' }}>TIME</th>
-              <th style={{ width: '150px' }}>ACTIONS</th>
+              <th>ROLL NO</th>
+              <th>STUDENT NAME</th>
+              <th>COURSE</th>
+              <th>DEPARTMENT</th>
+              <th>STATUS</th>
+              <th>TIME</th>
+              <th>ACTIONS</th>
             </tr>
           </thead>
           <tbody>
             {filteredData.length > 0 ? (
               filteredData.map((record, index) => (
                 <tr key={record.id || index}>
-                  <td className="roll-cell">{record.rollNo || '-'}</td>
-                  <td className="name-cell">{record.studentName || '-'}</td>
-                  <td>{record.courseName || '-'}</td>
-                  <td>{record.department || '-'}</td>
+                  <td className="roll-cell">{record.rollNo}</td>
+                  <td className="name-cell">{record.studentName}</td>
+                  <td>{record.courseName}</td>
+                  <td>{record.department}</td>
                   <td>
                     <span className={`status-badge ${record.status?.toLowerCase()}`}>
                       {getStatusIcon(record.status)}
@@ -821,7 +871,7 @@ const AdminAttendance = () => {
                       className="action-btn present" 
                       onClick={() => handleMarkAttendance(record.studentId, 'PRESENT')}
                       title="Mark Present"
-                      disabled={selectedCourse === 'all'}
+                      disabled={selectedCourse === 'all' || markingAttendance}
                     >
                       <CheckCircle size={16} />
                     </button>
@@ -829,7 +879,7 @@ const AdminAttendance = () => {
                       className="action-btn absent" 
                       onClick={() => handleMarkAttendance(record.studentId, 'ABSENT')}
                       title="Mark Absent"
-                      disabled={selectedCourse === 'all'}
+                      disabled={selectedCourse === 'all' || markingAttendance}
                     >
                       <XCircle size={16} />
                     </button>
@@ -837,7 +887,7 @@ const AdminAttendance = () => {
                       className="action-btn late" 
                       onClick={() => handleMarkAttendance(record.studentId, 'LATE')}
                       title="Mark Late"
-                      disabled={selectedCourse === 'all'}
+                      disabled={selectedCourse === 'all' || markingAttendance}
                     >
                       <Clock size={16} />
                     </button>
@@ -868,11 +918,9 @@ const AdminAttendance = () => {
           <h3 className="summary-title">Course-wise Attendance</h3>
           <div className="course-grid">
             {courseStats.slice(0, expandedCourse ? courseStats.length : 4).map((course, index) => {
-              const percentage = attendanceApi.calculateAttendancePercentage(
-                course.present || 0, 
-                course.total || 0
-              );
-              const color = attendanceApi.getAttendanceColor(percentage);
+              const total = course.present + course.absent + course.late;
+              const percentage = total > 0 ? Math.round((course.present / total) * 100) : 0;
+              const color = percentage >= 75 ? '#10b981' : percentage >= 60 ? '#f59e0b' : '#ef4444';
               
               return (
                 <div key={index} className="course-card">
@@ -883,11 +931,11 @@ const AdminAttendance = () => {
                   <div className="course-stats">
                     <div>
                       <span className="stat-label-sm">Present</span>
-                      <span className="stat-value-sm green">{course.present || 0}</span>
+                      <span className="stat-value-sm green">{course.present}</span>
                     </div>
                     <div>
                       <span className="stat-label-sm">Total</span>
-                      <span className="stat-value-sm blue">{course.total || 0}</span>
+                      <span className="stat-value-sm blue">{total}</span>
                     </div>
                   </div>
                   <div className="progress">
