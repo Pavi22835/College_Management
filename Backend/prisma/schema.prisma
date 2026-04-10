@@ -131,7 +131,7 @@ model Course {
   status      String       @default("ACTIVE")
   schedule    String?
   room        String?
-  batch       String?      // 👈 ADDED: Batch for the course (e.g., "2019-2023", "2020-2024")
+  batch       String?      // Batch for the course (e.g., "2019-2023", "2020-2024")
   deletedAt   DateTime?
   deletedBy   Int?
   createdAt   DateTime     @default(now())
@@ -164,8 +164,25 @@ model Lesson {
   updatedAt   DateTime @updatedAt
   course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   materials   Material[]
+  topics      Topic[]  // 👈 ADDED: Topics under this lesson
 
   @@index([courseId])
+  @@index([order])
+}
+
+// 👇 NEW: Topic Model - Represents subjects/topics under a lesson
+model Topic {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  duration    String?  // e.g., "45 mins", "1 hour"
+  order       Int      @default(0) // For ordering topics within a lesson
+  lessonId    Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@index([lessonId])
   @@index([order])
 }
 
@@ -201,7 +218,7 @@ model Assignment {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  submissions AssignmentSubmission[] // 👈 ADDED: Assignment submissions
+  submissions AssignmentSubmission[] // Assignment submissions
 
   @@index([courseId])
   @@index([dueDate])
