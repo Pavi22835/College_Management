@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import courseApi from '../../api/courseApi';
 import { departmentApi } from '../../api/adminApi';
+import { DEPARTMENTS } from '../../constants/departments';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -224,18 +225,9 @@ const AdminCourses = () => {
   }, [searchTerm, departmentFilter, courses, deletedCourses, activeTab]);
 
   const fetchDepartments = async () => {
-    try {
-      const response = await departmentApi.getAll();
-      let deptsData = [];
-      if (response?.success && response?.data) {
-        deptsData = response.data;
-      } else if (Array.isArray(response)) {
-        deptsData = response;
-      }
-      setDepartments(deptsData);
-    } catch (err) {
-      console.error('Error fetching departments:', err);
-    }
+    // Use centralized DEPARTMENTS constant (all 25 departments)
+    console.log('📚 Using departments constant (all 25 departments)');
+    setDepartments(DEPARTMENTS);
   };
 
   const fetchTeachers = async () => {
@@ -1062,9 +1054,9 @@ const AdminCourses = () => {
                     <label>Department *</label>
                     <select name="department" value={formData.department} onChange={handleChange} required>
                       <option value="">Select Department</option>
-                      {departments.map(dept => (
-                        <option key={dept.id || dept.name} value={dept.name || dept}>
-                          {dept.name || dept}
+                      {departments.map((dept, idx) => (
+                        <option key={idx} value={dept}>
+                          {dept}
                         </option>
                       ))}
                     </select>

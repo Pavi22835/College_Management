@@ -12,6 +12,7 @@ import {
   CheckCircle
 } from 'lucide-react';
 import { departmentApi } from '../../api/adminApi';
+import { DEPARTMENTS } from '../../constants/departments';
 import Spinner from '../../components/common/Spinner';
 import './Departments.css';
 
@@ -31,42 +32,18 @@ const Departments = () => {
     name: ''
   });
 
-  // Department Code Mapping (Short Name to Full Name)
-  const departmentCodeMap = {
-    "CS": "Computer Science",
-    "CSE": "Computer Science and Engineering",
-    "IT": "Information Technology",
-    "MECH": "Mechanical Engineering",
-    "ECE": "Electronics and Communication Engineering",
-    "EI": "Electronics and Instrumentation Engineering",
-    "ICE": "Instrumentation and Control Engineering",
-    "CSD": "Computer Science and Design",
-    "CIVIL": "Civil Engineering",
-    "EEE": "Electrical and Electronics Engineering",
-    "BME": "Biomedical Engineering",
-    "AE": "Aerospace Engineering",
-    "AUTO": "Automobile Engineering",
-    "CHEM": "Chemical Engineering",
-    "COM": "Bachelor of Commerce",
-    "ENG": "Bachelor of Arts in English",
-    "MATH": "Bachelor of Science in Mathematics",
-    "TAM": "Bachelor of Arts in Tamil",
-    "HIS": "Bachelor of Arts in History",
-    "BBA": "Bachelor of Business Administration",
-    "ECO": "Bachelor of Arts in Economics",
-    "POL": "Bachelor of Arts in Political Science",
-    "PHY": "Physics",
-    "CHE": "Chemistry",
-    "BIO": "Biology"
-  };
+  // Full department names list from centralized constant
+  const departmentOptions = [...DEPARTMENTS].sort();
 
-  // Full department names list for dropdown (using full names from mapping)
-  const departmentOptions = Object.values(departmentCodeMap).sort();
-
-  // Reverse mapping: Full Name -> Short Code
+  // Get code from full name (simple abbreviation generator)
   const getCodeFromFullName = (fullName) => {
-    const entry = Object.entries(departmentCodeMap).find(([code, name]) => name === fullName);
-    return entry ? entry[0] : fullName.substring(0, 3).toUpperCase();
+    if (!fullName) return '';
+    const words = fullName.split(' ');
+    if (words.length === 1) {
+      return fullName.substring(0, 4).toUpperCase();
+    }
+    // For multi-word departments, take first letter of first word + first 2-3 letters of last word
+    return (words[0].substring(0, 1) + words[words.length - 1].substring(0, 3)).toUpperCase();
   };
 
   useEffect(() => {
