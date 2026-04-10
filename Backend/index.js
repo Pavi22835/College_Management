@@ -19,6 +19,7 @@ import courseRoutes from "./src/routes/courseRoutes.js";
 import attendanceRoutes from "./src/routes/attendanceRoutes.js";
 import lessonRoutes from "./src/routes/lessonRoutes.js";
 import materialRoutes from "./src/routes/materialRoutes.js";
+import topicRoutes from "./src/routes/topicRoutes.js";  // ← ADD THIS
 
 dotenv.config();
 
@@ -49,7 +50,7 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 /* -------------------- Static Files -------------------- */
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-/* -------------------- Request Logger (Optional) -------------------- */
+/* -------------------- Request Logger -------------------- */
 app.use((req, res, next) => {
   console.log(`📥 ${req.method} ${req.url}`);
   next();
@@ -95,8 +96,11 @@ app.use("/api/attendance", attendanceRoutes);
 // Lesson routes
 app.use("/api", lessonRoutes);
 
-// Material routes (file uploads)
+// Material routes
 app.use("/api/materials", materialRoutes);
+
+// Topic routes - ADD THIS LINE
+app.use("/api", topicRoutes);
 
 /* -------------------- Root Route -------------------- */
 app.get("/", (req, res) => {
@@ -114,7 +118,8 @@ app.get("/", (req, res) => {
       courses: "/api/courses",
       attendance: "/api/attendance",
       dashboard: "/api/dashboard",
-      lessons: "/api/courses/:courseId/lessons"
+      lessons: "/api/courses/:courseId/lessons",
+      topics: "/api/lessons/:lessonId/topics"
     }
   });
 });
@@ -145,7 +150,12 @@ app.use((req, res) => {
       "GET /api/staff/mentors",
       "GET /api/staff/profile",
       "GET /api/admin/staff",
-      "POST /api/admin/staff"
+      "POST /api/admin/staff",
+      "GET /api/courses",
+      "POST /api/courses/:courseId/lessons",
+      "GET /api/courses/:courseId/lessons",
+      "POST /api/lessons/:lessonId/topics",
+      "GET /api/lessons/:lessonId/topics"
     ]
   });
 });
@@ -157,7 +167,6 @@ app.use((err, req, res, next) => {
   console.error("Error message:", err.message);
   console.error("Error stack:", err.stack);
 
-  // Handle Prisma specific errors
   if (err.code === 'P2002') {
     return res.status(400).json({
       success: false,
@@ -174,7 +183,6 @@ app.use((err, req, res, next) => {
     });
   }
 
-  // Handle JWT errors
   if (err.name === 'JsonWebTokenError') {
     return res.status(401).json({
       success: false,
@@ -191,7 +199,6 @@ app.use((err, req, res, next) => {
     });
   }
 
-  // Default error response
   res.status(err.status || 500).json({
     success: false,
     message: err.message || "Internal Server Error",
@@ -212,6 +219,9 @@ const server = app.listen(PORT, () => {
   console.log(`📍 Test Endpoint: http://localhost:${PORT}/api/test`);
   console.log(`📍 Staff API: http://localhost:${PORT}/api/staff`);
   console.log(`📍 Admin Staff API: http://localhost:${PORT}/api/admin/staff`);
+  console.log(`📍 Courses API: http://localhost:${PORT}/api/courses`);
+  console.log(`📍 Lessons API: http://localhost:${PORT}/api/courses/:courseId/lessons`);
+  console.log(`📍 Topics API: http://localhost:${PORT}/api/lessons/:lessonId/topics`);
   console.log("=================================\n");
 });
 
@@ -223,7 +233,6 @@ const gracefulShutdown = () => {
     process.exit(0);
   });
   
-  // Force close after 10 seconds
   setTimeout(() => {
     console.error("⚠️ Could not close connections in time, forcefully shutting down");
     process.exit(1);

@@ -5,6 +5,7 @@ import {
   FiClock, 
   FiCalendar,
   FiChevronRight,
+  FiChevronLeft,
   FiUser,
   FiTrendingUp,
   FiAward,
@@ -40,7 +41,15 @@ import {
   FiFile,
   FiImage,
   FiHash,
-  FiChevronDown
+  FiChevronDown,
+  FiFolder,
+  FiList,
+  FiGrid as FiGridIcon,
+  FiMenu,
+  FiMoreVertical,
+  FiCopy,
+  FiMove,
+  FiBarChart
 } from 'react-icons/fi';
 import staffApi from '../../api/staffApi';
 import courseApi from '../../api/courseApi';
@@ -96,18 +105,36 @@ const StaffCourses = () => {
     averageProgress: 0,
     completedCourses: 0
   });
+  
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(12);
+  
+  // Subject management states
+  const [showSubjectModal, setShowSubjectModal] = useState(false);
+  const [selectedUnitForSubject, setSelectedUnitForSubject] = useState(null);
+  const [subjectForm, setSubjectForm] = useState({
+    title: '',
+    description: '',
+    duration: '30 mins'
+  });
+  const [editingSubject, setEditingSubject] = useState(null);
 
   // Searchable department dropdown states
   const [departmentSearchTerm, setDepartmentSearchTerm] = useState('');
   const [showDepartmentDropdown, setShowDepartmentDropdown] = useState(false);
   const departmentSearchRef = useRef(null);
 
-  // Filter departments based on search term
   const filteredDepartments = departments.filter(dept =>
     dept.toLowerCase().includes(departmentSearchTerm.toLowerCase())
   );
 
-  // Close dropdown when clicking outside
+  // Pagination calculations
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentCourses = filteredCourses.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredCourses.length / itemsPerPage);
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (departmentSearchRef.current && !departmentSearchRef.current.contains(event.target)) {
@@ -145,6 +172,7 @@ const StaffCourses = () => {
     }
     
     setFilteredCourses(filtered);
+    setCurrentPage(1);
   }, [searchTerm, batchFilter, courses]);
 
   useEffect(() => {
@@ -153,9 +181,20 @@ const StaffCourses = () => {
         try {
           const lessons = await courseApi.getLessons(selectedCourse.id);
           if (lessons && Array.isArray(lessons)) {
+            const lessonsWithSubjects = await Promise.all(lessons.map(async (lesson) => {
+              try {
+                const topics = await courseApi.getTopicsByLesson(lesson.id);
+                return {
+                  ...lesson,
+                  subjects: topics || []
+                };
+              } catch (err) {
+                return { ...lesson, subjects: [] };
+              }
+            }));
             setSelectedCourse(prev => ({
               ...prev,
-              lessons: lessons
+              lessons: lessonsWithSubjects
             }));
           }
         } catch (error) {
@@ -180,7 +219,6 @@ const StaffCourses = () => {
           return yearB - yearA;
         });
         setBatchList(sortedBatches);
-        console.log('✅ Batches from getTeacherStudentBatches:', sortedBatches);
         return;
       }
       
@@ -206,9 +244,7 @@ const StaffCourses = () => {
           return yearB - yearA;
         });
         setBatchList(sortedBatches);
-        console.log('✅ Batches extracted from students:', sortedBatches);
       } else {
-        console.log('ℹ️ No batches found in student data');
         setBatchList([]);
       }
     } catch (error) {
@@ -220,7 +256,6 @@ const StaffCourses = () => {
   };
 
   const fetchDepartments = async () => {
-    console.log('📚 Using departments constant (all 25 departments)');
     setDepartments(DEPARTMENTS);
   };
 
@@ -256,7 +291,10 @@ const StaffCourses = () => {
         progress: course.progress || 0,
         attendance: course.attendance || 0,
         studentsCount: course.studentsCount || 0,
-        lessons: course.lessons || []
+        lessons: (course.lessons || []).map(lesson => ({
+          ...lesson,
+          subjects: lesson.subjects || []
+        }))
       }));
 
       const courseBatches = [...new Set(enhancedCourses.map(c => c.batch).filter(Boolean))];
@@ -408,7 +446,6 @@ const StaffCourses = () => {
     }
   };
 
-  // Handle department selection from searchable dropdown
   const handleDepartmentSelect = (dept) => {
     setNewCourse({...newCourse, department: dept});
     setDepartmentSearchTerm(dept);
@@ -431,7 +468,6 @@ const StaffCourses = () => {
     if (selectedCourse.id > 2147483647) {
       setErrorMessage('❌ This course was not saved to the database. Please create a new course from scratch.');
       setTimeout(() => setErrorMessage(''), 5000);
-      console.error('Invalid course ID (too large):', selectedCourse.id);
       return;
     }
 
@@ -440,18 +476,21 @@ const StaffCourses = () => {
         title: lessonForm.title,
         description: lessonForm.description,
         duration: lessonForm.duration,
-        order: (selectedCourse.lessons || []).length
+        order: (selectedCourse.lessons || []).length,
+        subjects: []
       };
-
-      console.log('📝 Adding lesson to course ID:', selectedCourse.id);
-      console.log('📋 Lesson data:', lessonData);
 
       const response = await courseApi.createLesson(selectedCourse.id, lessonData);
 
       if (response?.success) {
+        const newLesson = {
+          ...response.data,
+          subjects: []
+        };
+        
         const updatedCourse = {
           ...selectedCourse,
-          lessons: [...(selectedCourse.lessons || []), response.data]
+          lessons: [...(selectedCourse.lessons || []), newLesson]
         };
 
         setSelectedCourse(updatedCourse);
@@ -463,13 +502,13 @@ const StaffCourses = () => {
         setLessonForm({ title: '', duration: '30 mins', description: '' });
         setEditingLesson(null);
         
-        setSuccessMessage('Lesson added successfully!');
+        setSuccessMessage('Unit added successfully!');
         setTimeout(() => setSuccessMessage(''), 3000);
       }
     } catch (error) {
       console.error('Error adding lesson:', error);
       const errorMsg = error.response?.data?.details || error.response?.data?.message || error.message;
-      setErrorMessage('Failed to add lesson: ' + errorMsg);
+      setErrorMessage('Failed to add unit: ' + errorMsg);
       setTimeout(() => setErrorMessage(''), 5000);
     }
   };
@@ -502,7 +541,7 @@ const StaffCourses = () => {
 
       if (response?.success) {
         const updatedLessons = selectedCourse.lessons.map(l => 
-          l.id === editingLesson.id ? response.data : l
+          l.id === editingLesson.id ? { ...response.data, subjects: l.subjects || [] } : l
         );
 
         const updatedCourse = {
@@ -519,18 +558,18 @@ const StaffCourses = () => {
         setLessonForm({ title: '', duration: '30 mins', description: '' });
         setEditingLesson(null);
         
-        setSuccessMessage('Lesson updated successfully!');
+        setSuccessMessage('Unit updated successfully!');
         setTimeout(() => setSuccessMessage(''), 3000);
       }
     } catch (error) {
       console.error('Error updating lesson:', error);
-      setErrorMessage('Failed to update lesson');
+      setErrorMessage('Failed to update unit');
       setTimeout(() => setErrorMessage(''), 3000);
     }
   };
 
   const handleDeleteLesson = async (lessonId) => {
-    if (!window.confirm('Are you sure you want to delete this lesson?')) return;
+    if (!window.confirm('Are you sure you want to delete this unit? All subjects inside will also be deleted.')) return;
 
     try {
       const response = await courseApi.deleteLesson(lessonId);
@@ -548,12 +587,161 @@ const StaffCourses = () => {
           c.id === selectedCourse.id ? updatedCourse : c
         ));
         
-        setSuccessMessage('Lesson deleted successfully!');
+        setSuccessMessage('Unit deleted successfully!');
         setTimeout(() => setSuccessMessage(''), 3000);
       }
     } catch (error) {
       console.error('Error deleting lesson:', error);
-      setErrorMessage('Failed to delete lesson');
+      setErrorMessage('Failed to delete unit');
+      setTimeout(() => setErrorMessage(''), 3000);
+    }
+  };
+
+  // Subject management functions
+  const handleAddSubject = (unit) => {
+    setSelectedUnitForSubject(unit);
+    setEditingSubject(null);
+    setSubjectForm({
+      title: '',
+      description: '',
+      duration: '30 mins'
+    });
+    setShowSubjectModal(true);
+  };
+
+  const handleEditSubject = (unit, subject) => {
+    setSelectedUnitForSubject(unit);
+    setEditingSubject(subject);
+    setSubjectForm({
+      title: subject.title || '',
+      description: subject.description || '',
+      duration: subject.duration || '30 mins'
+    });
+    setShowSubjectModal(true);
+  };
+
+  const handleSaveSubject = async () => {
+    if (!subjectForm.title) {
+      setErrorMessage('Please enter a topic title');
+      setTimeout(() => setErrorMessage(''), 3000);
+      return;
+    }
+
+    if (!selectedCourse || !selectedUnitForSubject) {
+      setErrorMessage('Missing course or unit information');
+      setTimeout(() => setErrorMessage(''), 3000);
+      return;
+    }
+
+    try {
+      if (editingSubject) {
+        const response = await courseApi.updateTopic(editingSubject.id, {
+          title: subjectForm.title,
+          description: subjectForm.description,
+          duration: subjectForm.duration
+        });
+        
+        if (response?.success) {
+          const updatedSubjects = selectedUnitForSubject.subjects.map(sub => 
+            sub.id === editingSubject.id 
+              ? { ...sub, ...subjectForm }
+              : sub
+          );
+          
+          const updatedLessons = selectedCourse.lessons.map(lesson => 
+            lesson.id === selectedUnitForSubject.id
+              ? { ...lesson, subjects: updatedSubjects }
+              : lesson
+          );
+          
+          const updatedCourse = {
+            ...selectedCourse,
+            lessons: updatedLessons
+          };
+          
+          setSelectedCourse(updatedCourse);
+          setCourses(courses.map(c => 
+            c.id === selectedCourse.id ? updatedCourse : c
+          ));
+          
+          setSuccessMessage('Topic updated successfully!');
+        }
+      } else {
+        const response = await courseApi.createTopic(selectedUnitForSubject.id, {
+          title: subjectForm.title,
+          description: subjectForm.description,
+          duration: subjectForm.duration
+        });
+        
+        if (response?.success) {
+          const newSubject = response.data;
+          
+          const updatedSubjects = [...(selectedUnitForSubject.subjects || []), newSubject];
+          
+          const updatedLessons = selectedCourse.lessons.map(lesson => 
+            lesson.id === selectedUnitForSubject.id
+              ? { ...lesson, subjects: updatedSubjects }
+              : lesson
+          );
+          
+          const updatedCourse = {
+            ...selectedCourse,
+            lessons: updatedLessons
+          };
+          
+          setSelectedCourse(updatedCourse);
+          setCourses(courses.map(c => 
+            c.id === selectedCourse.id ? updatedCourse : c
+          ));
+          
+          setSuccessMessage('Topic added successfully!');
+        }
+      }
+      
+      setTimeout(() => setSuccessMessage(''), 3000);
+      setShowSubjectModal(false);
+      setSubjectForm({ title: '', description: '', duration: '30 mins' });
+      setSelectedUnitForSubject(null);
+      setEditingSubject(null);
+      
+    } catch (error) {
+      console.error('Error saving topic:', error);
+      setErrorMessage('Failed to save topic: ' + (error.response?.data?.message || error.message));
+      setTimeout(() => setErrorMessage(''), 3000);
+    }
+  };
+
+  const handleDeleteSubject = async (unit, subjectId) => {
+    if (!window.confirm('Are you sure you want to delete this topic?')) return;
+    
+    try {
+      const response = await courseApi.deleteTopic(subjectId);
+      
+      if (response?.success) {
+        const updatedSubjects = unit.subjects.filter(sub => sub.id !== subjectId);
+        
+        const updatedLessons = selectedCourse.lessons.map(lesson => 
+          lesson.id === unit.id
+            ? { ...lesson, subjects: updatedSubjects }
+            : lesson
+        );
+        
+        const updatedCourse = {
+          ...selectedCourse,
+          lessons: updatedLessons
+        };
+        
+        setSelectedCourse(updatedCourse);
+        setCourses(courses.map(c => 
+          c.id === selectedCourse.id ? updatedCourse : c
+        ));
+        
+        setSuccessMessage('Topic deleted successfully!');
+        setTimeout(() => setSuccessMessage(''), 3000);
+      }
+    } catch (error) {
+      console.error('Error deleting topic:', error);
+      setErrorMessage('Failed to delete topic');
       setTimeout(() => setErrorMessage(''), 3000);
     }
   };
@@ -575,8 +763,6 @@ const StaffCourses = () => {
     try {
       const formData = new FormData();
       formData.append('file', file);
-
-      console.log('📤 Uploading file:', file.name, 'to lesson:', lessonId);
 
       const uploadResponse = await fetch(`http://localhost:3003/api/materials/lesson/${lessonId}/upload`, {
         method: 'POST',
@@ -760,16 +946,6 @@ const StaffCourses = () => {
     }
   };
 
-  const getMaterialBadgeClass = (type) => {
-    switch(type) {
-      case 'video': return 'badge-video';
-      case 'pdf': return 'badge-pdf';
-      case 'word': return 'badge-word';
-      case 'image': return 'badge-image';
-      default: return 'badge-document';
-    }
-  };
-
   const getFilteredManageStudents = () => {
     let students = manageActiveTab === 'enrolled' ? courseStudents : availableStudents;
     
@@ -786,6 +962,18 @@ const StaffCourses = () => {
     }
     
     return students;
+  };
+
+  const goToNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const goToPrevPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
   };
 
   if (loading) {
@@ -895,13 +1083,11 @@ const StaffCourses = () => {
         </div>
       </div>
 
+      {/* Courses Grid - Card Layout */}
       <div className="tc-courses-grid">
-        {filteredCourses.length > 0 ? (
-          filteredCourses.map((course) => (
-            <div key={course.id} className="tc-course-card" onClick={() => {
-              setSelectedCourse(course);
-              setShowCourseDetailsModal(true);
-            }}>
+        {currentCourses.length > 0 ? (
+          currentCourses.map((course) => (
+            <div key={course.id} className="tc-course-card">
               <div className="tc-course-header">
                 <div className="tc-course-title">
                   <h3>{course.name}</h3>
@@ -925,6 +1111,10 @@ const StaffCourses = () => {
                   <FiUsers />
                   <span>{course.studentsCount || 0} Students</span>
                 </div>
+                <div className="tc-metadata-item">
+                  <FiBookOpen />
+                  <span>{course.department}</span>
+                </div>
               </div>
 
               <div className="tc-course-progress">
@@ -936,18 +1126,72 @@ const StaffCourses = () => {
                   <div className="tc-progress-fill" style={{ width: `${course.progress || 0}%`, backgroundColor: getProgressColor(course.progress || 0) }} />
                 </div>
               </div>
+
+              <button 
+                className="view-course-btn-card"
+                onClick={() => {
+                  setSelectedCourse(course);
+                  setShowCourseDetailsModal(true);
+                }}
+              >
+                <FiEye size={14} />
+                View Details
+              </button>
             </div>
           ))
         ) : (
           <div className="tc-empty-state">
-            <FiBookOpen size={64} />
+            <FiBookOpen size={48} />
             <h3>No Courses Found</h3>
             <p>No courses match your search criteria or you haven't been assigned any courses yet.</p>
           </div>
         )}
       </div>
 
-      {/* Add Course Modal with Searchable Department Dropdown */}
+      {/* Pagination */}
+      {filteredCourses.length > 0 && (
+        <div className="pagination-container">
+          <div className="pagination-info">
+            <span>
+              Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, filteredCourses.length)} of {filteredCourses.length} entries
+            </span>
+            <select 
+              value={itemsPerPage} 
+              onChange={(e) => {
+                setItemsPerPage(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              className="pagination-select"
+            >
+              <option value={6}>6 per page</option>
+              <option value={12}>12 per page</option>
+              <option value={24}>24 per page</option>
+              <option value={48}>48 per page</option>
+            </select>
+          </div>
+          <div className="pagination-controls">
+            <button
+              className="pagination-btn"
+              onClick={goToPrevPage}
+              disabled={currentPage === 1}
+            >
+              <FiChevronLeft size={14} /> Previous
+            </button>
+            <span className="pagination-page">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button
+              className="pagination-btn"
+              onClick={goToNextPage}
+              disabled={currentPage === totalPages}
+            >
+              Next <FiChevronRight size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Add Course Modal */}
       {showAddCourseModal && (
         <div className="modal-overlay" onClick={() => setShowAddCourseModal(false)}>
           <div className="modal-content modal-lg" onClick={(e) => e.stopPropagation()}>
@@ -1112,73 +1356,203 @@ const StaffCourses = () => {
               </button>
             </div>
 
-            <div className="lessons-header-bar">
-              <h3 className="lessons-title">Course Lessons</h3>
-              <button className="add-lesson-btn" onClick={() => { setEditingLesson(null); setLessonForm({ title: '', duration: '30 mins', description: '' }); setShowLessonModal(true); }}>
+            {/* Header with Add Unit button */}
+            <div className="curriculum-header">
+              <div className="curriculum-title-wrapper">
+                <div className="curriculum-icon">
+                  <FiBookOpen size={18} />
+                </div>
+                <div>
+                  <h3 className="curriculum-title">Course Curriculum</h3>
+                  <p className="curriculum-subtitle">{selectedCourse.lessons?.length || 0} Units</p>
+                </div>
+              </div>
+              <button className="add-unit-btn" onClick={() => { setEditingLesson(null); setLessonForm({ title: '', duration: '30 mins', description: '' }); setShowLessonModal(true); }}>
                 <FiPlus size={16} />
-                Add Lesson
+                Add Unit
               </button>
             </div>
 
-            <div className="lessons-grid">
-              {selectedCourse.lessons && selectedCourse.lessons.length > 0 ? (
-                selectedCourse.lessons.map((lesson, index) => (
-                  <div key={lesson.id} className="lesson-grid-card">
-                    <div className="lesson-card-header">
-                      <div className="lesson-number">Lesson {index + 1}</div>
-                      <div className="lesson-actions">
-                        <label className="upload-icon-label" title="Upload PDF/Word/Video files">
-                          <input
-                            type="file"
-                            accept=".pdf,.doc,.docx,.mp4,.mov,.avi,.mkv"
-                            style={{ display: 'none' }}
-                            onChange={(e) => {
-                              if (e.target.files[0]) {
-                                handleUploadMaterial(lesson.id, e.target.files[0]);
-                              }
-                            }}
-                          />
-                          <FiUpload size={14} className="upload-icon" />
-                        </label>
-                        <button className="edit-lesson" onClick={() => handleEditLesson(lesson)}><FiEdit2 size={14} /></button>
-                        <button className="delete-lesson" onClick={() => handleDeleteLesson(lesson.id)}><FiTrash2 size={14} /></button>
-                      </div>
-                    </div>
-                    <h3 className="lesson-grid-title">{lesson.title}</h3>
-                    <div className="lesson-grid-meta">
-                      <span><FiClock size={12} /> {lesson.duration || '30 mins'}</span>
-                    </div>
-                    {lesson.description && <p className="lesson-grid-description">{lesson.description}</p>}
-                    
-                    {lesson.materials && lesson.materials.length > 0 && (
-                      <div className="lesson-materials-simple">
-                        {lesson.materials.map((material, idx) => (
-                          <div key={idx} className="material-item-simple">
-                            {getMaterialIcon(material.type)}
-                            <span className="material-name-simple">{material.title}</span>
-                            <a href={material.url} target="_blank" rel="noopener noreferrer" className="material-action-simple" title="Open">
-                              <FiExternalLink size={14} />
-                            </a>
-                            <button 
-                              className="material-action-simple delete"
-                              onClick={() => handleDeleteMaterial(lesson.id, material.id)}
-                              title="Delete"
-                            >
+            {/* Units Table */}
+            <div className="units-table-container">
+              <table className="units-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '80px' }}>Unit</th>
+                    <th>Unit Title</th>
+                    <th style={{ width: '100px' }}>Duration</th>
+                    <th style={{ width: '120px' }}>Topics</th>
+                    <th style={{ width: '120px' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedCourse.lessons && selectedCourse.lessons.length > 0 ? (
+                    selectedCourse.lessons.map((lesson, index) => (
+                      <React.Fragment key={lesson.id}>
+                        <tr className="unit-row">
+                          <td className="unit-number-cell">
+                            <span className="unit-badge">Unit {index + 1}</span>
+                          </td>
+                          <td className="unit-title-cell">
+                            <div className="unit-title-wrapper">
+                              <span className="unit-name">{lesson.title}</span>
+                              {lesson.description && (
+                                <span className="unit-desc-preview">{lesson.description}</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="unit-duration-cell">
+                            <span className="duration-badge">
+                              <FiClock size={12} />
+                              {lesson.duration || '30 mins'}
+                            </span>
+                          </td>
+                          <td className="unit-topics-cell">
+                            <span className="topics-count-badge">
+                              <FiList size={12} />
+                              {lesson.subjects?.length || 0} Topics
+                            </span>
+                          </td>
+                          <td className="unit-actions-cell">
+                            <label className="action-icon upload" title="Upload Materials">
+                              <input
+                                type="file"
+                                accept=".pdf,.doc,.docx,.mp4,.mov,.avi,.mkv"
+                                style={{ display: 'none' }}
+                                onChange={(e) => {
+                                  if (e.target.files[0]) {
+                                    handleUploadMaterial(lesson.id, e.target.files[0]);
+                                  }
+                                }}
+                              />
+                              <FiUpload size={14} />
+                            </label>
+                            <button className="action-icon edit" onClick={() => handleEditLesson(lesson)} title="Edit Unit">
+                              <FiEdit2 size={14} />
+                            </button>
+                            <button className="action-icon delete" onClick={() => handleDeleteLesson(lesson.id)} title="Delete Unit">
                               <FiTrash2 size={14} />
                             </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))
-              ) : (
-                <div className="empty-lessons-grid">
-                  <FiBookOpen size={48} />
-                  <h4>No lessons yet</h4>
-                  <p>Click "Add Lesson" to create your first lesson for this course.</p>
-                </div>
-              )}
+                          </td>
+                        </tr>
+                        
+                        {/* Topics Sub-table */}
+                        <tr className="topics-subheader-row">
+                          <td colSpan="5">
+                            <div className="topics-subtable">
+                              <div className="topics-subheader">
+                                <span className="topics-label">Topics Covered</span>
+                                <button 
+                                  className="add-topic-subbtn"
+                                  onClick={() => handleAddSubject(lesson)}
+                                >
+                                  <FiPlus size={12} />
+                                  Add Topic
+                                </button>
+                              </div>
+                              
+                              {lesson.subjects && lesson.subjects.length > 0 ? (
+                                <table className="topics-subtable-table">
+                                  <thead>
+                                    <tr>
+                                      <th style={{ width: '50px' }}>#</th>
+                                      <th>Topic Title</th>
+                                      <th style={{ width: '100px' }}>Duration</th>
+                                      <th style={{ width: '100px' }}>Actions</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {lesson.subjects.map((subject, subIndex) => (
+                                      <tr key={subject.id} className="topic-row">
+                                        <td className="topic-number">{subIndex + 1}</td>
+                                        <td className="topic-title">{subject.title}</td>
+                                        <td className="topic-duration">
+                                          {subject.duration && (
+                                            <span className="topic-time">
+                                              <FiClock size={10} />
+                                              {subject.duration}
+                                            </span>
+                                          )}
+                                        </td>
+                                        <td className="topic-actions">
+                                          <button 
+                                            className="topic-edit"
+                                            onClick={() => handleEditSubject(lesson, subject)}
+                                            title="Edit Topic"
+                                          >
+                                            <FiEdit2 size={12} />
+                                          </button>
+                                          <button 
+                                            className="topic-delete"
+                                            onClick={() => handleDeleteSubject(lesson, subject.id)}
+                                            title="Delete Topic"
+                                          >
+                                            <FiTrash2 size={12} />
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              ) : (
+                                <div className="topics-empty-sub">
+                                  <span>No topics added yet</span>
+                                  <button 
+                                    className="empty-add-topic-sub"
+                                    onClick={() => handleAddSubject(lesson)}
+                                  >
+                                    Add your first topic
+                                  </button>
+                                </div>
+                              )}
+                              
+                              {/* Materials Section */}
+                              {lesson.materials && lesson.materials.length > 0 && (
+                                <div className="materials-subsection">
+                                  <div className="materials-subheader">
+                                    <FiPaperclip size={12} />
+                                    <span>Materials ({lesson.materials.length})</span>
+                                  </div>
+                                  <div className="materials-subgrid">
+                                    {lesson.materials.map((material, idx) => (
+                                      <div key={idx} className="material-subitem">
+                                        {getMaterialIcon(material.type)}
+                                        <span className="material-subname">{material.title}</span>
+                                        <div className="material-subactions">
+                                          <a href={material.url} target="_blank" rel="noopener noreferrer" className="material-sublink" title="Open">
+                                            <FiExternalLink size={10} />
+                                          </a>
+                                          <button 
+                                            className="material-subdelete"
+                                            onClick={() => handleDeleteMaterial(lesson.id, material.id)}
+                                            title="Delete"
+                                          >
+                                            <FiTrash2 size={10} />
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      </React.Fragment>
+                    ))
+                  ) : (
+                    <tr className="empty-row">
+                      <td colSpan="5">
+                        <div className="empty-units">
+                          <FiBookOpen size={48} />
+                          <h4>No units yet</h4>
+                          <p>Click "Add Unit" to create your first unit for this course.</p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
 
             <div className="modal-footer">
@@ -1188,17 +1562,97 @@ const StaffCourses = () => {
         </div>
       )}
 
-      {/* Add/Edit Lesson Modal */}
+      {/* Add/Edit Unit Modal */}
       {showLessonModal && (
         <div className="modal-overlay" onClick={() => setShowLessonModal(false)}>
           <div className="modal-content modal-sm" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header"><h2>{editingLesson ? 'Edit Lesson' : 'Add New Lesson'}</h2><button className="close-btn" onClick={() => setShowLessonModal(false)}><FiX size={20} /></button></div>
-            <div className="modal-body">
-              <div className="form-group"><label>Lesson Title *</label><input type="text" placeholder="e.g., Introduction to Programming" value={lessonForm.title} onChange={(e) => setLessonForm({...lessonForm, title: e.target.value})} /></div>
-              <div className="form-group"><label>Duration</label><input type="text" placeholder="e.g., 30 mins" value={lessonForm.duration} onChange={(e) => setLessonForm({...lessonForm, duration: e.target.value})} /></div>
-              <div className="form-group"><label>Description</label><textarea rows="3" placeholder="Enter lesson description" value={lessonForm.description} onChange={(e) => setLessonForm({...lessonForm, description: e.target.value})} /></div>
+            <div className="modal-header">
+              <h2>{editingLesson ? 'Edit Unit' : 'Add New Unit'}</h2>
+              <button className="close-btn" onClick={() => setShowLessonModal(false)}><FiX size={20} /></button>
             </div>
-            <div className="modal-footer"><button className="btn-secondary" onClick={() => setShowLessonModal(false)}>Cancel</button><button className="btn-primary" onClick={editingLesson ? handleUpdateLesson : handleAddLesson}>{editingLesson ? 'Update Lesson' : 'Add Lesson'}</button></div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label>Unit Title *</label>
+                <input 
+                  type="text" 
+                  placeholder="e.g., Introduction to Data Science" 
+                  value={lessonForm.title} 
+                  onChange={(e) => setLessonForm({...lessonForm, title: e.target.value})} 
+                />
+              </div>
+              <div className="form-group">
+                <label>Duration</label>
+                <input 
+                  type="text" 
+                  placeholder="e.g., 30 mins" 
+                  value={lessonForm.duration} 
+                  onChange={(e) => setLessonForm({...lessonForm, duration: e.target.value})} 
+                />
+              </div>
+              <div className="form-group">
+                <label>Description</label>
+                <textarea 
+                  rows="3" 
+                  placeholder="Enter unit description" 
+                  value={lessonForm.description} 
+                  onChange={(e) => setLessonForm({...lessonForm, description: e.target.value})} 
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setShowLessonModal(false)}>Cancel</button>
+              <button className="btn-primary" onClick={editingLesson ? handleUpdateLesson : handleAddLesson}>
+                {editingLesson ? 'Update Unit' : 'Add Unit'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add/Edit Topic Modal */}
+      {showSubjectModal && (
+        <div className="modal-overlay" onClick={() => setShowSubjectModal(false)}>
+          <div className="modal-content modal-sm" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>{editingSubject ? 'Edit Topic' : 'Add New Topic'}</h2>
+              <button className="close-btn" onClick={() => setShowSubjectModal(false)}><FiX size={20} /></button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label>Topic Title *</label>
+                <input 
+                  type="text" 
+                  placeholder="e.g., Classification of Data Science" 
+                  value={subjectForm.title} 
+                  onChange={(e) => setSubjectForm({...subjectForm, title: e.target.value})} 
+                />
+                <small className="form-hint-text">Enter the main topic or subject name</small>
+              </div>
+              <div className="form-group">
+                <label>Duration</label>
+                <input 
+                  type="text" 
+                  placeholder="e.g., 45 mins" 
+                  value={subjectForm.duration} 
+                  onChange={(e) => setSubjectForm({...subjectForm, duration: e.target.value})} 
+                />
+              </div>
+              <div className="form-group">
+                <label>Description (Optional)</label>
+                <textarea 
+                  rows="3" 
+                  placeholder="Enter topic description" 
+                  value={subjectForm.description} 
+                  onChange={(e) => setSubjectForm({...subjectForm, description: e.target.value})} 
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setShowSubjectModal(false)}>Cancel</button>
+              <button className="btn-primary" onClick={handleSaveSubject}>
+                {editingSubject ? 'Update Topic' : 'Add Topic'}
+              </button>
+            </div>
           </div>
         </div>
       )}
