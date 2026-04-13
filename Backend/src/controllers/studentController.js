@@ -1010,30 +1010,64 @@ export const getStudentCourses = async (req, res) => {
       }
     });
 
+    const batchCourses = student.batch ? await prisma.course.findMany({
+      where: {
+        batch: student.batch,
+        deletedAt: null
+      },
+      include: {
+        teacher: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            department: true
+          }
+        }
+      },
+      orderBy: {
+        semester: "asc"
+      }
+    }) : [];
+
+    const enrolledCourseIds = new Set(enrollments.map(e => e.courseId));
+    const combinedCourses = [...enrollments.map(e => ({
+      course: e.course,
+      enrollment: e
+    }))];
+
+    batchCourses.forEach(course => {
+      if (!enrolledCourseIds.has(course.id)) {
+        combinedCourses.push({ course, enrollment: null });
+      }
+    });
+
     const attendances = await prisma.attendance.findMany({
       where: {
         studentId: student.id
       }
     });
 
-    const courses = enrollments.map(enrollment => {
-      const courseAttendances = attendances.filter(a => a.courseId === enrollment.courseId);
+    const courses = combinedCourses.map(({ course }) => {
+      const courseAttendances = attendances.filter(a => a.courseId === course.id);
       const totalClasses = courseAttendances.length;
       const presentCount = courseAttendances.filter(a => a.status === "PRESENT").length;
       const attendancePercentage = totalClasses > 0 ? Math.round((presentCount / totalClasses) * 100) : 0;
 
       return {
-        id: enrollment.course.id,
-        code: enrollment.course.code,
-        title: enrollment.course.name,
-        instructor: enrollment.course.teacher?.name || student.teacher?.name || "Not Assigned",
-        credits: enrollment.course.credits || 3,
-        semester: enrollment.course.semester,
+        id: course.id,
+        code: course.code,
+        title: course.name,
+        instructor: course.teacher?.name || student.teacher?.name || "Not Assigned",
+        credits: course.credits || 3,
+        semester: student.semester,
+        studentSemester: student.semester,
+        courseSemester: course.semester,
         status: "in-progress",
         progress: attendancePercentage,
         attendance: attendancePercentage,
-        schedule: enrollment.course.schedule || "Schedule TBD",
-        room: enrollment.course.room || "Room TBD",
+        schedule: course.schedule || "Schedule TBD",
+        room: course.room || "Room TBD",
         color: "#3b82f6"
       };
     });
@@ -1081,13 +1115,6 @@ export const getStudentCourseDetail = async (req, res) => {
       }
     });
 
-    if (!enrollment) {
-      return res.status(403).json({
-        success: false,
-        message: "You are not enrolled in this course"
-      });
-    }
-
     // Get course with all details
     const course = await prisma.course.findUnique({
       where: { id: Number(courseId) },
@@ -1101,12 +1128,39 @@ export const getStudentCourseDetail = async (req, res) => {
           }
         },
         lessons: {
-          orderBy: { order: 'asc' }
+          orderBy: { order: 'asc' },
+          include: {
+            topics: {
+              orderBy: { order: 'asc' },
+              include: {
+                materials: true
+              }
+            },
+            materials: true
+          }
         },
         materials: true,
         assignments: true
       }
     });
+
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        message: "Course not found"
+      });
+    }
+
+    const studentBatch = student.batch?.trim();
+    const courseBatch = course.batch?.trim();
+    const batchMatch = studentBatch && courseBatch && studentBatch === courseBatch;
+
+    if (!enrollment && !batchMatch) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not enrolled in this course"
+      });
+    }
 
     if (!course) {
       return res.status(404).json({
@@ -1127,13 +1181,42 @@ export const getStudentCourseDetail = async (req, res) => {
     const presentCount = attendances.filter(a => a.status === "PRESENT").length;
     const attendancePercentage = totalClasses > 0 ? Math.round((presentCount / totalClasses) * 100) : 0;
 
+    // Format materials to ensure all fields are present for frontend
+    const formatMaterial = (material) => ({
+      ...material,
+      url: material.filePath, // Ensure url is set
+      fileUrl: material.filePath, // Ensure fileUrl is set
+      type: material.fileType // Add type as alias
+    });
+
     const courseDetail = {
       ...course,
       progress: attendancePercentage,
-      lessons: course.lessons || [],
-      materials: course.materials || [],
+      lessons: (course.lessons || []).map(lesson => ({
+        ...lesson,
+        materials: (lesson.materials || []).map(formatMaterial),
+        topics: (lesson.topics || []).map(topic => ({
+          ...topic,
+          materials: (topic.materials || []).map(formatMaterial)
+        }))
+      })),
+      materials: (course.materials || []).map(formatMaterial),
       assignments: course.assignments || []
     };
+
+    console.log(`📦 Course detail response for course ${courseId}:`);
+    console.log(`   - Lessons: ${courseDetail.lessons.length}`);
+    courseDetail.lessons.forEach((lesson, idx) => {
+      console.log(`   - Lesson ${idx + 1}: ${lesson.name || lesson.title}`);
+      console.log(`     - Materials: ${lesson.materials.length}`);
+      console.log(`     - Topics: ${lesson.topics.length}`);
+      lesson.topics.forEach((topic, topicIdx) => {
+        console.log(`       - Topic ${topicIdx + 1}: ${topic.name || topic.title} (${topic.materials.length} materials)`);
+        topic.materials.forEach(m => {
+          console.log(`         * ${m.title} => ${m.filePath}`);
+        });
+      });
+    });
 
     res.json({
       success: true,

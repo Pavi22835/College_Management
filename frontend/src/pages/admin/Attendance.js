@@ -476,20 +476,21 @@ const AdminAttendance = () => {
   };
 
   const formatAttendanceRecord = (record) => {
-    const student = students.find(s => s.id === record.studentId);
-    const course = courses.find(c => c.id === record.courseId);
+    // Try to get from students array first, then fallback to nested student object from API
+    const student = students.find(s => s.id === record.studentId) || record.student;
+    const course = courses.find(c => c.id === record.courseId) || record.course;
     
     return {
       id: record.id,
       studentId: record.studentId,
-      studentName: student?.name || record.studentName || 'Unknown',
+      studentName: student?.user?.name || student?.name || record.studentName || 'Unknown',
       rollNo: student?.rollNo || record.rollNo || '-',
       courseId: record.courseId,
       courseName: course?.name || record.courseName || 'Unknown',
       courseCode: course?.code || record.courseCode || '-',
       department: course?.department || record.department || '-',
       status: record.status || 'ABSENT',
-      time: record.createdAt || record.time,
+      time: record.markedAt || record.createdAt || record.time,
       date: record.date || selectedDate
     };
   };

@@ -429,35 +429,136 @@
 /* ==================== COURSE PLAN TABLE STYLES ==================== */
 .course-plan-table th,
 .course-plan-table td {
-  padding: 12px 16px;
-  vertical-align: top;
+  padding: 14px 16px;
+  vertical-align: middle;
   cursor: default;
 }
 
+.course-plan-table td {
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+.course-plan-table tbody tr {
+  height: auto;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.topic-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+  font-weight: 500;
+  color: #1e293b;
+  line-height: 1.4;
+  min-width: 220px;
+  padding: 0;
+}
+
+.topic-main {
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 4px;
+}
+
+.topic-list-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.topic-list-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+}
+
+.topic-index {
+  min-width: 26px;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #eef2ff;
+  color: #3b82f6;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.topic-list-item span:last-child {
+  display: inline-block;
+  min-width: 0;
+  max-width: calc(100% - 42px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topic-material-preview {
+  display: none;
+}
+
+.material-link-btn.small {
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.course-plan-table .material-link-btn,
+.course-plan-table .video-link {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.material-cell,
+.video-cell {
+  vertical-align: top;
+  text-align: left;
+  min-width: 180px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
 .course-plan-table tr:hover td {
-  background: transparent;
+  background: #fafbfc;
 }
 
 .unit-cell {
-  background-color: #f8fafc;
+  background-color: #f0f4ff;
   font-weight: 700;
   color: #4f46e5;
   border-right: 2px solid #e2e8f0;
   font-size: 15px;
   text-align: center;
-  vertical-align: middle;
-}
-
-.topic-cell {
-  font-weight: 500;
-  color: #1e293b;
-  line-height: 1.4;
+  vertical-align: top;
+  min-width: 80px;
+  padding: 16px 12px 12px;
 }
 
 .hours-cell {
   text-align: center;
   color: #475569;
   font-weight: 500;
+  min-width: 100px;
+  vertical-align: top;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+/* Material and Video Cell Alignment */
+.material-cell,
+.video-cell {
+  vertical-align: middle;
+  text-align: left;
+  min-width: 180px;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .material-link-btn {
@@ -469,27 +570,42 @@
   color: #3b82f6;
   cursor: pointer;
   font-size: 13px;
-  padding: 6px 12px;
-  border-radius: 8px;
-  transition: all 0.2s;
-  width: 100%;
-  justify-content: flex-start;
+  padding: 8px 0;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  max-width: 100%;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  position: relative;
 }
 
 .material-link-btn:hover {
   background-color: #eff6ff;
-  color: #2563eb;
+  color: #1d4ed8;
+  padding-left: 4px;
 }
 
 .material-link-btn svg {
   flex-shrink: 0;
+  min-width: 16px;
 }
 
 .material-link-btn span {
   text-decoration: underline;
-  text-underline-offset: 2px;
-  font-family: monospace;
-  font-size: 12px;
+  text-underline-offset: 3px;
+  font-family: 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.material-link-btn svg:last-child {
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .video-link {
@@ -498,7 +614,21 @@
 
 .video-link:hover {
   background-color: #fef2f2;
-  color: #b91c1c;
+  color: #991b1b;
+  padding-left: 4px;
+}
+
+
+.video-link:hover {
+  background-color: #fef2f2;
+  color: #991b1b;
+  padding-left: 4px;
+}
+
+.no-material {
+  color: #cbd5e1;
+  font-size: 13px;
+  font-weight: 500;
 }
 
 /* Course Plan Table Row Span Alignment */
@@ -589,12 +719,14 @@
   overflow-y: auto;
   padding: 24px;
   background: #f8fafc;
+  min-height: 0;
 }
 
 .material-preview {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  height: 100%;
 }
 
 .material-details {
@@ -615,20 +747,24 @@
 }
 
 .preview-area {
-  min-height: 400px;
+  flex: 1;
   background: white;
   border-radius: 12px;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  overflow: auto;
   border: 1px solid #e2e8f0;
+  min-height: 500px;
 }
 
 .pdf-preview {
   width: 100%;
-  height: 500px;
+  min-height: 600px;
+  height: 100%;
   border: none;
+  flex: 1;
 }
 
 .video-preview {

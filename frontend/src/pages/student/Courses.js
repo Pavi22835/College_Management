@@ -5,7 +5,7 @@ import {
   HiOutlineUser, HiOutlineAcademicCap, HiOutlineChartBar,
   HiOutlineChevronRight, HiOutlineSearch, HiOutlineChevronLeft,
   HiOutlineDocument, HiOutlineVideoCamera, HiOutlineDownload,
-  HiOutlineEye, HiOutlineX, HiOutlinePlay
+  HiOutlineEye, HiOutlineX, HiOutlinePlay, HiOutlineExternalLink
 } from 'react-icons/hi';
 import studentApi from '../../api/studentApi';
 import courseApi from '../../api/courseApi';
@@ -18,6 +18,7 @@ const StudentCourses = () => {
   const [selectedSubject, setSelectedSubject] = useState(null);
   const [selectedMaterial, setSelectedMaterial] = useState(null);
   const [selectedVideo, setSelectedVideo] = useState(null);
+  const [pdfViewerFailed, setPdfViewerFailed] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   
@@ -63,9 +64,15 @@ const StudentCourses = () => {
       setAllCourses(coursesData);
       
       // Extract unique semesters from courses
-      const uniqueSemesters = [...new Set(coursesData.map(c => c.semester).filter(Boolean))];
+      const uniqueSemesters = [...new Set(coursesData.map(c => c.studentSemester || c.semester).filter(Boolean))];
       setSemesters(uniqueSemesters.sort((a, b) => a - b));
       
+      // Normalize course semesters to student semester when available
+      coursesData = coursesData.map(course => ({
+        ...course,
+        semester: course.studentSemester || course.semester
+      }));
+
       // Fetch progress for each course
       const progressMap = {};
       for (const course of coursesData) {
@@ -108,61 +115,62 @@ const StudentCourses = () => {
   const fetchCoursePlan = async (courseId) => {
     try {
       setLoading(true);
-      
-      // Fetch lessons/topics for the course
-      const lessonsResponse = await courseApi.getLessons(courseId);
-      let lessons = [];
-      if (lessonsResponse?.success && lessonsResponse?.data) {
-        lessons = lessonsResponse.data;
-      } else if (Array.isArray(lessonsResponse)) {
-        lessons = lessonsResponse;
-      } else if (lessonsResponse?.data && Array.isArray(lessonsResponse.data)) {
-        lessons = lessonsResponse.data;
+
+      const courseResponse = await studentApi.getCourseDetail(courseId);
+      if (!courseResponse?.success || !courseResponse?.data) {
+        setCoursePlanData([]);
+        return;
       }
 
-      // For each lesson, fetch its materials
-      const coursePlan = [];
-      
-      for (const lesson of lessons) {
-        // Fetch materials for this lesson
-        const materialsResponse = await courseApi.getMaterialsByLesson(lesson.id);
-        let materials = [];
-        if (materialsResponse?.success && materialsResponse?.data) {
-          materials = materialsResponse.data;
-        } else if (Array.isArray(materialsResponse)) {
-          materials = materialsResponse;
-        } else if (materialsResponse?.data && Array.isArray(materialsResponse.data)) {
-          materials = materialsResponse.data;
+      const lessons = courseResponse.data.lessons || [];
+      console.log('=== COURSE PLAN DEBUG ===');
+      console.log('Total lessons:', lessons.length);
+      console.log('Sample lesson:', lessons[0]);
+      if (lessons[0]?.topics?.length) {
+        console.log('Sample topic:', lessons[0].topics[0]);
+        if (lessons[0].topics[0]?.materials?.length) {
+          console.log('Sample topic material:', lessons[0].topics[0].materials[0]);
         }
+      }
+      if (lessons[0]?.materials?.length) {
+        console.log('Sample lesson material:', lessons[0].materials[0]);
+      }
+      
+      const coursePlan = lessons.map((lesson, lessonIndex) => {
+        const materials = Array.isArray(lesson.materials) ? lesson.materials : [];
+        const topics = Array.isArray(lesson.topics) ? lesson.topics : (Array.isArray(lesson.subjects) ? lesson.subjects : []);
 
-        // Separate PDF/documents and videos
         const lectureMaterials = materials.filter(m => 
           m.type === 'pdf' || m.type === 'document' || m.type === 'docx' || 
           (m.fileName && (m.fileName.endsWith('.pdf') || m.fileName.endsWith('.doc') || m.fileName.endsWith('.docx')))
         );
-        
+
         const lectureVideos = materials.filter(m => 
           m.type === 'video' || (m.fileName && (m.fileName.endsWith('.mp4') || m.fileName.endsWith('.webm') || m.fileName.endsWith('.mov')))
         );
 
-        // Calculate total hours (you can adjust this logic based on your data)
         const hoursRequired = lesson.duration ? Math.ceil(parseInt(lesson.duration) / 60) : 1;
-        
-        coursePlan.push({
+        const unitNo = typeof lesson.unitNo !== 'undefined'
+          ? lesson.unitNo
+          : typeof lesson.order === 'number'
+          ? lesson.order + 1
+          : lessonIndex + 1;
+
+        return {
           id: lesson.id,
-          unitNo: lesson.unitNo || lesson.unit_number || 1,
+          unitNo,
           topic: lesson.title,
+          topics,
           lectureMaterial: lectureMaterials.length > 0 ? lectureMaterials[0] : null,
           lectureMaterialsList: lectureMaterials,
           lectureVideo: lectureVideos.length > 0 ? lectureVideos[0] : null,
           lectureVideosList: lectureVideos,
-          hoursRequired: hoursRequired,
+          hoursRequired,
           totalHours: lesson.totalHours || null,
           order: lesson.order || lesson.display_order || 0
-        });
-      }
+        };
+      });
 
-      // Sort by unit number and order
       coursePlan.sort((a, b) => {
         if (a.unitNo !== b.unitNo) return a.unitNo - b.unitNo;
         return a.order - b.order;
@@ -183,6 +191,105 @@ const StudentCourses = () => {
     return '#ef4444';
   };
 
+  const findTopicMaterial = (topic) => {
+    if (!topic?.materials?.length) return null;
+    return topic.materials.find(m => 
+      m.type === 'pdf' ||
+      m.type === 'document' ||
+      m.type === 'docx' ||
+      (m.fileName && /\.(pdf|doc|docx)$/i.test(m.fileName))
+    ) || topic.materials[0];
+  };
+
+  const findTopicVideo = (topic) => {
+    if (!topic?.materials?.length) return null;
+    return topic.materials.find(m => 
+      m.type === 'video' ||
+      (m.fileName && /\.(mp4|webm|mov)$/i.test(m.fileName))
+    ) || null;
+  };
+
+  const normalizeMaterialUrl = (path) => {
+    if (!path) return null;
+    if (/^https?:\/\//i.test(path)) return path;
+    
+    // Create URL properly to handle special characters
+    let fullPath = path;
+    if (!path.startsWith('/')) {
+      fullPath = `/${path}`;
+    }
+    
+    try {
+      const url = new URL(`http://localhost:3003${fullPath}`);
+      return url.toString();
+    } catch (e) {
+      console.warn('URL constructor failed, attempting manual construction:', e);
+      // Fallback: manual URL encoding
+      if (path.startsWith('/')) {
+        return `http://localhost:3003${path}`;
+      }
+      return `http://localhost:3003/${path}`;
+    }
+  };
+
+  const getFileExtension = (fileNameOrPath) => {
+    if (!fileNameOrPath) return '';
+    const match = fileNameOrPath.toLowerCase().match(/\.([a-z0-9]+)(?:\?|#|$)/);
+    return match ? match[1] : '';
+  };
+
+  const getVideoMimeType = (fileNameOrPath) => {
+    const ext = getFileExtension(fileNameOrPath);
+    if (ext === 'webm') return 'video/webm';
+    if (ext === 'mov') return 'video/quicktime';
+    return 'video/mp4';
+  };
+
+  const getMaterialUrl = (material) => {
+    if (!material) {
+      console.warn('getMaterialUrl: material is null/undefined');
+      return null;
+    }
+    
+    console.log('getMaterialUrl - checking fields:', {
+      hasUrl: !!material.url,
+      hasFileUrl: !!material.fileUrl,
+      hasFilePath: !!material.filePath,
+      hasFileName: !!material.fileName,
+      url: material.url,
+      fileUrl: material.fileUrl,
+      filePath: material.filePath,
+      fileName: material.fileName
+    });
+
+    if (material.url) {
+      const normalized = normalizeMaterialUrl(material.url);
+      console.log('Using material.url, normalized to:', normalized);
+      return normalized;
+    }
+    if (material.fileUrl) {
+      const normalized = normalizeMaterialUrl(material.fileUrl);
+      console.log('Using material.fileUrl, normalized to:', normalized);
+      return normalized;
+    }
+    if (material.filePath) {
+      const normalized = normalizeMaterialUrl(material.filePath);
+      console.log('Using material.filePath, normalized to:', normalized);
+      return normalized;
+    }
+    
+    // Fallback: try to construct URL from fileName if it exists
+    if (material.fileName) {
+      console.warn('No URL fields found, attempting to construct from fileName:', material.fileName);
+      const fallbackUrl = `http://localhost:3003/uploads/materials/${material.fileName}`;
+      console.log('Fallback URL:', fallbackUrl);
+      return fallbackUrl;
+    }
+    
+    console.error('getMaterialUrl: No URL field or fileName found in material object:', material);
+    return null;
+  };
+
   const handleSemesterClick = (semester) => {
     setSelectedSemester(semester);
     setActiveView('subjects');
@@ -192,12 +299,87 @@ const StudentCourses = () => {
     setSelectedSubject(subject);
   };
 
+  const openMaterialInNewTab = (url) => {
+    if (!url) {
+      return false;
+    }
+
+    const newWindow = window.open(url, '_blank', 'noopener,noreferrer');
+    if (newWindow) {
+      return true;
+    }
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    return true;
+  };
+
   const handleMaterialClick = (material) => {
-    setSelectedMaterial(material);
+    console.log('=== MATERIAL CLICK DEBUG ===');
+    console.log('Material object:', material);
+    console.log('Material fields:', {
+      id: material?.id,
+      title: material?.title,
+      fileName: material?.fileName,
+      filePath: material?.filePath,
+      fileUrl: material?.fileUrl,
+      url: material?.url,
+      type: material?.type,
+      fileType: material?.fileType
+    });
+    
+    const url = getMaterialUrl(material);
+    console.log('Resolved URL:', url);
+    
+    if (!url) {
+      console.error('No URL could be resolved for material:', material);
+      alert('Error: Could not load material. The instructor may not have published it yet.');
+      return;
+    }
+
+    const fileName = material.fileName || material.title || 'file';
+    console.log('File name:', fileName);
+    console.log('Material type field:', material.type);
+    
+    const isPdf = material.type === 'pdf' || (fileName && fileName.toLowerCase().endsWith('.pdf'));
+    const isVideo = material.type === 'video' || (fileName && /\.(mp4|webm|mov)$/i.test(fileName));
+    const canPreviewInline = isPdf || isVideo;
+
+    console.log('File type checks:', { isPdf, isVideo, canPreviewInline, fileName });
+
+    if (!openMaterialInNewTab(url)) {
+      console.error('Unable to open material in a new tab:', url);
+      alert('Could not open the material automatically. Please try again or copy the link manually.');
+    }
   };
 
   const handleVideoClick = (video) => {
-    setSelectedVideo(video);
+    console.log('=== VIDEO CLICK DEBUG ===');
+    if (!video) {
+      console.error('No video object provided');
+      alert('Error: Video not available');
+      return;
+    }
+    
+    console.log('Video object:', video);
+    const url = getMaterialUrl(video);
+    console.log('Resolved video URL:', url);
+    
+    if (!url) {
+      console.error('No URL for video:', video);
+      alert('Error: Video file path not available');
+      return;
+    }
+
+    if (!openMaterialInNewTab(url)) {
+      console.error('Unable to open video in a new tab:', url);
+      alert('Could not open the video automatically. Please try again or copy the link manually.');
+    }
   };
 
   const handleBack = () => {
@@ -413,7 +595,7 @@ const StudentCourses = () => {
             <HiOutlineChevronLeft /> Back to Subjects
           </button>
           <div>
-            <h1 className="header-title">{selectedSubject?.name} - Course Plan</h1>
+            <h1 className="header-title">{selectedSubject?.name} Course Plan</h1>
             <p className="header-subtitle">{selectedSubject?.code}</p>
           </div>
         </div>
@@ -452,76 +634,72 @@ const StudentCourses = () => {
               </thead>
               <tbody>
                 {sortedUnits.map(unitNo => (
-                  groupedCoursePlan[unitNo].map((item, idx) => (
-                    <tr key={item.id}>
-                      {idx === 0 && (
-                        <td rowSpan={groupedCoursePlan[unitNo].length} className="unit-cell">
-                          Unit {unitNo}
-                        </td>
-                      )}
-                      <td className="topic-cell">{item.topic}</td>
-                      <td>
-                        {item.lectureMaterial ? (
-                          <button 
-                            className="material-link-btn"
-                            onClick={() => handleMaterialClick(item.lectureMaterial)}
-                          >
-                            <HiOutlineDocument size={16} />
-                            <span>{item.lectureMaterial.title || item.lectureMaterial.fileName || 'Lecture Material'}</span>
-                          </button>
-                        ) : item.lectureMaterialsList && item.lectureMaterialsList.length > 0 ? (
-                          <div className="materials-list">
-                            {item.lectureMaterialsList.slice(0, 2).map(mat => (
-                              <button 
-                                key={mat.id}
+                  groupedCoursePlan[unitNo].map((item, idx) => {
+                    const topicRows = item.topics && item.topics.length > 0
+                      ? item.topics
+                      : [{ title: item.topic, duration: item.hoursRequired ? `${item.hoursRequired} mins` : '', materials: [] }];
+
+                    return topicRows.map((topic, topicIdx) => {
+                      const topicMaterial = findTopicMaterial(topic);
+                      const topicVideo = findTopicVideo(topic) || (topicIdx === 0 ? item.lectureVideo : null);
+                      const showUnitCell = topicIdx === 0;
+                      const rowSpan = topicRows.length;
+
+                      return (
+                        <tr key={`${item.id}-${topicIdx}`}>
+                          {showUnitCell && (
+                            <td rowSpan={rowSpan} className="unit-cell">
+                              Unit {unitNo}
+                            </td>
+                          )}
+                          <td className="topic-cell">
+                            <div className="topic-list-preview">
+                              <div className="topic-list-item">
+                                <span className="topic-index">{topicIdx + 1}.</span>
+                                <span>{topic.title || topic.name || topic.subject || item.topic}</span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="material-cell">
+                            {topicMaterial ? (
+                              <button
                                 className="material-link-btn"
-                                onClick={() => handleMaterialClick(mat)}
+                                onClick={() => handleMaterialClick(topicMaterial)}
+                                title={topicMaterial.title || topicMaterial.fileName}
                               >
                                 <HiOutlineDocument size={16} />
-                                <span>{mat.title || mat.fileName || 'Material'}</span>
+                                <span>{topicMaterial.title || topicMaterial.fileName || 'Lecture Material'}</span>
+                                <HiOutlineExternalLink size={14} style={{ marginLeft: '4px', opacity: 0.7 }} />
                               </button>
-                            ))}
-                            {item.lectureMaterialsList.length > 2 && (
-                              <span className="more-materials">+{item.lectureMaterialsList.length - 2} more</span>
+                            ) : (
+                              <span className="no-material">—</span>
                             )}
-                          </div>
-                        ) : (
-                          <span className="no-material">No material available</span>
-                        )}
-                      </td>
-                      <td>
-                        {item.lectureVideo ? (
-                          <button 
-                            className="material-link-btn video-link"
-                            onClick={() => handleVideoClick(item.lectureVideo)}
-                          >
-                            <HiOutlinePlay size={16} />
-                            <span>{item.lectureVideo.title || item.lectureVideo.fileName || 'Lecture Video'}</span>
-                          </button>
-                        ) : item.lectureVideosList && item.lectureVideosList.length > 0 ? (
-                          <div className="videos-list">
-                            {item.lectureVideosList.slice(0, 2).map(video => (
-                              <button 
-                                key={video.id}
+                          </td>
+                          <td className="video-cell">
+                            {topicVideo ? (
+                              <button
                                 className="material-link-btn video-link"
-                                onClick={() => handleVideoClick(video)}
+                                onClick={() => handleVideoClick(topicVideo)}
+                                title={topicVideo.title || topicVideo.fileName}
                               >
                                 <HiOutlinePlay size={16} />
-                                <span>{video.title || video.fileName || 'Video'}</span>
+                                <span>{topicVideo.title || topicVideo.fileName || 'Lecture Video'}</span>
+                                <HiOutlineExternalLink size={14} style={{ marginLeft: '4px', opacity: 0.7 }} />
                               </button>
-                            ))}
-                            {item.lectureVideosList.length > 2 && (
-                              <span className="more-materials">+{item.lectureVideosList.length - 2} more</span>
+                            ) : (
+                              <span className="no-material">—</span>
                             )}
-                          </div>
-                        ) : (
-                          <span className="no-material">No video available</span>
-                        )}
-                      </td>
-                      <td className="hours-cell">{item.hoursRequired}</td>
-                      <td className="hours-cell">{item.totalHours || '-'}</td>
-                    </tr>
-                  ))
+                          </td>
+                          {showUnitCell && (
+                            <td rowSpan={rowSpan} className="hours-cell">{item.hoursRequired}</td>
+                          )}
+                          {showUnitCell && (
+                            <td rowSpan={rowSpan} className="hours-cell">{item.totalHours || '-'}</td>
+                          )}
+                        </tr>
+                      );
+                    });
+                  })
                 ))}
               </tbody>
             </table>
@@ -533,11 +711,30 @@ const StudentCourses = () => {
 
   // ==================== MATERIAL PREVIEW MODAL ====================
   if (selectedMaterial) {
+    const materialUrl = getMaterialUrl(selectedMaterial);
+    const fileName = selectedMaterial.fileName || selectedMaterial.title || 'Material Preview';
+    const isPdfFile = selectedMaterial.type === 'pdf' || 
+                      selectedMaterial.fileType?.toLowerCase().includes('pdf') ||
+                      selectedMaterial.fileName?.endsWith('.pdf');
+    const isVideoFile = selectedMaterial.type === 'video' || 
+                        selectedMaterial.fileType?.toLowerCase().includes('video') ||
+                        selectedMaterial.fileName?.match(/\.(mp4|webm|mov)$/i);
+    
+    console.log('Material modal rendering:', { 
+      materialUrl, 
+      fileName, 
+      isPdfFile, 
+      isVideoFile,
+      fileType: selectedMaterial.fileType,
+      type: selectedMaterial.type,
+      fileName: selectedMaterial.fileName
+    });
+    
     return (
       <div className="modal-overlay" onClick={handleCloseModal}>
         <div className="material-modal" onClick={(e) => e.stopPropagation()}>
           <div className="modal-header">
-            <h2>{selectedMaterial.title || selectedMaterial.fileName || 'Material Preview'}</h2>
+            <h2>{fileName}</h2>
             <button className="close-modal" onClick={handleCloseModal}>
               <HiOutlineX size={20} />
             </button>
@@ -545,32 +742,103 @@ const StudentCourses = () => {
           <div className="modal-body">
             <div className="material-preview">
               <div className="material-details">
-                <p><strong>Type:</strong> {(selectedMaterial.type || selectedMaterial.fileName?.split('.').pop() || 'document').toUpperCase()}</p>
-                <p><strong>Size:</strong> {selectedMaterial.size || '1 MB'}</p>
+                <p><strong>Type:</strong> {(selectedMaterial.type || selectedMaterial.fileType || selectedMaterial.fileName?.split('.').pop() || 'document').toUpperCase()}</p>
+                <p><strong>Size:</strong> {selectedMaterial.size || selectedMaterial.fileSize || 'Unknown'}</p>
                 <p><strong>Uploaded:</strong> {selectedMaterial.createdAt ? new Date(selectedMaterial.createdAt).toLocaleDateString() : new Date().toLocaleDateString()}</p>
               </div>
               <div className="preview-area">
-                {(selectedMaterial.type === 'pdf' || selectedMaterial.fileName?.endsWith('.pdf')) && (
-                  <iframe 
-                    src={selectedMaterial.url || selectedMaterial.fileUrl} 
-                    title={selectedMaterial.title}
-                    className="pdf-preview"
-                    frameBorder="0"
-                  />
+                {materialUrl && isPdfFile && (
+                  <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                    {!pdfViewerFailed ? (
+                      <>
+                        {/* Try native iframe first */}
+                        <iframe 
+                          src={materialUrl}
+                          title={fileName}
+                          className="pdf-preview"
+                          frameBorder="0"
+                          style={{ width: '100%', height: '100%', minHeight: '600px', flex: 1 }}
+                          onLoad={() => {
+                            console.log('✓ PDF iframe loaded successfully:', materialUrl);
+                          }}
+                          onError={(e) => {
+                            console.error('✗ PDF iframe load error, switching to Google Docs viewer:', { url: materialUrl, error: e });
+                            setPdfViewerFailed(true);
+                          }}
+                          allow="autoplay"
+                        />
+                        <div style={{ marginTop: '10px', textAlign: 'center', padding: '10px' }}>
+                          <small style={{ color: '#666' }}>
+                            {' '}or{' '}
+                            <a 
+                              href={materialUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              download={fileName}
+                              style={{ color: '#0066cc', textDecoration: 'underline', cursor: 'pointer' }}
+                            >
+                              download PDF
+                            </a>
+                          </small>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        {/* Fallback to Google Docs viewer */}
+                        <iframe 
+                          src={`https://docs.google.com/gview?url=${encodeURIComponent(materialUrl)}&embedded=true`}
+                          title={fileName}
+                          className="pdf-preview"
+                          frameBorder="0"
+                          style={{ width: '100%', height: '100%', minHeight: '600px', flex: 1 }}
+                          onLoad={() => {
+                            console.log('✓ Google Docs PDF viewer loaded successfully');
+                          }}
+                          onError={(e) => {
+                            console.error('✗ Google Docs viewer also failed:', e);
+                          }}
+                        />
+                        <div style={{ marginTop: '10px', textAlign: 'center', padding: '10px' }}>
+                          <small style={{ color: '#666' }}>
+                            {' '}or{' '}
+                            <a 
+                              href={materialUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              download={fileName}
+                              style={{ color: '#0066cc', textDecoration: 'underline', cursor: 'pointer' }}
+                            >
+                              download PDF
+                            </a>
+                          </small>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 )}
-                {(selectedMaterial.type === 'video' || selectedMaterial.fileName?.match(/\.(mp4|webm|mov)$/i)) && (
-                  <video controls className="video-preview">
-                    <source src={selectedMaterial.url || selectedMaterial.fileUrl} type="video/mp4" />
+                {materialUrl && isVideoFile && (
+                  <video controls className="video-preview" onError={(e) => console.error('✗ Video failed to load', e)}>
+                    <source src={materialUrl} type={getVideoMimeType(selectedMaterial.fileName || selectedMaterial.filePath || selectedMaterial.fileUrl || selectedMaterial.url)} />
                     Your browser does not support the video tag.
                   </video>
                 )}
-                {(!selectedMaterial.type || (!selectedMaterial.type?.match(/pdf|video/i) && !selectedMaterial.fileName?.match(/\.(pdf|mp4|webm|mov)$/i))) && (
+                {(!materialUrl || (!isPdfFile && !isVideoFile)) && (
                   <div className="document-preview">
                     <HiOutlineDocument size={64} />
-                    <p>Click download to view this file</p>
-                    <button className="download-large-btn" onClick={() => window.open(selectedMaterial.url || selectedMaterial.fileUrl, '_blank')}>
-                      <HiOutlineDownload size={20} /> Download File
-                    </button>
+                    <p>{materialUrl ? 'Preview not available for this file type' : 'File URL not found'}</p>
+                    {materialUrl && (
+                      <button className="download-large-btn" onClick={() => {
+                        console.log('Downloading from:', materialUrl);
+                        window.open(materialUrl, '_blank');
+                      }}>
+                        <HiOutlineDownload size={20} /> Download File
+                      </button>
+                    )}
+                    {!materialUrl && (
+                      <p style={{ fontSize: '12px', color: '#999', marginTop: '10px' }}>
+                        File not available. Contact your instructor.
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -596,10 +864,20 @@ const StudentCourses = () => {
             </button>
           </div>
           <div className="modal-body">
-            <video controls autoPlay className="video-preview-full">
-              <source src={selectedVideo.url || selectedVideo.fileUrl} type="video/mp4" />
-              Your browser does not support the video tag.
-            </video>
+            {getMaterialUrl(selectedVideo) ? (
+              <video controls autoPlay className="video-preview-full">
+                <source src={getMaterialUrl(selectedVideo)} type={getVideoMimeType(selectedVideo.fileName || selectedVideo.filePath || selectedVideo.fileUrl || selectedVideo.url)} />
+                Your browser does not support the video tag.
+              </video>
+            ) : (
+              <div className="document-preview" style={{ textAlign: 'center', padding: '60px 20px' }}>
+                <HiOutlineVideoCamera size={64} style={{ color: '#cbd5e1', marginBottom: '20px' }} />
+                <p style={{ marginBottom: '20px', color: '#64748b' }}>Video file location not found</p>
+                <button className="download-large-btn" onClick={() => window.open(getMaterialUrl(selectedVideo) || '#', '_blank')} disabled>
+                  Unable to load video
+                </button>
+              </div>
+            )}
           </div>
           <div className="modal-footer">
             <button className="close-btn" onClick={handleCloseModal}>Close</button>

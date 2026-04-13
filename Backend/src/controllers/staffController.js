@@ -270,17 +270,15 @@ export const createStaff = async (req, res) => {
         }
       });
 
-      const staff = await tx.staff.create({
+        const staff = await tx.staff.create({
         data: {
           userId: user.id,
           name,
           email,
           department,
           designation,
-          staffRole: finalStaffRole,
           employeeId: finalEmployeeId,
           phone: phone || null,
-          appointedDate: appointedDate ? new Date(appointedDate) : null,
           deletedAt: null
         },
         include: {
@@ -303,7 +301,7 @@ export const createStaff = async (req, res) => {
     res.status(201).json({
       success: true,
       data: result,
-      message: `Staff (${result.staffRole}) created successfully`
+      message: `Staff created successfully`
     });
 
   } catch (error) {
@@ -385,10 +383,8 @@ export const updateStaff = async (req, res) => {
           email: email || existingStaff.email,
           department: department || existingStaff.department,
           designation: designation || existingStaff.designation,
-          staffRole: staffRole || existingStaff.staffRole,
           employeeId: employeeId || existingStaff.employeeId,
-          phone: phone !== undefined ? phone : existingStaff.phone,
-          appointedDate: appointedDate ? new Date(appointedDate) : existingStaff.appointedDate
+          phone: phone !== undefined ? phone : existingStaff.phone
         }
       });
 
@@ -869,14 +865,22 @@ export const getStaffDashboardStats = async (req, res) => {
     const coursesCount = await prisma.course.count({ where: { teacherId: staff.id, deletedAt: null } });
     const directlyAssignedStudents = await prisma.student.findMany({ where: { teacherId: staff.id, deletedAt: null }, select: { id: true } });
     const directlyAssignedIds = new Set(directlyAssignedStudents.map(s => s.id));
-    const courses = await prisma.course.findMany({ where: { teacherId: staff.id, deletedAt: null }, select: { id: true } });
+    const courses = await prisma.course.findMany({ where: { teacherId: staff.id, deletedAt: null }, select: { id: true, batch: true } });
     const courseIds = courses.map(c => c.id);
     let enrolledStudentIds = new Set();
     if (courseIds.length > 0) {
       const enrollments = await prisma.enrollment.findMany({ where: { courseId: { in: courseIds }, student: { deletedAt: null } }, select: { studentId: true } });
       enrollments.forEach(e => enrolledStudentIds.add(e.studentId));
     }
-    const totalStudents = new Set([...directlyAssignedIds, ...enrolledStudentIds]).size;
+
+    const courseBatches = [...new Set(courses.map(c => c.batch).filter(Boolean))];
+    let batchStudentIds = new Set();
+    if (courseBatches.length > 0) {
+      const batchStudents = await prisma.student.findMany({ where: { batch: { in: courseBatches }, deletedAt: null }, select: { id: true } });
+      batchStudents.forEach(s => batchStudentIds.add(s.id));
+    }
+
+    const totalStudents = new Set([...directlyAssignedIds, ...enrolledStudentIds, ...batchStudentIds]).size;
 
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
@@ -908,7 +912,27 @@ export const getStaffCourses = async (req, res) => {
       orderBy: [{ semester: "asc" }, { name: "asc" }]
     });
 
-    res.json({ success: true, data: courses.map(c => ({ ...c, studentsCount: c.enrollments.length })) });
+    const courseBatches = [...new Set(courses.map(c => c.batch).filter(Boolean))];
+    let batchStudentMap = new Map();
+    if (courseBatches.length > 0) {
+      const batchStudents = await prisma.student.findMany({ where: { batch: { in: courseBatches }, deletedAt: null }, select: { id: true, batch: true } });
+      batchStudents.forEach(s => {
+        const batch = s.batch || '';
+        if (!batchStudentMap.has(batch)) {
+          batchStudentMap.set(batch, new Set());
+        }
+        batchStudentMap.get(batch).add(s.id);
+      });
+    }
+
+    const enhancedCourses = courses.map(c => {
+      const enrolledIds = new Set(c.enrollments.map(e => e.studentId));
+      const batchIds = c.batch ? batchStudentMap.get(c.batch) || new Set() : new Set();
+      const uniqueIds = new Set([...enrolledIds, ...batchIds]);
+      return { ...c, studentsCount: uniqueIds.size };
+    });
+
+    res.json({ success: true, data: enhancedCourses });
   } catch (error) {
     console.error("Get staff courses error:", error);
     res.status(500).json({ success: false, message: "Failed to fetch courses" });
@@ -922,7 +946,7 @@ export const getStaffStudents = async (req, res) => {
     if (!staff) return res.status(404).json({ success: false, message: "Staff not found" });
 
     const directlyAssignedStudents = await prisma.student.findMany({ where: { teacherId: staff.id, deletedAt: null }, include: { user: { select: { email: true, name: true } } } });
-    const staffCourses = await prisma.course.findMany({ where: { teacherId: staff.id, deletedAt: null }, select: { id: true } });
+    const staffCourses = await prisma.course.findMany({ where: { teacherId: staff.id, deletedAt: null }, select: { id: true, batch: true } });
     const courseIds = staffCourses.map(c => c.id);
     let enrolledStudents = [];
     if (courseIds.length > 0) {
@@ -930,9 +954,34 @@ export const getStaffStudents = async (req, res) => {
       enrolledStudents = enrollments.map(e => e.student);
     }
 
+    const courseBatches = [...new Set(staffCourses.map(c => c.batch).filter(Boolean))];
+    let batchMatchedStudents = [];
+    if (courseBatches.length > 0) {
+      batchMatchedStudents = await prisma.student.findMany({
+        where: { batch: { in: courseBatches }, deletedAt: null },
+        include: { user: { select: { email: true, name: true } } }
+      });
+    }
+
     const studentsMap = new Map();
-    directlyAssignedStudents.forEach(s => studentsMap.set(s.id, { id: s.id, name: s.name || '', email: s.email || s.user?.email || '', rollNo: s.rollNo || '', phone: s.phone || '', course: s.course || '', semester: s.semester || null, batch: s.batch || '', section: s.section || '', teacherId: s.teacherId }));
-    enrolledStudents.forEach(s => studentsMap.set(s.id, { id: s.id, name: s.name || '', email: s.email || s.user?.email || '', rollNo: s.rollNo || '', phone: s.phone || '', course: s.course || '', semester: s.semester || null, batch: s.batch || '', section: s.section || '', teacherId: s.teacherId }));
+    const addStudent = (s) => {
+      studentsMap.set(s.id, {
+        id: s.id,
+        name: s.name || s.user?.name || '',
+        email: s.email || s.user?.email || '',
+        rollNo: s.rollNo || '',
+        phone: s.phone || '',
+        course: s.course || '',
+        semester: s.semester || null,
+        batch: s.batch || '',
+        section: s.section || '',
+        teacherId: s.teacherId
+      });
+    };
+
+    directlyAssignedStudents.forEach(addStudent);
+    enrolledStudents.forEach(addStudent);
+    batchMatchedStudents.forEach(addStudent);
 
     res.json({ success: true, data: Array.from(studentsMap.values()) });
   } catch (error) {
@@ -1021,9 +1070,7 @@ export const createStaffCourse = async (req, res) => {
         teacher: {
           connect: { id: staff.id }
         },
-        status: "active",
-        progress: 0,
-        studentsCount: 0
+        status: "ACTIVE"
       }
     });
     
@@ -1066,7 +1113,16 @@ export const getStaffCourseById = async (req, res) => {
       },
       include: {
         lessons: {
-          orderBy: { order: 'asc' }
+          orderBy: { order: 'asc' },
+          include: {
+            topics: {
+              orderBy: { order: 'asc' },
+              include: {
+                materials: true
+              }
+            },
+            materials: true
+          }
         },
         materials: true,
         enrollments: {

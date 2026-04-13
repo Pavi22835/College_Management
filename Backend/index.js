@@ -36,7 +36,22 @@ app.use(morgan("dev"));
 /* -------------------- CORS -------------------- */
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:3000",
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+
+      const allowedOrigins = [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        process.env.FRONTEND_URL
+      ].filter(Boolean);
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      } else {
+        return callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"]
@@ -48,7 +63,52 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 /* -------------------- Static Files -------------------- */
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+// Middleware to set proper headers for file serving
+app.use("/uploads", (req, res, next) => {
+  // Set CORS headers for file serving
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type");
+  
+  // Handle OPTIONS requests
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+  
+  // Continue to static file serving
+  next();
+});
+
+app.use("/uploads", express.static(path.join(__dirname, "uploads"), {
+  setHeaders: (res, filepath) => {
+    const filename = filepath.toLowerCase();
+    
+    console.log(`📦 Serving file: ${filename}`);
+    
+    // Set proper content-type for PDFs
+    if (filename.includes('.pdf')) {
+      console.log('   → Setting PDF headers');
+      res.set('Content-Type', 'application/pdf');
+      res.set('Content-Disposition', 'inline; filename="pdf"'); // Display inline, not download
+    }
+    // Set proper headers for videos
+    if (filename.match(/\.(mp4|webm|mov)$/i)) {
+      console.log('   → Setting video headers');
+      res.set('Accept-Ranges', 'bytes');
+      res.set('Content-Type', filename.includes('mp4') ? 'video/mp4' : filename.includes('webm') ? 'video/webm' : 'video/quicktime');
+    }
+    // Set proper headers for Word docs
+    if (filename.includes('.docx') || filename.includes('.doc')) {
+      console.log('   → Setting document headers');
+      res.set('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      res.set('Content-Disposition', 'attachment; filename="document"');
+    }
+    // Disable caching for materials (so fresh versions are always served)
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+  }
+}));
 
 /* -------------------- Request Logger -------------------- */
 app.use((req, res, next) => {

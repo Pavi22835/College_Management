@@ -305,12 +305,14 @@ const Reports = () => {
         studentsResponse,
         teachersResponse,
         coursesResponse,
-        usersResponse
+        usersResponse,
+        attendanceResponse
       ] = await Promise.allSettled([
         studentApi.getAll(),
         staffApi.getAll(),
         courseApi.getAll(),
-        userApi.getAll()
+        userApi.getAll(),
+        attendanceApi.getStats()
       ]);
 
       // Process students data
@@ -410,12 +412,27 @@ const Reports = () => {
       };
       setStats(updatedStats);
 
-      // Set attendance stats (will be updated with real data when available)
-      setAttendanceStats([
-        { label: 'Present', value: 85 },
-        { label: 'Absent', value: 10 },
-        { label: 'Late', value: 5 }
-      ]);
+      // Set attendance stats from real data
+      let attendanceStatsData = [];
+      if (attendanceResponse.status === 'fulfilled') {
+        const attendanceData = attendanceResponse.value;
+        if (attendanceData?.data) {
+          const stats = attendanceData.data;
+          attendanceStatsData = [
+            { label: 'Present', value: stats.presentCount || 0 },
+            { label: 'Absent', value: stats.absentCount || 0 },
+            { label: 'Late', value: stats.lateCount || 0 }
+          ];
+        }
+      } else {
+        // Fallback: calculate from attendance records or set to empty
+        attendanceStatsData = [
+          { label: 'Present', value: 0 },
+          { label: 'Absent', value: 0 },
+          { label: 'Late', value: 0 }
+        ];
+      }
+      setAttendanceStats(attendanceStatsData);
 
     } catch (error) {
       console.error('Error fetching data:', error);

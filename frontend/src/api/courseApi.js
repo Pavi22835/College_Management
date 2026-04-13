@@ -54,7 +54,7 @@ const courseApi = {
   // Get course by ID
   getCourseById: async (id) => {
     try {
-      const response = await axiosInstance.get(`/admin/courses/${id}`);
+      const response = await axiosInstance.get(`/courses/${id}`);
       return response.data;
     } catch (error) {
       console.error("Error fetching course:", error);
@@ -713,6 +713,42 @@ const courseApi = {
       return [];
     } catch (error) {
       console.error("Error fetching materials:", error);
+      throw error;
+    }
+  },
+
+  uploadMaterialToTopic: async (topicId, file) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await axiosInstance.post(`/materials/topic/${topicId}/upload`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      console.log("Upload material to topic response:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("Error uploading material to topic:", error);
+      throw error;
+    }
+  },
+
+  getMaterialsByTopic: async (topicId) => {
+    try {
+      const response = await axiosInstance.get(`/materials/topic/${topicId}`);
+      console.log("Get materials by topic response:", response.data);
+      
+      if (response.data?.success && response.data?.data) {
+        return response.data.data;
+      } else if (Array.isArray(response.data)) {
+        return response.data;
+      }
+      return [];
+    } catch (error) {
+      console.error("Error fetching materials by topic:", error);
       throw error;
     }
   },

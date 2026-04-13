@@ -181,6 +181,7 @@ model Topic {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  materials   Material[] // Materials uploaded for this topic
 
   @@index([lessonId])
   @@index([order])
@@ -196,14 +197,17 @@ model Material {
   fileType    String   // MIME type (e.g., "application/pdf", "video/mp4")
   uploadedBy  Int      // Staff user ID who uploaded
   lessonId    Int
+  topicId     Int?     // Optional: materials can be attached to topics
   courseId    Int
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  topic       Topic?   @relation(fields: [topicId], references: [id], onDelete: Cascade)
   course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
   @@index([courseId])
   @@index([lessonId])
+  @@index([topicId])
   @@index([uploadedBy])
 }
 

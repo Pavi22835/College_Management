@@ -28,7 +28,7 @@ const StudentCourseDetail = () => {
   const [course, setCourse] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('lessons');
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
@@ -51,7 +51,7 @@ const StudentCourseDetail = () => {
             setCourse({
               ...enrolledCourse,
               ...courseDetailResponse.data,
-              lessons: courseDetailResponse.data.materials || [],
+              lessons: courseDetailResponse.data.lessons || [],
               materials: courseDetailResponse.data.materials || [],
               assignments: courseDetailResponse.data.assignments || []
             });
@@ -76,6 +76,30 @@ const StudentCourseDetail = () => {
     if (progress >= 70) return '#10b981';
     if (progress >= 40) return '#f59e0b';
     return '#ef4444';
+  };
+
+  const getAllMaterials = () => {
+    const courseMaterials = Array.isArray(course.materials) ? course.materials : [];
+    const topicMaterials = Array.isArray(course.lessons)
+      ? course.lessons.flatMap((lesson) =>
+          Array.isArray(lesson.topics)
+            ? lesson.topics.flatMap((topic) => Array.isArray(topic.materials) ? topic.materials : [])
+            : []
+        )
+      : [];
+
+    const allMaterials = [...courseMaterials, ...topicMaterials];
+    const uniqueMaterials = [];
+    const seenIds = new Set();
+
+    allMaterials.forEach((material) => {
+      if (material && material.id && !seenIds.has(material.id)) {
+        seenIds.add(material.id);
+        uniqueMaterials.push(material);
+      }
+    });
+
+    return uniqueMaterials;
   };
 
   if (loading) {
@@ -251,6 +275,38 @@ const StudentCourseDetail = () => {
                     {lesson.description && (
                       <p className="scd-lesson-description">{lesson.description}</p>
                     )}
+                    {lesson.topics && lesson.topics.length > 0 && (
+                      <div className="scd-lesson-topics">
+                        <h5>Topics</h5>
+                        <ul>
+                          {lesson.topics.map((topic, idx) => (
+                            <li key={topic.id || idx} className="scd-topic-item">
+                              <div className="scd-topic-title">{topic.title}</div>
+                              {topic.description && <div className="scd-topic-description">{topic.description}</div>}
+                              {topic.duration && <div className="scd-topic-duration">Duration: {topic.duration}</div>}
+                    {topic.materials && topic.materials.length > 0 && (
+                      <div className="scd-topic-materials">
+                        <h6>Materials</h6>
+                        <ul>
+                          {topic.materials.map((material) => (
+                            <li key={material.id} className="scd-topic-material-item">
+                              <a
+                                href={`http://localhost:3003${material.filePath}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                {material.title || material.fileName}
+                              </a>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                     <div className="scd-lesson-actions">
                       <button className="scd-lesson-btn">
                         <Play size={16} />
@@ -273,9 +329,9 @@ const StudentCourseDetail = () => {
         {activeTab === 'materials' && (
           <div className="scd-materials">
             <h3>Course Materials</h3>
-            {course.materials && course.materials.length > 0 ? (
+            {getAllMaterials().length > 0 ? (
               <div className="scd-materials-grid">
-                {course.materials.map((material, index) => (
+                {getAllMaterials().map((material, index) => (
                   <div key={material.id || index} className="scd-material-card">
                     <div className="scd-material-icon">
                       <FileText size={24} />
@@ -284,10 +340,15 @@ const StudentCourseDetail = () => {
                       <h4 className="scd-material-title">{material.title || `Material ${index + 1}`}</h4>
                       <p className="scd-material-description">{material.description || 'Course material'}</p>
                     </div>
-                    <button className="scd-download-btn">
+                    <a
+                      href={`http://localhost:3003${material.filePath}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="scd-download-btn"
+                    >
                       <Download size={16} />
                       Download
-                    </button>
+                    </a>
                   </div>
                 ))}
               </div>

@@ -221,7 +221,7 @@ async function main() {
   // ========================================
   const course1 = await prisma.course.upsert({
     where: { code: 'CS101' },
-    update: {},
+    update: { batch: '2023-2026' },
     create: {
       code: 'CS101',
       name: 'B.Sc Computer Science',
@@ -230,14 +230,15 @@ async function main() {
       credits: 4,
       description: 'Bachelor of Science in Computer Science',
       teacherId: johnTeacher?.id,
-      status: 'ACTIVE'
+      status: 'ACTIVE',
+      batch: '2023-2026'
     }
   });
   console.log('✅ Course created:', course1.name);
 
   const course2 = await prisma.course.upsert({
     where: { code: 'MATH101' },
-    update: {},
+    update: { batch: '2023-2026' },
     create: {
       code: 'MATH101',
       name: 'B.Sc Mathematics',
@@ -246,7 +247,8 @@ async function main() {
       credits: 4,
       description: 'Bachelor of Science in Mathematics',
       teacherId: sarahTeacher?.id,
-      status: 'ACTIVE'
+      status: 'ACTIVE',
+      batch: '2023-2026'
     }
   });
   console.log('✅ Course created:', course2.name);

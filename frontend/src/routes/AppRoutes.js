@@ -28,6 +28,7 @@ import FeeManagement from '../pages/admin/FeeManagement';
 // Teacher Pages
 import StaffDashboard from '../pages/staff/StaffDashboard';
 import StaffCourses from '../pages/staff/Courses';
+import StaffCourseDetail from '../pages/staff/StaffCourseDetail';
 import StaffStudents from '../pages/staff/Students';
 import StaffAttendance from '../pages/staff/Attendance';
 import StaffReports from '../pages/staff/Reports';
@@ -140,6 +141,7 @@ const AppRoutes = () => {
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<StaffDashboard />} />
           <Route path="courses" element={<StaffCourses />} />
+          <Route path="courses/:courseId" element={<StaffCourseDetail />} />
           <Route path="students" element={<StaffStudents />} />
           <Route path="attendance" element={<StaffAttendance />} />
           <Route path="reports" element={<StaffReports />} />

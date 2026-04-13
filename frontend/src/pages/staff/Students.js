@@ -21,6 +21,8 @@ const StaffStudents = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [courseFilter, setCourseFilter] = useState('all');
+  const [batchFilter, setBatchFilter] = useState('all');
   const [teacherInfo, setTeacherInfo] = useState({
     name: '',
     id: '',
@@ -39,18 +41,25 @@ const StaffStudents = () => {
   }, [user]);
 
   useEffect(() => {
-    if (searchTerm) {
-      const filtered = students.filter(student =>
-        student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.rollNo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.course?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      setFilteredStudents(filtered);
-    } else {
-      setFilteredStudents(students);
-    }
-  }, [searchTerm, students]);
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+
+    const filtered = students.filter(student => {
+      const matchesSearch = normalizedSearch === '' || [
+        student.name,
+        student.rollNo,
+        student.email,
+        student.course,
+        student.batch
+      ].some(value => value?.toString().toLowerCase().includes(normalizedSearch));
+
+      const matchesCourse = courseFilter === 'all' || student.course === courseFilter;
+      const matchesBatch = batchFilter === 'all' || student.batch === batchFilter;
+
+      return matchesSearch && matchesCourse && matchesBatch;
+    });
+
+    setFilteredStudents(filtered);
+  }, [searchTerm, courseFilter, batchFilter, students]);
 
   const fetchAssignedStudents = async () => {
     try {
@@ -224,17 +233,34 @@ Phone: ${student.phone || 'N/A'}`);
           <input
             type="text"
             className="search-input"
-            placeholder="Search by name, roll no, course..."
+            placeholder="Search by name, roll no, course, batch..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
         <div className="filter-group">
-          <FiUser className="filter-icon" />
-          <select className="filter-select" defaultValue="all">
+          <FiBookOpen className="filter-icon" />
+          <select
+            className="filter-select"
+            value={courseFilter}
+            onChange={(e) => setCourseFilter(e.target.value)}
+          >
             <option value="all">All Courses</option>
             {[...new Set(students.map(s => s.course))].filter(Boolean).map(course => (
               <option key={course} value={course}>{course}</option>
+            ))}
+          </select>
+        </div>
+        <div className="filter-group">
+          <FiUser className="filter-icon" />
+          <select
+            className="filter-select"
+            value={batchFilter}
+            onChange={(e) => setBatchFilter(e.target.value)}
+          >
+            <option value="all">All Batches</option>
+            {[...new Set(students.map(s => s.batch))].filter(Boolean).map(batch => (
+              <option key={batch} value={batch}>{batch}</option>
             ))}
           </select>
         </div>
@@ -248,6 +274,7 @@ Phone: ${student.phone || 'N/A'}`);
               <th>Student</th>
               <th>Roll No</th>
               <th>Course</th>
+              <th>Batch</th>
               <th>Semester</th>
               <th>Attendance</th>
               <th>Contact</th>
@@ -275,6 +302,11 @@ Phone: ${student.phone || 'N/A'}`);
                   <td>
                     <span className="course-badge">
                       {student.course || 'Not assigned'}
+                    </span>
+                  </td>
+                  <td>
+                    <span className="batch-badge">
+                      {student.batch || '—'}
                     </span>
                   </td>
                   <td>

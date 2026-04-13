@@ -57,14 +57,14 @@ import studentApi from '../../api/studentApi';
 import { departmentApi, batchApi } from '../../api/adminApi';
 import { DEPARTMENTS } from '../../constants/departments';
 import { useAuth } from '../../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import './StaffCourses.css';
 
 const StaffCourses = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedCourse, setSelectedCourse] = useState(null);
-  const [showCourseDetailsModal, setShowCourseDetailsModal] = useState(false);
   const [showAddCourseModal, setShowAddCourseModal] = useState(false);
   const [showStudentAssignmentModal, setShowStudentAssignmentModal] = useState(false);
   const [departments, setDepartments] = useState([]);
@@ -79,16 +79,7 @@ const StaffCourses = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredCourses, setFilteredCourses] = useState([]);
   const [batchFilter, setBatchFilter] = useState('');
-  const [showMaterialModal, setShowMaterialModal] = useState(false);
-  const [showLessonModal, setShowLessonModal] = useState(false);
-  const [editingLesson, setEditingLesson] = useState(null);
-  const [lessonForm, setLessonForm] = useState({
-    title: '',
-    duration: '30 mins',
-    description: ''
-  });
-  const [selectedStudent, setSelectedStudent] = useState(null);
-  const [showStudentModal, setShowStudentModal] = useState(false);
+  const [selectedCourse, setSelectedCourse] = useState(null);
   const [courseStudents, setCourseStudents] = useState([]);
   const [availableStudents, setAvailableStudents] = useState([]);
   const [selectedStudents, setSelectedStudents] = useState([]);
@@ -110,16 +101,6 @@ const StaffCourses = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(12);
   
-  // Subject management states
-  const [showSubjectModal, setShowSubjectModal] = useState(false);
-  const [selectedUnitForSubject, setSelectedUnitForSubject] = useState(null);
-  const [subjectForm, setSubjectForm] = useState({
-    title: '',
-    description: '',
-    duration: '30 mins'
-  });
-  const [editingSubject, setEditingSubject] = useState(null);
-
   // Searchable department dropdown states
   const [departmentSearchTerm, setDepartmentSearchTerm] = useState('');
   const [showDepartmentDropdown, setShowDepartmentDropdown] = useState(false);
@@ -174,37 +155,6 @@ const StaffCourses = () => {
     setFilteredCourses(filtered);
     setCurrentPage(1);
   }, [searchTerm, batchFilter, courses]);
-
-  useEffect(() => {
-    if (showCourseDetailsModal && selectedCourse && selectedCourse.id) {
-      const fetchLessons = async () => {
-        try {
-          const lessons = await courseApi.getLessons(selectedCourse.id);
-          if (lessons && Array.isArray(lessons)) {
-            const lessonsWithSubjects = await Promise.all(lessons.map(async (lesson) => {
-              try {
-                const topics = await courseApi.getTopicsByLesson(lesson.id);
-                return {
-                  ...lesson,
-                  subjects: topics || []
-                };
-              } catch (err) {
-                return { ...lesson, subjects: [] };
-              }
-            }));
-            setSelectedCourse(prev => ({
-              ...prev,
-              lessons: lessonsWithSubjects
-            }));
-          }
-        } catch (error) {
-          console.error('Error fetching lessons:', error);
-        }
-      };
-      
-      fetchLessons();
-    }
-  }, [showCourseDetailsModal, selectedCourse?.id]);
 
   const updateBatchList = async () => {
     try {
@@ -452,419 +402,6 @@ const StaffCourses = () => {
     setShowDepartmentDropdown(false);
   };
 
-  const handleAddLesson = async () => {
-    if (!lessonForm.title) {
-      setErrorMessage('Please fill in lesson title');
-      setTimeout(() => setErrorMessage(''), 3000);
-      return;
-    }
-
-    if (!selectedCourse || !selectedCourse.id) {
-      setErrorMessage('Course is not properly loaded');
-      setTimeout(() => setErrorMessage(''), 3000);
-      return;
-    }
-
-    if (selectedCourse.id > 2147483647) {
-      setErrorMessage('❌ This course was not saved to the database. Please create a new course from scratch.');
-      setTimeout(() => setErrorMessage(''), 5000);
-      return;
-    }
-
-    try {
-      const lessonData = {
-        title: lessonForm.title,
-        description: lessonForm.description,
-        duration: lessonForm.duration,
-        order: (selectedCourse.lessons || []).length,
-        subjects: []
-      };
-
-      const response = await courseApi.createLesson(selectedCourse.id, lessonData);
-
-      if (response?.success) {
-        const newLesson = {
-          ...response.data,
-          subjects: []
-        };
-        
-        const updatedCourse = {
-          ...selectedCourse,
-          lessons: [...(selectedCourse.lessons || []), newLesson]
-        };
-
-        setSelectedCourse(updatedCourse);
-        setCourses(courses.map(c => 
-          c.id === selectedCourse.id ? updatedCourse : c
-        ));
-        
-        setShowLessonModal(false);
-        setLessonForm({ title: '', duration: '30 mins', description: '' });
-        setEditingLesson(null);
-        
-        setSuccessMessage('Unit added successfully!');
-        setTimeout(() => setSuccessMessage(''), 3000);
-      }
-    } catch (error) {
-      console.error('Error adding lesson:', error);
-      const errorMsg = error.response?.data?.details || error.response?.data?.message || error.message;
-      setErrorMessage('Failed to add unit: ' + errorMsg);
-      setTimeout(() => setErrorMessage(''), 5000);
-    }
-  };
-
-  const handleEditLesson = (lesson) => {
-    setEditingLesson(lesson);
-    setLessonForm({
-      title: lesson.title || '',
-      duration: lesson.duration || '30 mins',
-      description: lesson.description || ''
-    });
-    setShowLessonModal(true);
-  };
-
-  const handleUpdateLesson = async () => {
-    if (!lessonForm.title) {
-      setErrorMessage('Please fill in lesson title');
-      setTimeout(() => setErrorMessage(''), 3000);
-      return;
-    }
-
-    try {
-      const lessonData = {
-        title: lessonForm.title,
-        description: lessonForm.description,
-        duration: lessonForm.duration
-      };
-
-      const response = await courseApi.updateLesson(editingLesson.id, lessonData);
-
-      if (response?.success) {
-        const updatedLessons = selectedCourse.lessons.map(l => 
-          l.id === editingLesson.id ? { ...response.data, subjects: l.subjects || [] } : l
-        );
-
-        const updatedCourse = {
-          ...selectedCourse,
-          lessons: updatedLessons
-        };
-
-        setSelectedCourse(updatedCourse);
-        setCourses(courses.map(c => 
-          c.id === selectedCourse.id ? updatedCourse : c
-        ));
-
-        setShowLessonModal(false);
-        setLessonForm({ title: '', duration: '30 mins', description: '' });
-        setEditingLesson(null);
-        
-        setSuccessMessage('Unit updated successfully!');
-        setTimeout(() => setSuccessMessage(''), 3000);
-      }
-    } catch (error) {
-      console.error('Error updating lesson:', error);
-      setErrorMessage('Failed to update unit');
-      setTimeout(() => setErrorMessage(''), 3000);
-    }
-  };
-
-  const handleDeleteLesson = async (lessonId) => {
-    if (!window.confirm('Are you sure you want to delete this unit? All subjects inside will also be deleted.')) return;
-
-    try {
-      const response = await courseApi.deleteLesson(lessonId);
-
-      if (response?.success) {
-        const updatedLessons = selectedCourse.lessons.filter(l => l.id !== lessonId);
-        
-        const updatedCourse = {
-          ...selectedCourse,
-          lessons: updatedLessons
-        };
-
-        setSelectedCourse(updatedCourse);
-        setCourses(courses.map(c => 
-          c.id === selectedCourse.id ? updatedCourse : c
-        ));
-        
-        setSuccessMessage('Unit deleted successfully!');
-        setTimeout(() => setSuccessMessage(''), 3000);
-      }
-    } catch (error) {
-      console.error('Error deleting lesson:', error);
-      setErrorMessage('Failed to delete unit');
-      setTimeout(() => setErrorMessage(''), 3000);
-    }
-  };
-
-  // Subject management functions
-  const handleAddSubject = (unit) => {
-    setSelectedUnitForSubject(unit);
-    setEditingSubject(null);
-    setSubjectForm({
-      title: '',
-      description: '',
-      duration: '30 mins'
-    });
-    setShowSubjectModal(true);
-  };
-
-  const handleEditSubject = (unit, subject) => {
-    setSelectedUnitForSubject(unit);
-    setEditingSubject(subject);
-    setSubjectForm({
-      title: subject.title || '',
-      description: subject.description || '',
-      duration: subject.duration || '30 mins'
-    });
-    setShowSubjectModal(true);
-  };
-
-  const handleSaveSubject = async () => {
-    if (!subjectForm.title) {
-      setErrorMessage('Please enter a topic title');
-      setTimeout(() => setErrorMessage(''), 3000);
-      return;
-    }
-
-    if (!selectedCourse || !selectedUnitForSubject) {
-      setErrorMessage('Missing course or unit information');
-      setTimeout(() => setErrorMessage(''), 3000);
-      return;
-    }
-
-    try {
-      if (editingSubject) {
-        const response = await courseApi.updateTopic(editingSubject.id, {
-          title: subjectForm.title,
-          description: subjectForm.description,
-          duration: subjectForm.duration
-        });
-        
-        if (response?.success) {
-          const updatedSubjects = selectedUnitForSubject.subjects.map(sub => 
-            sub.id === editingSubject.id 
-              ? { ...sub, ...subjectForm }
-              : sub
-          );
-          
-          const updatedLessons = selectedCourse.lessons.map(lesson => 
-            lesson.id === selectedUnitForSubject.id
-              ? { ...lesson, subjects: updatedSubjects }
-              : lesson
-          );
-          
-          const updatedCourse = {
-            ...selectedCourse,
-            lessons: updatedLessons
-          };
-          
-          setSelectedCourse(updatedCourse);
-          setCourses(courses.map(c => 
-            c.id === selectedCourse.id ? updatedCourse : c
-          ));
-          
-          setSuccessMessage('Topic updated successfully!');
-        }
-      } else {
-        const response = await courseApi.createTopic(selectedUnitForSubject.id, {
-          title: subjectForm.title,
-          description: subjectForm.description,
-          duration: subjectForm.duration
-        });
-        
-        if (response?.success) {
-          const newSubject = response.data;
-          
-          const updatedSubjects = [...(selectedUnitForSubject.subjects || []), newSubject];
-          
-          const updatedLessons = selectedCourse.lessons.map(lesson => 
-            lesson.id === selectedUnitForSubject.id
-              ? { ...lesson, subjects: updatedSubjects }
-              : lesson
-          );
-          
-          const updatedCourse = {
-            ...selectedCourse,
-            lessons: updatedLessons
-          };
-          
-          setSelectedCourse(updatedCourse);
-          setCourses(courses.map(c => 
-            c.id === selectedCourse.id ? updatedCourse : c
-          ));
-          
-          setSuccessMessage('Topic added successfully!');
-        }
-      }
-      
-      setTimeout(() => setSuccessMessage(''), 3000);
-      setShowSubjectModal(false);
-      setSubjectForm({ title: '', description: '', duration: '30 mins' });
-      setSelectedUnitForSubject(null);
-      setEditingSubject(null);
-      
-    } catch (error) {
-      console.error('Error saving topic:', error);
-      setErrorMessage('Failed to save topic: ' + (error.response?.data?.message || error.message));
-      setTimeout(() => setErrorMessage(''), 3000);
-    }
-  };
-
-  const handleDeleteSubject = async (unit, subjectId) => {
-    if (!window.confirm('Are you sure you want to delete this topic?')) return;
-    
-    try {
-      const response = await courseApi.deleteTopic(subjectId);
-      
-      if (response?.success) {
-        const updatedSubjects = unit.subjects.filter(sub => sub.id !== subjectId);
-        
-        const updatedLessons = selectedCourse.lessons.map(lesson => 
-          lesson.id === unit.id
-            ? { ...lesson, subjects: updatedSubjects }
-            : lesson
-        );
-        
-        const updatedCourse = {
-          ...selectedCourse,
-          lessons: updatedLessons
-        };
-        
-        setSelectedCourse(updatedCourse);
-        setCourses(courses.map(c => 
-          c.id === selectedCourse.id ? updatedCourse : c
-        ));
-        
-        setSuccessMessage('Topic deleted successfully!');
-        setTimeout(() => setSuccessMessage(''), 3000);
-      }
-    } catch (error) {
-      console.error('Error deleting topic:', error);
-      setErrorMessage('Failed to delete topic');
-      setTimeout(() => setErrorMessage(''), 3000);
-    }
-  };
-
-  const handleUploadMaterial = async (lessonId, file) => {
-    if (!file) {
-      setErrorMessage('Please select a file to upload');
-      setTimeout(() => setErrorMessage(''), 3000);
-      return;
-    }
-
-    const token = localStorage.getItem('token');
-    if (!token) {
-      setErrorMessage('You are not logged in. Please refresh the page.');
-      setTimeout(() => setErrorMessage(''), 3000);
-      return;
-    }
-
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const uploadResponse = await fetch(`http://localhost:3003/api/materials/lesson/${lessonId}/upload`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: formData
-      });
-
-      if (!uploadResponse.ok) {
-        const errorData = await uploadResponse.text();
-        throw new Error(`Upload failed with status ${uploadResponse.status}: ${errorData}`);
-      }
-
-      const uploadedData = await uploadResponse.json();
-
-      if (!uploadedData.success) {
-        throw new Error(uploadedData.message || 'Upload failed');
-      }
-
-      const newMaterial = {
-        id: uploadedData.data.id,
-        title: uploadedData.data.title,
-        type: uploadedData.data.type,
-        url: `http://localhost:3003${uploadedData.data.url}`,
-        size: uploadedData.data.size,
-        uploadedAt: uploadedData.data.uploadedAt
-      };
-
-      const updatedLessons = selectedCourse.lessons.map(lesson => {
-        if (lesson.id === lessonId) {
-          return {
-            ...lesson,
-            materials: [...(lesson.materials || []), newMaterial]
-          };
-        }
-        return lesson;
-      });
-
-      const updatedCourse = {
-        ...selectedCourse,
-        lessons: updatedLessons
-      };
-
-      setSelectedCourse(updatedCourse);
-      setCourses(courses.map(c => 
-        c.id === selectedCourse.id ? updatedCourse : c
-      ));
-      
-      setSuccessMessage('Material uploaded successfully!');
-      setTimeout(() => setSuccessMessage(''), 3000);
-    } catch (error) {
-      console.error('Error uploading material:', error);
-      setErrorMessage('Failed to upload material');
-      setTimeout(() => setErrorMessage(''), 3000);
-    }
-  };
-
-  const handleDeleteMaterial = async (lessonId, materialId) => {
-    if (!window.confirm('Are you sure you want to delete this material?')) return;
-
-    try {
-      const deleteResponse = await fetch(`http://localhost:3003/api/materials/${materialId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-
-      if (!deleteResponse.ok) {
-        throw new Error('Delete failed');
-      }
-
-      const updatedLessons = selectedCourse.lessons.map(lesson => {
-        if (lesson.id === lessonId) {
-          return {
-            ...lesson,
-            materials: lesson.materials.filter(m => m.id !== materialId)
-          };
-        }
-        return lesson;
-      });
-
-      const updatedCourse = {
-        ...selectedCourse,
-        lessons: updatedLessons
-      };
-
-      setSelectedCourse(updatedCourse);
-      setCourses(courses.map(c => 
-        c.id === selectedCourse.id ? updatedCourse : c
-      ));
-      
-      setSuccessMessage('Material deleted successfully!');
-      setTimeout(() => setSuccessMessage(''), 3000);
-    } catch (error) {
-      console.error('Error deleting material:', error);
-      setErrorMessage('Failed to delete material');
-      setTimeout(() => setErrorMessage(''), 3000);
-    }
-  };
-
   const openStudentAssignment = async (course) => {
     setSelectedCourse(course);
     setSelectedStudents([]);
@@ -936,16 +473,6 @@ const StaffCourses = () => {
     return '#ef4444';
   };
 
-  const getMaterialIcon = (type) => {
-    switch(type) {
-      case 'video': return <FiVideo size={16} />;
-      case 'pdf': return <FiFileText size={16} />;
-      case 'word': return <FiFileText size={16} />;
-      case 'image': return <FiImage size={16} />;
-      default: return <FiFileText size={16} />;
-    }
-  };
-
   const getFilteredManageStudents = () => {
     let students = manageActiveTab === 'enrolled' ? courseStudents : availableStudents;
     
@@ -974,6 +501,11 @@ const StaffCourses = () => {
     if (currentPage > 1) {
       setCurrentPage(currentPage - 1);
     }
+  };
+
+  // Navigate to course detail page when card is clicked
+  const handleCourseCardClick = (course) => {
+    navigate(`/staff/courses/${course.id}`);
   };
 
   if (loading) {
@@ -1083,11 +615,15 @@ const StaffCourses = () => {
         </div>
       </div>
 
-      {/* Courses Grid - Card Layout */}
+      {/* Courses Grid - Card Layout - Clickable Cards */}
       <div className="tc-courses-grid">
         {currentCourses.length > 0 ? (
           currentCourses.map((course) => (
-            <div key={course.id} className="tc-course-card">
+            <div 
+              key={course.id} 
+              className="tc-course-card"
+              onClick={() => handleCourseCardClick(course)}
+            >
               <div className="tc-course-header">
                 <div className="tc-course-title">
                   <h3>{course.name}</h3>
@@ -1127,16 +663,10 @@ const StaffCourses = () => {
                 </div>
               </div>
 
-              <button 
-                className="view-course-btn-card"
-                onClick={() => {
-                  setSelectedCourse(course);
-                  setShowCourseDetailsModal(true);
-                }}
-              >
+              <div className="view-course-btn-card">
                 <FiEye size={14} />
                 View Details
-              </button>
+              </div>
             </div>
           ))
         ) : (
@@ -1333,330 +863,6 @@ const StaffCourses = () => {
         </div>
       )}
 
-      {/* Course Details Modal */}
-      {showCourseDetailsModal && selectedCourse && (
-        <div className="modal-overlay" onClick={() => setShowCourseDetailsModal(false)}>
-          <div className="course-details-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="course-details-header">
-              <div className="course-details-title">
-                <h2>{selectedCourse.name}</h2>
-                <div className="course-details-badges">
-                  <span className="badge-code">{selectedCourse.code}</span>
-                  {selectedCourse.department && (
-                    <span className="badge-department">{selectedCourse.department}</span>
-                  )}
-                  <span className="badge-semester">Semester {selectedCourse.semester}</span>
-                  {selectedCourse.batch && (
-                    <span className="badge-batch">{selectedCourse.batch}</span>
-                  )}
-                </div>
-              </div>
-              <button className="close-btn" onClick={() => setShowCourseDetailsModal(false)}>
-                <FiX size={20} />
-              </button>
-            </div>
-
-            {/* Header with Add Unit button */}
-            <div className="curriculum-header">
-              <div className="curriculum-title-wrapper">
-                <div className="curriculum-icon">
-                  <FiBookOpen size={18} />
-                </div>
-                <div>
-                  <h3 className="curriculum-title">Course Curriculum</h3>
-                  <p className="curriculum-subtitle">{selectedCourse.lessons?.length || 0} Units</p>
-                </div>
-              </div>
-              <button className="add-unit-btn" onClick={() => { setEditingLesson(null); setLessonForm({ title: '', duration: '30 mins', description: '' }); setShowLessonModal(true); }}>
-                <FiPlus size={16} />
-                Add Unit
-              </button>
-            </div>
-
-            {/* Units Table */}
-            <div className="units-table-container">
-              <table className="units-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: '80px' }}>Unit</th>
-                    <th>Unit Title</th>
-                    <th style={{ width: '100px' }}>Duration</th>
-                    <th style={{ width: '120px' }}>Topics</th>
-                    <th style={{ width: '120px' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {selectedCourse.lessons && selectedCourse.lessons.length > 0 ? (
-                    selectedCourse.lessons.map((lesson, index) => (
-                      <React.Fragment key={lesson.id}>
-                        <tr className="unit-row">
-                          <td className="unit-number-cell">
-                            <span className="unit-badge">Unit {index + 1}</span>
-                          </td>
-                          <td className="unit-title-cell">
-                            <div className="unit-title-wrapper">
-                              <span className="unit-name">{lesson.title}</span>
-                              {lesson.description && (
-                                <span className="unit-desc-preview">{lesson.description}</span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="unit-duration-cell">
-                            <span className="duration-badge">
-                              <FiClock size={12} />
-                              {lesson.duration || '30 mins'}
-                            </span>
-                          </td>
-                          <td className="unit-topics-cell">
-                            <span className="topics-count-badge">
-                              <FiList size={12} />
-                              {lesson.subjects?.length || 0} Topics
-                            </span>
-                          </td>
-                          <td className="unit-actions-cell">
-                            <label className="action-icon upload" title="Upload Materials">
-                              <input
-                                type="file"
-                                accept=".pdf,.doc,.docx,.mp4,.mov,.avi,.mkv"
-                                style={{ display: 'none' }}
-                                onChange={(e) => {
-                                  if (e.target.files[0]) {
-                                    handleUploadMaterial(lesson.id, e.target.files[0]);
-                                  }
-                                }}
-                              />
-                              <FiUpload size={14} />
-                            </label>
-                            <button className="action-icon edit" onClick={() => handleEditLesson(lesson)} title="Edit Unit">
-                              <FiEdit2 size={14} />
-                            </button>
-                            <button className="action-icon delete" onClick={() => handleDeleteLesson(lesson.id)} title="Delete Unit">
-                              <FiTrash2 size={14} />
-                            </button>
-                          </td>
-                        </tr>
-                        
-                        {/* Topics Sub-table */}
-                        <tr className="topics-subheader-row">
-                          <td colSpan="5">
-                            <div className="topics-subtable">
-                              <div className="topics-subheader">
-                                <span className="topics-label">Topics Covered</span>
-                                <button 
-                                  className="add-topic-subbtn"
-                                  onClick={() => handleAddSubject(lesson)}
-                                >
-                                  <FiPlus size={12} />
-                                  Add Topic
-                                </button>
-                              </div>
-                              
-                              {lesson.subjects && lesson.subjects.length > 0 ? (
-                                <table className="topics-subtable-table">
-                                  <thead>
-                                    <tr>
-                                      <th style={{ width: '50px' }}>#</th>
-                                      <th>Topic Title</th>
-                                      <th style={{ width: '100px' }}>Duration</th>
-                                      <th style={{ width: '100px' }}>Actions</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {lesson.subjects.map((subject, subIndex) => (
-                                      <tr key={subject.id} className="topic-row">
-                                        <td className="topic-number">{subIndex + 1}</td>
-                                        <td className="topic-title">{subject.title}</td>
-                                        <td className="topic-duration">
-                                          {subject.duration && (
-                                            <span className="topic-time">
-                                              <FiClock size={10} />
-                                              {subject.duration}
-                                            </span>
-                                          )}
-                                        </td>
-                                        <td className="topic-actions">
-                                          <button 
-                                            className="topic-edit"
-                                            onClick={() => handleEditSubject(lesson, subject)}
-                                            title="Edit Topic"
-                                          >
-                                            <FiEdit2 size={12} />
-                                          </button>
-                                          <button 
-                                            className="topic-delete"
-                                            onClick={() => handleDeleteSubject(lesson, subject.id)}
-                                            title="Delete Topic"
-                                          >
-                                            <FiTrash2 size={12} />
-                                          </button>
-                                        </td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              ) : (
-                                <div className="topics-empty-sub">
-                                  <span>No topics added yet</span>
-                                  <button 
-                                    className="empty-add-topic-sub"
-                                    onClick={() => handleAddSubject(lesson)}
-                                  >
-                                    Add your first topic
-                                  </button>
-                                </div>
-                              )}
-                              
-                              {/* Materials Section */}
-                              {lesson.materials && lesson.materials.length > 0 && (
-                                <div className="materials-subsection">
-                                  <div className="materials-subheader">
-                                    <FiPaperclip size={12} />
-                                    <span>Materials ({lesson.materials.length})</span>
-                                  </div>
-                                  <div className="materials-subgrid">
-                                    {lesson.materials.map((material, idx) => (
-                                      <div key={idx} className="material-subitem">
-                                        {getMaterialIcon(material.type)}
-                                        <span className="material-subname">{material.title}</span>
-                                        <div className="material-subactions">
-                                          <a href={material.url} target="_blank" rel="noopener noreferrer" className="material-sublink" title="Open">
-                                            <FiExternalLink size={10} />
-                                          </a>
-                                          <button 
-                                            className="material-subdelete"
-                                            onClick={() => handleDeleteMaterial(lesson.id, material.id)}
-                                            title="Delete"
-                                          >
-                                            <FiTrash2 size={10} />
-                                          </button>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      </React.Fragment>
-                    ))
-                  ) : (
-                    <tr className="empty-row">
-                      <td colSpan="5">
-                        <div className="empty-units">
-                          <FiBookOpen size={48} />
-                          <h4>No units yet</h4>
-                          <p>Click "Add Unit" to create your first unit for this course.</p>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="modal-footer">
-              <button className="btn-secondary" onClick={() => setShowCourseDetailsModal(false)}>Close</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add/Edit Unit Modal */}
-      {showLessonModal && (
-        <div className="modal-overlay" onClick={() => setShowLessonModal(false)}>
-          <div className="modal-content modal-sm" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>{editingLesson ? 'Edit Unit' : 'Add New Unit'}</h2>
-              <button className="close-btn" onClick={() => setShowLessonModal(false)}><FiX size={20} /></button>
-            </div>
-            <div className="modal-body">
-              <div className="form-group">
-                <label>Unit Title *</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g., Introduction to Data Science" 
-                  value={lessonForm.title} 
-                  onChange={(e) => setLessonForm({...lessonForm, title: e.target.value})} 
-                />
-              </div>
-              <div className="form-group">
-                <label>Duration</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g., 30 mins" 
-                  value={lessonForm.duration} 
-                  onChange={(e) => setLessonForm({...lessonForm, duration: e.target.value})} 
-                />
-              </div>
-              <div className="form-group">
-                <label>Description</label>
-                <textarea 
-                  rows="3" 
-                  placeholder="Enter unit description" 
-                  value={lessonForm.description} 
-                  onChange={(e) => setLessonForm({...lessonForm, description: e.target.value})} 
-                />
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn-secondary" onClick={() => setShowLessonModal(false)}>Cancel</button>
-              <button className="btn-primary" onClick={editingLesson ? handleUpdateLesson : handleAddLesson}>
-                {editingLesson ? 'Update Unit' : 'Add Unit'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add/Edit Topic Modal */}
-      {showSubjectModal && (
-        <div className="modal-overlay" onClick={() => setShowSubjectModal(false)}>
-          <div className="modal-content modal-sm" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>{editingSubject ? 'Edit Topic' : 'Add New Topic'}</h2>
-              <button className="close-btn" onClick={() => setShowSubjectModal(false)}><FiX size={20} /></button>
-            </div>
-            <div className="modal-body">
-              <div className="form-group">
-                <label>Topic Title *</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g., Classification of Data Science" 
-                  value={subjectForm.title} 
-                  onChange={(e) => setSubjectForm({...subjectForm, title: e.target.value})} 
-                />
-                <small className="form-hint-text">Enter the main topic or subject name</small>
-              </div>
-              <div className="form-group">
-                <label>Duration</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g., 45 mins" 
-                  value={subjectForm.duration} 
-                  onChange={(e) => setSubjectForm({...subjectForm, duration: e.target.value})} 
-                />
-              </div>
-              <div className="form-group">
-                <label>Description (Optional)</label>
-                <textarea 
-                  rows="3" 
-                  placeholder="Enter topic description" 
-                  value={subjectForm.description} 
-                  onChange={(e) => setSubjectForm({...subjectForm, description: e.target.value})} 
-                />
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn-secondary" onClick={() => setShowSubjectModal(false)}>Cancel</button>
-              <button className="btn-primary" onClick={handleSaveSubject}>
-                {editingSubject ? 'Update Topic' : 'Add Topic'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Student Assignment Modal */}
       {showStudentAssignmentModal && selectedCourse && (
         <div className="modal-overlay" onClick={() => setShowStudentAssignmentModal(false)}>
@@ -1751,17 +957,6 @@ const StaffCourses = () => {
                 <button className="btn-primary" onClick={assignStudents}><FiUserPlus size={16} />Assign Selected ({selectedStudents.length})</button>
               }
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Student Details Modal */}
-      {showStudentModal && selectedStudent && (
-        <div className="modal-overlay" onClick={() => setShowStudentModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header"><h2>Student Details</h2><button className="close-btn" onClick={() => setShowStudentModal(false)}><FiX size={20} /></button></div>
-            <div className="modal-body"><div className="student-profile"><div className="student-avatar-large">{selectedStudent.name?.charAt(0)}</div><div className="student-info-large"><h3>{selectedStudent.name}</h3><p>{selectedStudent.email}</p></div></div><div className="student-details-grid"><div className="detail-item"><label>Roll Number</label><span>{selectedStudent.rollNo}</span></div><div className="detail-item"><label>Batch</label><span>{selectedStudent.batch || '—'}</span></div><div className="detail-item"><label>Progress</label><span>{selectedStudent.progress || 0}%</span></div><div className="detail-item"><label>Attendance</label><span>{selectedStudent.attendance || 0}%</span></div><div className="detail-item"><label>Grade</label><span>{selectedStudent.grade || 'N/A'}</span></div></div></div>
-            <div className="modal-footer"><button className="btn-secondary" onClick={() => setShowStudentModal(false)}>Close</button><button className="btn-primary"><FiMail size={14} />Contact Student</button></div>
           </div>
         </div>
       )}
