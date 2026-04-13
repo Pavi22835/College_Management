@@ -74,7 +74,9 @@ model Staff {
   employeeId       String       @unique
   department       String
   designation      String
+  staffRole        String       @default("FACULTY")  // 👈 ADDED: values: "HOD", "FACULTY", "MENTOR"
   phone            String?
+  appointedDate    DateTime?    // 👈 ADDED: for HOD appointment date
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
   deletedAt        DateTime?
@@ -88,6 +90,7 @@ model Staff {
   @@index([department])
   @@index([deletedAt])
   @@index([employeeId])
+  @@index([staffRole])  // 👈 ADDED: index for faster filtering
 }
 
 model Admin {
@@ -164,13 +167,12 @@ model Lesson {
   updatedAt   DateTime @updatedAt
   course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   materials   Material[]
-  topics      Topic[]  // 👈 ADDED: Topics under this lesson
+  topics      Topic[]  // Topics under this lesson
 
   @@index([courseId])
   @@index([order])
 }
 
-// 👇 NEW: Topic Model - Represents subjects/topics under a lesson
 model Topic {
   id          Int      @id @default(autoincrement())
   title       String
