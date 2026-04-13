@@ -7,6 +7,7 @@ import { protect } from "../middleware/authMiddleware.js";
 import {
   uploadMaterial,
   getMaterialsByLesson,
+  getMaterialsByTopic,
   deleteMaterial
 } from "../controllers/materialController.js";
 
@@ -67,7 +68,9 @@ const upload = multer({
 
 // Routes
 router.post("/lesson/:lessonId/upload", protect, upload.single("file"), uploadMaterial);
+router.post("/topic/:topicId/upload", protect, upload.single("file"), uploadMaterial);
 router.get("/lesson/:lessonId", protect, getMaterialsByLesson);
+router.get("/topic/:topicId", protect, getMaterialsByTopic);
 router.delete("/:materialId", protect, deleteMaterial);
 
 export default router;
