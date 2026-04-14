@@ -171,8 +171,12 @@ const Login = () => {
 
       <div className="login-card">
         <div className="login-header">
-          <h1 className="login-title">College Management System</h1>
-          <p className="login-subtitle">Sign in with your credentials</p>
+          <div className="login-title-container">
+            <div>
+              <h1 className="login-title">College Management System</h1>
+              <p className="login-subtitle">Sign in with your credentials</p>
+            </div>
+          </div>
         </div>
 
         {/* Role selector */}

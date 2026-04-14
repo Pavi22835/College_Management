@@ -80,14 +80,39 @@
   margin-bottom: 35px;
 }
 
+.login-title-container {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.login-title-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  box-shadow: 0 16px 30px rgba(102, 126, 234, 0.18);
+}
+
+.login-title-icon svg {
+  width: 26px;
+  height: 26px;
+}
+
 .login-title {
-  font-size: 32px;
+  font-size: 30px;
   font-weight: 700;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  margin-bottom: 8px;
+  margin: 0;
   letter-spacing: -0.5px;
 }
 
@@ -95,6 +120,7 @@
   color: #6b7280;
   font-size: 15px;
   font-weight: 400;
+  margin-top: 6px;
 }
 
 /* Role Selector */
