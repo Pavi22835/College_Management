@@ -74,7 +74,7 @@ app.use("/uploads", (req, res, next) => {
   if (req.method === "OPTIONS") {
     return res.sendStatus(200);
   }
-  
+
   // Continue to static file serving
   next();
 });
@@ -82,14 +82,15 @@ app.use("/uploads", (req, res, next) => {
 app.use("/uploads", express.static(path.join(__dirname, "uploads"), {
   setHeaders: (res, filepath) => {
     const filename = filepath.toLowerCase();
-    
+    const baseFileName = path.basename(filepath);
+
     console.log(`📦 Serving file: ${filename}`);
     
     // Set proper content-type for PDFs
     if (filename.includes('.pdf')) {
       console.log('   → Setting PDF headers');
       res.set('Content-Type', 'application/pdf');
-      res.set('Content-Disposition', 'inline; filename="pdf"'); // Display inline, not download
+      res.set('Content-Disposition', `inline; filename="${baseFileName}"`);
     }
     // Set proper headers for videos
     if (filename.match(/\.(mp4|webm|mov)$/i)) {
@@ -98,10 +99,14 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads"), {
       res.set('Content-Type', filename.includes('mp4') ? 'video/mp4' : filename.includes('webm') ? 'video/webm' : 'video/quicktime');
     }
     // Set proper headers for Word docs
-    if (filename.includes('.docx') || filename.includes('.doc')) {
-      console.log('   → Setting document headers');
+    if (filename.endsWith('.docx')) {
+      console.log('   → Setting DOCX headers');
       res.set('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-      res.set('Content-Disposition', 'attachment; filename="document"');
+      res.set('Content-Disposition', `attachment; filename="${baseFileName}"`);
+    } else if (filename.endsWith('.doc')) {
+      console.log('   → Setting DOC headers');
+      res.set('Content-Type', 'application/msword');
+      res.set('Content-Disposition', `attachment; filename="${baseFileName}"`);
     }
     // Disable caching for materials (so fresh versions are always served)
     res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -145,10 +150,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 
 // Course routes
-app.use("/api/courses", courseRoutes);
-
-// Admin Courses (same controller but admin UI path)
-app.use("/api/admin/courses", courseRoutes);
+app.use("/api", courseRoutes);
 
 // Attendance routes
 app.use("/api/attendance", attendanceRoutes);

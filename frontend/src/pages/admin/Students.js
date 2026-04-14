@@ -322,7 +322,7 @@ const AdminStudents = () => {
     try {
       setLoading(true);
       const [studentsRes, teachersRes, coursesRes] = await Promise.all([
-        studentApi.getStudents(),
+        studentApi.getStudents(true),
         staffApi.getStaff(),
         courseApi.getCourses()
       ]);
