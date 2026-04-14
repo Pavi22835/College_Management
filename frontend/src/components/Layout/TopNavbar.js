@@ -132,7 +132,7 @@ const TopNavbar = () => {
               </div>
 
               <div className="panel-menu">
-                <button className="panel-item" onClick={handleProfileClick}>
+                <button className="panel-item" onClick={() => { navigate(getProfileUrl()); setIsProfileOpen(false); }}>
                   <User size={16} className="panel-icon" />
                   <div className="panel-item-content">
                     <span className="panel-item-title">My Profile</span>
@@ -146,16 +146,6 @@ const TopNavbar = () => {
                     <div className="panel-item-content">
                       <span className="panel-item-title">Class Reports</span>
                       <span className="panel-item-desc">View your class reports</span>
-                    </div>
-                  </button>
-                )}
-
-                {isStudent && (
-                  <button className="panel-item" onClick={() => { navigate('/student/grades'); setIsProfileOpen(false); }}>
-                    <FileText size={16} className="panel-icon" />
-                    <div className="panel-item-content">
-                      <span className="panel-item-title">My Grades</span>
-                      <span className="panel-item-desc">View your academic progress</span>
                     </div>
                   </button>
                 )}
