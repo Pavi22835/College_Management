@@ -27,11 +27,13 @@ router.post('/students/:id/restore', adminController.restoreStudent);
 router.delete('/students/:id/permanent', adminController.permanentDeleteStudent);
 
 // ==================== STAFF ROUTES - USING STAFF CONTROLLER ====================
+// IMPORTANT: Specific routes must come BEFORE generic /:id route
 // Role-specific routes
 router.get('/staff/hods', staffController.getHODs);
 router.get('/staff/faculty', staffController.getFaculty);
 router.get('/staff/mentors', staffController.getMentors);
 router.get('/staff/stats', staffController.getStaffStats);
+router.get('/staff/trash', staffController.getTrashedStaff);
 
 // CRUD operations
 router.get('/staff', staffController.getAllStaff);
@@ -39,11 +41,8 @@ router.post('/staff', staffController.createStaff);
 router.get('/staff/:id', staffController.getStaffById);
 router.put('/staff/:id', staffController.updateStaff);
 router.delete('/staff/:id', staffController.deleteStaff);
-
-// Staff trash routes (using adminController for trash operations)
-router.get('/staff/trash', adminController.getTrashedTeachers);
-router.post('/staff/:id/restore', adminController.restoreTeacher);
-router.delete('/staff/:id/permanent', adminController.permanentDeleteTeacher);
+router.post('/staff/:id/restore', staffController.restoreStaff);
+router.delete('/staff/:id/permanent', staffController.permanentDeleteStaff);
 
 // ==================== COURSE ROUTES ====================
 router.get('/courses', adminController.getAllCourses);

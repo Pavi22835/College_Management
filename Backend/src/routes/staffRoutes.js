@@ -1,18 +1,18 @@
 import express from "express";
 import { protect, authorize } from "../middleware/authMiddleware.js";
 import {
-  // Admin methods
   getAllStaff,
   getStaffById,
   createStaff,
   updateStaff,
   deleteStaff,
+  restoreStaff,
+  permanentDeleteStaff,
+  getTrashedStaff,
   getHODs,
   getFaculty,
   getMentors,
   getStaffStats,
-  
-  // Staff self methods
   getStaffProfile,
   updateStaffProfile,
   updateStaffPassword,
@@ -20,8 +20,6 @@ import {
   getStaffCourses,
   getStaffStudents,
   getStaffTodaySchedule,
-  
-  // NEW: Staff Course Management methods
   createStaffCourse,
   getStaffCourseById,
   updateStaffCourse,
@@ -30,52 +28,37 @@ import {
 
 const router = express.Router();
 
-/* ========================================
-   STAFF SELF ROUTES (Protected)
-   These must come first to avoid being caught by /:id route
-   ======================================== */
+// Staff self routes
 router.get("/profile", protect, authorize("STAFF"), getStaffProfile);
 router.put("/profile", protect, authorize("STAFF"), updateStaffProfile);
 router.put("/password", protect, authorize("STAFF"), updateStaffPassword);
-
-// Dashboard routes
 router.get("/dashboard/stats", protect, authorize("STAFF"), getStaffDashboardStats);
 router.get("/dashboard/courses", protect, authorize("STAFF"), getStaffCourses);
 router.get("/dashboard/students", protect, authorize("STAFF"), getStaffStudents);
 router.get("/dashboard/schedule/today", protect, authorize("STAFF"), getStaffTodaySchedule);
 
-/* ========================================
-   NEW: STAFF COURSE MANAGEMENT ROUTES
-   ======================================== */
-// Create a new course
+// Course management routes
 router.post("/courses", protect, authorize("STAFF", "ADMIN"), createStaffCourse);
-
-// Get staff's courses (already exists but keeping for clarity)
-// router.get("/courses", protect, authorize("STAFF"), getStaffCourses);
-
-// Get specific course by ID
 router.get("/courses/:id", protect, authorize("STAFF", "ADMIN"), getStaffCourseById);
-
-// Update a course
 router.put("/courses/:id", protect, authorize("STAFF", "ADMIN"), updateStaffCourse);
-
-// Delete a course (soft delete)
 router.delete("/courses/:id", protect, authorize("STAFF", "ADMIN"), deleteStaffCourse);
 
-/* ========================================
-   ADMIN ROUTES
-   ======================================== */
-// Staff role-specific routes
+// Admin routes - SPECIFIC ROUTES FIRST
+router.get("/trash", protect, authorize("ADMIN"), getTrashedStaff);
+router.get("/stats", protect, authorize("ADMIN"), getStaffStats);
 router.get("/hods", protect, authorize("ADMIN"), getHODs);
 router.get("/faculty", protect, authorize("ADMIN"), getFaculty);
 router.get("/mentors", protect, authorize("ADMIN"), getMentors);
-router.get("/stats", protect, authorize("ADMIN"), getStaffStats);
 
-// CRUD operations
-router.get("/", protect, authorize("ADMIN"), getAllStaff);
-router.post("/", protect, authorize("ADMIN"), createStaff);
+// Parameterized routes
+router.get("/:id/restore", protect, authorize("ADMIN"), restoreStaff);
+router.delete("/:id/permanent", protect, authorize("ADMIN"), permanentDeleteStaff);
 router.get("/:id", protect, authorize("ADMIN"), getStaffById);
 router.put("/:id", protect, authorize("ADMIN"), updateStaff);
 router.delete("/:id", protect, authorize("ADMIN"), deleteStaff);
+
+// General routes
+router.get("/", protect, authorize("ADMIN"), getAllStaff);
+router.post("/", protect, authorize("ADMIN"), createStaff);
 
 export default router;
