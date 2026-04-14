@@ -415,17 +415,16 @@ const Reports = () => {
       // Set attendance stats from real data
       let attendanceStatsData = [];
       if (attendanceResponse.status === 'fulfilled') {
-        const attendanceData = attendanceResponse.value;
-        if (attendanceData?.data) {
-          const stats = attendanceData.data;
+        const summary = attendanceResponse.value;
+        if (summary) {
           attendanceStatsData = [
-            { label: 'Present', value: stats.presentCount || 0 },
-            { label: 'Absent', value: stats.absentCount || 0 },
-            { label: 'Late', value: stats.lateCount || 0 }
+            { label: 'Present', value: summary.present || summary.presentCount || 0 },
+            { label: 'Absent', value: summary.absent || summary.absentCount || 0 },
+            { label: 'Late', value: summary.late || summary.lateCount || 0 }
           ];
         }
-      } else {
-        // Fallback: calculate from attendance records or set to empty
+      }
+      if (attendanceStatsData.length === 0) {
         attendanceStatsData = [
           { label: 'Present', value: 0 },
           { label: 'Absent', value: 0 },
