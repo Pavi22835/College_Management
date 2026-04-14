@@ -297,6 +297,12 @@ const staffApi = {
     try {
       const response = await axiosInstance.get("/staff/dashboard/courses");
       console.log("📊 Teacher courses response:", response.data);
+      
+      if (response.data?.success && response.data?.data) {
+        return { data: response.data.data };
+      } else if (Array.isArray(response.data)) {
+        return { data: response.data };
+      }
       return response.data;
     } catch (error) {
       console.error("❌ Error fetching teacher courses:", error);
@@ -329,7 +335,7 @@ const staffApi = {
   // Get course details by ID (Staff version)
   getCourseById: async (courseId) => {
     try {
-      const response = await axiosInstance.get(`/staff/${courseId}`);
+      const response = await axiosInstance.get(`/staff/courses/${courseId}`);
       console.log(`📊 Get course ${courseId} response:`, response.data);
       return response.data?.data || response.data;
     } catch (error) {

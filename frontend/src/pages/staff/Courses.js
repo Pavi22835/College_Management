@@ -224,12 +224,16 @@ const StaffCourses = () => {
         })
       ]);
       
+      console.log('📥 Courses API Response:', coursesResponse);
+      
       let coursesData = [];
       if (coursesResponse?.data && Array.isArray(coursesResponse.data)) {
         coursesData = coursesResponse.data;
       } else if (Array.isArray(coursesResponse)) {
         coursesData = coursesResponse;
       }
+
+      console.log('📊 Courses Data with studentsCount:', coursesData.map(c => ({ name: c.name, studentsCount: c.studentsCount })));
 
       const enhancedCourses = coursesData.map(course => ({
         ...course,
@@ -247,6 +251,8 @@ const StaffCourses = () => {
         }))
       }));
 
+      console.log('✅ Enhanced Courses:', enhancedCourses.map(c => ({ name: c.name, studentsCount: c.studentsCount })));
+
       const courseBatches = [...new Set(enhancedCourses.map(c => c.batch).filter(Boolean))];
       if (courseBatches.length > 0) {
         setBatchList(prev => [...new Set([...prev, ...courseBatches])].sort());
@@ -259,16 +265,25 @@ const StaffCourses = () => {
         completedCourses: 0
       };
 
-      if (statsResponse?.data?.stats) {
-        dashboardStats = {
-          totalCourses: statsResponse.data.stats.totalCourses || enhancedCourses.length,
-          totalStudents: statsResponse.data.stats.totalStudents || 0,
-          averageProgress: enhancedCourses.length > 0 
-            ? Math.round(enhancedCourses.reduce((sum, course) => sum + (course.progress || 0), 0) / enhancedCourses.length)
-            : 0,
-          completedCourses: enhancedCourses.filter(c => c.progress === 100).length
-        };
-      }
+      // Calculate total students from all courses' studentsCount
+      const totalStudents = enhancedCourses.reduce((sum, course) => sum + (course.studentsCount || 0), 0);
+      
+      // Calculate average progress from courses
+      const avgProgress = enhancedCourses.length > 0 
+        ? Math.round(enhancedCourses.reduce((sum, course) => sum + (course.progress || 0), 0) / enhancedCourses.length)
+        : 0;
+      
+      // Count completed courses (progress = 100)
+      const completedCourses = enhancedCourses.filter(c => c.progress === 100).length;
+
+      dashboardStats = {
+        totalCourses: enhancedCourses.length,
+        totalStudents: totalStudents,
+        averageProgress: avgProgress,
+        completedCourses: completedCourses
+      };
+
+      console.log('📊 Dashboard Stats:', dashboardStats);
 
       setStats(dashboardStats);
       setCourses(enhancedCourses);
@@ -341,6 +356,16 @@ const StaffCourses = () => {
     }
 
     try {
+      console.log('📤 Sending course creation request:', {
+        name: newCourse.name,
+        code: newCourse.code,
+        semester: parseInt(newCourse.semester),
+        department: newCourse.department,
+        batch: newCourse.batch || null,
+        description: newCourse.description || '',
+        credits: 3
+      });
+
       const createdCourse = await staffApi.createCourse({
         name: newCourse.name,
         code: newCourse.code,
@@ -350,6 +375,8 @@ const StaffCourses = () => {
         description: newCourse.description || '',
         credits: 3
       });
+
+      console.log('✅ Course created successfully:', createdCourse);
 
       const courseToAdd = {
         ...createdCourse,
@@ -361,6 +388,8 @@ const StaffCourses = () => {
         syllabus: '',
         lessons: []
       };
+
+      console.log('📝 Adding course to state:', courseToAdd);
 
       setCourses([courseToAdd, ...courses]);
       setFilteredCourses([courseToAdd, ...filteredCourses]);
@@ -388,8 +417,11 @@ const StaffCourses = () => {
       setDepartmentSearchTerm('');
       setShowAddCourseModal(false);
       
+      // Refresh courses from backend to ensure sync
+      await fetchCourses();
+      
     } catch (error) {
-      console.error('Error adding course:', error);
+      console.error('❌ Error adding course:', error);
       const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message || 'Failed to add course';
       setErrorMessage(`Failed to add course: ${errorMsg}`);
       setTimeout(() => setErrorMessage(''), 5000);
@@ -852,7 +884,7 @@ const StaffCourses = () => {
               </div>
               <div className="form-hint">
                 <FiAlertCircle size={14} />
-                <span>Fields marked with * are required.</span>
+                <span>Note: Fields marked with * are required.</span>
               </div>
             </div>
             <div className="modal-footer">

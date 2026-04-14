@@ -125,16 +125,7 @@ const StudentCourses = () => {
       const lessons = courseResponse.data.lessons || [];
       console.log('=== COURSE PLAN DEBUG ===');
       console.log('Total lessons:', lessons.length);
-      console.log('Sample lesson:', lessons[0]);
-      if (lessons[0]?.topics?.length) {
-        console.log('Sample topic:', lessons[0].topics[0]);
-        if (lessons[0].topics[0]?.materials?.length) {
-          console.log('Sample topic material:', lessons[0].topics[0].materials[0]);
-        }
-      }
-      if (lessons[0]?.materials?.length) {
-        console.log('Sample lesson material:', lessons[0].materials[0]);
-      }
+      console.log('Full lessons data:', JSON.stringify(lessons, null, 2));
       
       const coursePlan = lessons.map((lesson, lessonIndex) => {
         const materials = Array.isArray(lesson.materials) ? lesson.materials : [];
@@ -165,8 +156,8 @@ const StudentCourses = () => {
           lectureMaterialsList: lectureMaterials,
           lectureVideo: lectureVideos.length > 0 ? lectureVideos[0] : null,
           lectureVideosList: lectureVideos,
-          hoursRequired,
-          totalHours: lesson.totalHours || null,
+          duration: lesson.duration || '30 mins',
+          description: lesson.description || '',
           order: lesson.order || lesson.display_order || 0
         };
       });
@@ -175,6 +166,10 @@ const StudentCourses = () => {
         if (a.unitNo !== b.unitNo) return a.unitNo - b.unitNo;
         return a.order - b.order;
       });
+
+      console.log('=== FINAL COURSE PLAN ===');
+      console.log('Course plan items:', coursePlan.length);
+      console.log('Course plan data:', JSON.stringify(coursePlan, null, 2));
 
       setCoursePlanData(coursePlan);
     } catch (error) {
@@ -193,20 +188,29 @@ const StudentCourses = () => {
 
   const findTopicMaterial = (topic) => {
     if (!topic?.materials?.length) return null;
-    return topic.materials.find(m => 
+    const material = topic.materials.find(m => 
       m.type === 'pdf' ||
       m.type === 'document' ||
       m.type === 'docx' ||
+      m.type === 'application/pdf' ||
+      m.fileType === 'application/pdf' ||
       (m.fileName && /\.(pdf|doc|docx)$/i.test(m.fileName))
-    ) || topic.materials[0];
+    );
+    console.log('findTopicMaterial for topic:', topic.title, 'found:', material);
+    return material || null;
   };
 
   const findTopicVideo = (topic) => {
     if (!topic?.materials?.length) return null;
-    return topic.materials.find(m => 
+    const video = topic.materials.find(m => 
       m.type === 'video' ||
+      m.type === 'video/mp4' ||
+      m.fileType === 'video/mp4' ||
+      m.fileType?.startsWith('video/') ||
       (m.fileName && /\.(mp4|webm|mov)$/i.test(m.fileName))
-    ) || null;
+    );
+    console.log('findTopicVideo for topic:', topic.title, 'found:', video);
+    return video || null;
   };
 
   const normalizeMaterialUrl = (path) => {
@@ -401,7 +405,7 @@ const StudentCourses = () => {
 
   const filteredSemesters = semesters.filter(s => s.toString().includes(searchTerm));
   const filteredSubjects = subjects.filter(s => 
-    s.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (s.title || s.name)?.toLowerCase().includes(searchTerm.toLowerCase()) || 
     s.code?.toLowerCase().includes(searchTerm.toLowerCase())
   );
   
@@ -555,7 +559,7 @@ const StudentCourses = () => {
                 filteredSubjects.map(subject => (
                   <tr key={subject.id} onClick={() => handleSubjectClick(subject)}>
                     <td className="code-cell">{subject.code}</td>
-                    <td className="name-cell">{subject.name}</td>
+                    <td className="name-cell">{subject.title || subject.name}</td>
                     <td>
                       <button className="view-btn">
                         View Course Plan <HiOutlineChevronRight size={14} />
@@ -595,7 +599,7 @@ const StudentCourses = () => {
             <HiOutlineChevronLeft /> Back to Subjects
           </button>
           <div>
-            <h1 className="header-title">{selectedSubject?.name} Course Plan</h1>
+            <h1 className="header-title">{selectedSubject?.title || selectedSubject?.name} Course Plan</h1>
             <p className="header-subtitle">{selectedSubject?.code}</p>
           </div>
         </div>
@@ -628,22 +632,29 @@ const StudentCourses = () => {
                   <th>Topic</th>
                   <th style={{ width: '200px' }}>Lecture Material</th>
                   <th style={{ width: '200px' }}>Lecture Video</th>
-                  <th style={{ width: '120px' }}>No. of Hours</th>
-                  <th style={{ width: '100px' }}>Total Hours</th>
+                  <th style={{ width: '150px' }}>Duration</th>
+                  <th style={{ width: '200px' }}>Description</th>
                 </tr>
               </thead>
               <tbody>
-                {sortedUnits.map(unitNo => (
-                  groupedCoursePlan[unitNo].map((item, idx) => {
+                {sortedUnits.map(unitNo => {
+                  console.log('Rendering unit:', unitNo, 'Items:', groupedCoursePlan[unitNo]);
+                  return groupedCoursePlan[unitNo].map((item, idx) => {
                     const topicRows = item.topics && item.topics.length > 0
                       ? item.topics
-                      : [{ title: item.topic, duration: item.hoursRequired ? `${item.hoursRequired} mins` : '', materials: [] }];
+                      : [{ title: item.topic, duration: item.duration, materials: [] }];
+
+                    console.log('Item:', item.id, 'Topic rows:', topicRows);
+                    console.log('Item duration:', item.duration);
+                    console.log('Item description:', item.description);
 
                     return topicRows.map((topic, topicIdx) => {
                       const topicMaterial = findTopicMaterial(topic) || (topicIdx === 0 ? item.lectureMaterial : null);
                       const topicVideo = findTopicVideo(topic) || (topicIdx === 0 ? item.lectureVideo : null);
                       const showUnitCell = topicIdx === 0;
                       const rowSpan = topicRows.length;
+
+                      console.log(`Row ${topicIdx}: showUnitCell=${showUnitCell}, rowSpan=${rowSpan}, duration=${item.duration}, description=${item.description}`);
 
                       return (
                         <tr key={`${item.id}-${topicIdx}`}>
@@ -691,16 +702,20 @@ const StudentCourses = () => {
                             )}
                           </td>
                           {showUnitCell && (
-                            <td rowSpan={rowSpan} className="hours-cell">{item.hoursRequired}</td>
+                            <td rowSpan={rowSpan} className="hours-cell">
+                              {item.duration || topic.duration || '-'}
+                            </td>
                           )}
                           {showUnitCell && (
-                            <td rowSpan={rowSpan} className="hours-cell">{item.totalHours || '-'}</td>
+                            <td rowSpan={rowSpan} className="description-cell">
+                              {item.description || topic.description || '-'}
+                            </td>
                           )}
                         </tr>
                       );
                     });
-                  })
-                ))}
+                  });
+                })}
               </tbody>
             </table>
           </div>

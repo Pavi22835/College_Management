@@ -38,3 +38,33 @@ body {
   min-width: 18px;
   min-height: 18px;
 }
+
+/* GLOBAL MODAL CLOSE BUTTON FIX */
+.close-btn {
+  width: 34px !important;
+  height: 34px !important;
+  border: none !important;
+  background: #f1f5f9 !important;
+  border-radius: 8px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: #64748b !important;
+  cursor: pointer !important;
+  transition: all 0.2s !important;
+  flex-shrink: 0 !important;
+}
+
+.close-btn:hover {
+  background: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+.close-btn svg {
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  min-height: 18px !important;
+  display: block !important;
+  stroke-width: 2 !important;
+}

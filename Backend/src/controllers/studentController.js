@@ -351,6 +351,7 @@ export const createStudent = async (req, res) => {
           rollNo,
           age: age ? parseInt(age) : null,
           gender: gender || null,
+          department: req.body.department || null,
           course: courseRecord?.name || course || null,
           semester: semester ? parseInt(semester) : null,
           batch: batch || null,
@@ -554,6 +555,7 @@ export const updateStudent = async (req, res) => {
           rollNo: updateData.rollNo,
           age: updateData.age ? parseInt(updateData.age) : null,
           gender: updateData.gender,
+          department: updateData.department,
           course: courseRecord?.name || updateData.course,
           semester: updateData.semester ? parseInt(updateData.semester) : null,
           batch: updateData.batch,
@@ -922,21 +924,46 @@ export const getStudentDashboard = async (req, res) => {
       };
     });
 
+    // Get total students in the same batch/semester
+    const totalStudents = await prisma.student.count({
+      where: {
+        batch: student.batch,
+        semester: student.semester,
+        deletedAt: null
+      }
+    });
+
+    // Get today's attendance
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(today);
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const todayAttendances = attendances.filter(a => {
+      const attDate = new Date(a.date);
+      return attDate >= today && attDate <= todayEnd;
+    });
+
+    const todayTotal = todayAttendances.length;
+    const todayPresent = todayAttendances.filter(a => a.status === "PRESENT").length;
+    const todayAttendancePercentage = todayTotal > 0 ? Math.round((todayPresent / todayTotal) * 100) : 0;
+
     const responseData = {
       student: {
         name: student.name,
         rollNo: student.rollNo,
         course: student.course,
         semester: student.semester,
+        batch: student.batch,
         email: student.email,
         phone: student.phone,
         teacher: student.teacher?.name || "Not Assigned"
       },
       stats: {
-        enrolledCourses: enrollments.length,
-        attendance: attendancePercentage,
-        assignments: 0,
-        cgpa: 0
+        totalCourses: enrollments.length,
+        totalStudents: totalStudents,
+        todayAttendance: todayAttendancePercentage,
+        averageAttendance: attendancePercentage
       },
       courses: courses,
       recentAttendance: attendances.slice(0, 5).map(a => ({

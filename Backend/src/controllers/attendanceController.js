@@ -780,36 +780,71 @@ export const getTeacherCourseAttendance = async (req, res) => {
     const { courseId } = req.params;
     const { date } = req.query;
 
+    console.log(`🔍 Fetching attendance for courseId: ${courseId}, date: ${date}`);
+
     const course = await prisma.course.findUnique({
-      where: { id: Number(courseId) },
-      include: {
-        enrollments: {
-          where: {
-            student: {
-              deletedAt: null
+      where: { id: Number(courseId) }
+    });
+
+    if (!course || course.deletedAt) {
+      console.log(`❌ Course not found or deleted: ${courseId}`);
+      return res.status(404).json({
+        success: false,
+        message: "Course not found"
+      });
+    }
+
+    console.log(`✅ Course found: ${course.name} (${course.code}), Batch: ${course.batch}`);
+
+    // Get students based on course batch
+    let students = [];
+    if (course.batch) {
+      students = await prisma.student.findMany({
+        where: {
+          batch: course.batch,
+          deletedAt: null
+        },
+        include: {
+          user: {
+            select: {
+              name: true,
+              email: true
             }
-          },
-          include: {
-            student: {
-              include: {
-                user: {
-                  select: {
-                    name: true,
-                    email: true
-                  }
+          }
+        },
+        orderBy: {
+          rollNo: 'asc'
+        }
+      });
+      console.log(`📚 Course ${course.name} (${course.code}) - Batch: ${course.batch} - Found ${students.length} students`);
+      if (students.length > 0) {
+        console.log(`👥 First 3 students:`, students.slice(0, 3).map(s => ({ id: s.id, name: s.name, rollNo: s.rollNo, batch: s.batch })));
+      }
+    } else {
+      console.log(`⚠️ Course has no batch, falling back to enrollments`);
+      // Fallback to enrolled students if no batch
+      const enrollments = await prisma.enrollment.findMany({
+        where: {
+          courseId: Number(courseId),
+          student: {
+            deletedAt: null
+          }
+        },
+        include: {
+          student: {
+            include: {
+              user: {
+                select: {
+                  name: true,
+                  email: true
                 }
               }
             }
           }
         }
-      }
-    });
-
-    if (!course || course.deletedAt) {
-      return res.status(404).json({
-        success: false,
-        message: "Course not found"
       });
+      students = enrollments.map(e => e.student);
+      console.log(`📚 Course ${course.name} (${course.code}) - No batch - Found ${students.length} enrolled students`);
     }
 
     let attendanceRecords = [];
@@ -830,16 +865,17 @@ export const getTeacherCourseAttendance = async (req, res) => {
           }
         }
       });
+      console.log(`📋 Found ${attendanceRecords.length} attendance records for date ${date}`);
     }
 
-    const studentsWithAttendance = course.enrollments.map(enrollment => {
-      const attendance = attendanceRecords.find(a => a.studentId === enrollment.student.id);
+    const studentsWithAttendance = students.map(student => {
+      const attendance = attendanceRecords.find(a => a.studentId === student.id);
       return {
-        id: enrollment.student.id,
-        name: enrollment.student.name,
-        email: enrollment.student.email,
-        rollNo: enrollment.student.rollNo,
-        phone: enrollment.student.phone,
+        id: student.id,
+        name: student.name,
+        email: student.email,
+        rollNo: student.rollNo,
+        phone: student.phone,
         status: attendance?.status || "NOT_MARKED",
         markedAt: attendance?.markedAt || null
       };
@@ -859,6 +895,8 @@ export const getTeacherCourseAttendance = async (req, res) => {
       take: 10
     });
 
+    console.log(`📤 Sending response: ${students.length} students, ${attendanceRecords.length} marked`);
+
     res.json({
       success: true,
       data: {
@@ -868,11 +906,12 @@ export const getTeacherCourseAttendance = async (req, res) => {
           name: course.name,
           department: course.department,
           semester: course.semester,
+          batch: course.batch,
           schedule: course.schedule,
           room: course.room
         },
         date: selectedDate,
-        totalStudents: course.enrollments.length,
+        totalStudents: students.length,
         markedCount: attendanceRecords.length,
         students: studentsWithAttendance,
         recentDates: recentDates.map(d => d.date)
@@ -880,10 +919,11 @@ export const getTeacherCourseAttendance = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Get teacher course attendance error:", error);
+    console.error("❌ Get teacher course attendance error:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to fetch course attendance"
+      message: "Failed to fetch course attendance",
+      error: error.message
     });
   }
 };

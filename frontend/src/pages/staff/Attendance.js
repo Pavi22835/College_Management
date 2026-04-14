@@ -114,6 +114,8 @@ const StaffAttendance = () => {
           const absent = Object.values(attendanceMap).filter(s => s === 'absent').length;
           const late = Object.values(attendanceMap).filter(s => s === 'late').length;
           
+          console.log('📊 Attendance Stats:', { total, present, absent, late, attendanceMap });
+          
           setStats({
             total,
             present,

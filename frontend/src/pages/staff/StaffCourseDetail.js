@@ -59,11 +59,20 @@ const StaffCourseDetail = () => {
   const fetchCourseDetails = async () => {
     try {
       setLoading(true);
-      const response = await courseApi.getCourseById(courseId);
+      setErrorMessage('');
+      
+      let response;
+      try {
+        response = await courseApi.getCourseById(courseId);
+      } catch (err) {
+        console.warn('Failed to fetch from /courses endpoint, trying staff endpoint:', err);
+        response = await staffApi.getCourseById(courseId);
+      }
+      
       const courseData = response?.data || response;
 
       if (!courseData) {
-        throw new Error('Invalid course data');
+        throw new Error('Course not found');
       }
 
       if (courseData.lessons && Array.isArray(courseData.lessons)) {

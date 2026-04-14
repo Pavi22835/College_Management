@@ -35,6 +35,7 @@ model Student {
   name               String
   age                Int?
   gender             String?
+  department         String?
   course             String?
   semester           Int?
   batch              String?
@@ -63,6 +64,7 @@ model Student {
   @@index([email])
   @@index([rollNo])
   @@index([teacherId])
+  @@index([department])
   @@index([course])
   @@index([batch])
   @@index([deletedAt])
