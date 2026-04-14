@@ -520,7 +520,7 @@ export const getTrashedTeachers = async (req, res) => {
   try {
     const teachers = await prisma.staff.findMany({
       where: { 
-        NOT: { deletedAt: null } 
+        deletedAt: { not: null }
       },
       include: {
         user: {

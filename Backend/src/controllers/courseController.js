@@ -78,7 +78,10 @@ export const getCourseById = async (req, res) => {
           orderBy: { order: "asc" },
           include: {
             topics: {
-              orderBy: { order: "asc" }
+              orderBy: { order: "asc" },
+              include: {
+                materials: true
+              }
             },
             materials: true
           }
@@ -401,7 +404,10 @@ export const getTeacherCourseDetails = async (req, res) => {
           orderBy: { order: "asc" },
           include: {
             topics: {
-              orderBy: { order: "asc" }
+              orderBy: { order: "asc" },
+              include: {
+                materials: true
+              }
             },
             materials: true
           }
