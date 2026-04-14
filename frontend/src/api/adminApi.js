@@ -445,7 +445,7 @@ export const attendanceApi = {
   getStats: async () => {
     try {
       const response = await axiosConfig.get('/admin/attendance/stats');
-      return response.data;
+      return response.data?.data?.summary || response.data?.data || response.data;
     } catch (error) {
       console.error('❌ Error fetching attendance stats:', error.response?.data || error.message);
       throw error;

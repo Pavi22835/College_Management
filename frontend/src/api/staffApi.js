@@ -329,7 +329,7 @@ const staffApi = {
   // Get course details by ID (Staff version)
   getCourseById: async (courseId) => {
     try {
-      const response = await axiosInstance.get(`/staff/courses/${courseId}`);
+      const response = await axiosInstance.get(`/staff/${courseId}`);
       console.log(`📊 Get course ${courseId} response:`, response.data);
       return response.data?.data || response.data;
     } catch (error) {
