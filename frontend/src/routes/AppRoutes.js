@@ -43,16 +43,17 @@ import StudentGrades from '../pages/student/Grades';
 import StudentAssignments from '../pages/student/Assignments';
 import StudentSchedule from '../pages/student/Schedule';
 import StudentCommunication from '../pages/student/Communication';
-import StudentProfile from '../pages/student/Profile';
+// FIXED: Changed from 'Profile' to 'StudentProfile'
+import StudentProfile from '../pages/student/StudentProfile';
 
 // Shared Pages
 import NotFound from '../pages/shared/NotFound';
 import Profile from '../pages/shared/Profile';
 
-// Admin Profile Page (create this)
+// Admin Profile Page
 import AdminProfile from '../pages/admin/AdminProfile';
 
-// Staff Profile Page (create this)
+// Staff Profile Page
 import StaffProfile from '../pages/staff/StaffProfile';
 
 // Route Guards
@@ -134,7 +135,7 @@ const AppRoutes = () => {
           <Route path="trash" element={<AdminTrash />} />
           <Route path="logs" element={<AdminLogs />} />
           
-          {/* Profile Routes - UPDATED: Use AdminProfile for admin */}
+          {/* Profile Routes - Use AdminProfile for admin */}
           <Route path="profile" element={<AdminProfile />} />
         </Route>
       )}
@@ -157,7 +158,7 @@ const AppRoutes = () => {
           <Route path="reports" element={<StaffReports />} />
           <Route path="communication" element={<StaffCommunication />} />
           
-          {/* Profile Routes - UPDATED: Use StaffProfile for staff */}
+          {/* Profile Routes - Use StaffProfile for staff */}
           <Route path="profile" element={<StaffProfile />} />
         </Route>
       )}
@@ -180,6 +181,8 @@ const AppRoutes = () => {
           <Route path="assignments" element={<StudentAssignments />} />
           <Route path="schedule" element={<StudentSchedule />} />
           <Route path="communication" element={<StudentCommunication />} />
+          
+          {/* Profile Routes - Use StudentProfile for student */}
           <Route path="profile" element={<StudentProfile />} />
         </Route>
       )}
