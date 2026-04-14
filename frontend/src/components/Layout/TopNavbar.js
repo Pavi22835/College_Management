@@ -8,17 +8,30 @@ import {
   FileText,
   Shield,
   GraduationCap,
-  BookOpen,
-  Bell,
-  HelpCircle
+  BookOpen
 } from 'lucide-react';
 import './TopNavbar.css';
 
 const TopNavbar = () => {
-  const { user, logout, isAdmin, isTeacher, isStudent } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const profileRef = useRef(null);
+
+  // Get user role directly from user object
+  const getUserRole = () => {
+    const role = user?.role?.toUpperCase();
+    console.log('User role:', role);
+    return role;
+  };
+
+  const isAdmin = getUserRole() === 'ADMIN';
+  const isTeacher = getUserRole() === 'STAFF';
+  const isStudent = getUserRole() === 'STUDENT';
+
+  console.log('isAdmin:', isAdmin);
+  console.log('isTeacher:', isTeacher);
+  console.log('isStudent:', isStudent);
 
   const getInitials = (name) => {
     if (!name) return 'U';
@@ -30,7 +43,6 @@ const TopNavbar = () => {
       .slice(0, 2);
   };
 
-  // Get role-specific display name
   const getRoleDisplay = () => {
     if (isAdmin) return 'ADMIN';
     if (isTeacher) return 'TEACHER';
@@ -38,7 +50,6 @@ const TopNavbar = () => {
     return 'USER';
   };
 
-  // Get role-specific icon
   const getRoleIcon = () => {
     if (isAdmin) return <Shield size={12} />;
     if (isTeacher) return <BookOpen size={12} />;
@@ -46,7 +57,6 @@ const TopNavbar = () => {
     return <User size={12} />;
   };
 
-  // Get role-specific full title for panel
   const getRoleTitle = () => {
     if (isAdmin) return 'Administrator';
     if (isTeacher) return 'Teacher';
@@ -54,15 +64,23 @@ const TopNavbar = () => {
     return 'User';
   };
 
-  // Get role-specific profile URL - FIXED
+  // FIXED: Get role-specific profile URL based on actual role
   const getProfileUrl = () => {
-    if (isAdmin) return '/admin/profile';
-    if (isTeacher) return '/staff/profile';
-    if (isStudent) return '/student/profile';
+    const role = getUserRole();
+    console.log('Getting profile URL for role:', role);
+    
+    if (role === 'ADMIN') {
+      return '/admin/profile';
+    }
+    if (role === 'STAFF') {
+      return '/staff/profile';
+    }
+    if (role === 'STUDENT') {
+      return '/student/profile';
+    }
     return '/profile';
   };
 
-  // Handle profile click - FIXED
   const handleProfileClick = () => {
     const profileUrl = getProfileUrl();
     console.log('Navigating to profile:', profileUrl);
@@ -82,9 +100,7 @@ const TopNavbar = () => {
 
   return (
     <div className="top-navbar">
-      {/* Right Section - Icons and Profile Only */}
       <div className="navbar-right">
-        {/* User Profile - Shows LOGGED IN USER's info */}
         <div className="profile-wrapper" ref={profileRef}>
           <button 
             className="profile-trigger"
@@ -103,7 +119,6 @@ const TopNavbar = () => {
             <ChevronDown className={`profile-arrow ${isProfileOpen ? 'open' : ''}`} size={16} />
           </button>
 
-          {/* Profile Dropdown Panel - Shows LOGGED IN USER's details */}
           {isProfileOpen && (
             <div className="profile-panel">
               <div className="panel-header">
@@ -117,7 +132,6 @@ const TopNavbar = () => {
               </div>
 
               <div className="panel-menu">
-                {/* FIXED: Use handleProfileClick instead of inline navigation */}
                 <button className="panel-item" onClick={handleProfileClick}>
                   <User size={16} className="panel-icon" />
                   <div className="panel-item-content">
@@ -127,7 +141,7 @@ const TopNavbar = () => {
                 </button>
 
                 {isTeacher && (
-                  <button className="panel-item" onClick={() => { navigate('/teacher/reports'); setIsProfileOpen(false); }}>
+                  <button className="panel-item" onClick={() => { navigate('/staff/reports'); setIsProfileOpen(false); }}>
                     <FileText size={16} className="panel-icon" />
                     <div className="panel-item-content">
                       <span className="panel-item-title">Class Reports</span>
