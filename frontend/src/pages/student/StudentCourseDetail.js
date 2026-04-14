@@ -102,6 +102,30 @@ const StudentCourseDetail = () => {
     return uniqueMaterials;
   };
 
+  const getMaterialUrl = (material) => {
+    if (!material) return null;
+
+    const urlValue = material.url || material.fileUrl || material.filePath;
+    if (urlValue) {
+      if (/^https?:\/\//i.test(urlValue)) {
+        return urlValue;
+      }
+
+      const normalizedPath = urlValue.startsWith('/') ? urlValue : `/${urlValue}`;
+      try {
+        return new URL(`http://localhost:3003${normalizedPath}`).toString();
+      } catch (err) {
+        return `http://localhost:3003${normalizedPath}`;
+      }
+    }
+
+    if (material.fileName) {
+      return `http://localhost:3003/uploads/materials/${encodeURIComponent(material.fileName)}`;
+    }
+
+    return null;
+  };
+
   if (loading) {
     return (
       <div className="scd-loading-container">
@@ -291,7 +315,7 @@ const StudentCourseDetail = () => {
                           {topic.materials.map((material) => (
                             <li key={material.id} className="scd-topic-material-item">
                               <a
-                                href={`http://localhost:3003${material.filePath}`}
+                                href={getMaterialUrl(material)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                               >
@@ -341,7 +365,7 @@ const StudentCourseDetail = () => {
                       <p className="scd-material-description">{material.description || 'Course material'}</p>
                     </div>
                     <a
-                      href={`http://localhost:3003${material.filePath}`}
+                      href={getMaterialUrl(material)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="scd-download-btn"

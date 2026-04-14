@@ -59,7 +59,7 @@ const StaffCourseDetail = () => {
   const fetchCourseDetails = async () => {
     try {
       setLoading(true);
-      const response = await staffApi.getCourseById(courseId);
+      const response = await courseApi.getCourseById(courseId);
       const courseData = response?.data || response;
 
       if (!courseData) {
@@ -215,6 +215,30 @@ const StaffCourseDetail = () => {
       setErrorMessage('Failed to delete unit');
       setTimeout(() => setErrorMessage(''), 3000);
     }
+  };
+
+  const getMaterialUrl = (material) => {
+    if (!material) return null;
+
+    const urlValue = material.url || material.fileUrl || material.filePath;
+    if (urlValue) {
+      if (/^https?:\/\//i.test(urlValue)) {
+        return urlValue;
+      }
+
+      const normalizedPath = urlValue.startsWith('/') ? urlValue : `/${urlValue}`;
+      try {
+        return new URL(`http://localhost:3003${normalizedPath}`).toString();
+      } catch (err) {
+        return `http://localhost:3003${normalizedPath}`;
+      }
+    }
+
+    if (material.fileName) {
+      return `http://localhost:3003/uploads/materials/${encodeURIComponent(material.fileName)}`;
+    }
+
+    return null;
   };
 
   // Subject/Topic CRUD operations
@@ -673,7 +697,7 @@ const StaffCourseDetail = () => {
                                         {getMaterialIcon(material.fileType)}
                                         <span className="material-right-name">{material.title}</span>
                                         <div className="material-right-actions">
-                                          <a href={`http://localhost:3003${material.filePath}`} target="_blank" rel="noopener noreferrer" className="material-right-link" title="Open">
+                                          <a href={getMaterialUrl(material)} target="_blank" rel="noopener noreferrer" className="material-right-link" title="Open">
                                             <FiExternalLink size={12} />
                                           </a>
                                           <button className="material-right-delete" onClick={() => handleDeleteMaterial(null, material.id, subject.id)} title="Delete">

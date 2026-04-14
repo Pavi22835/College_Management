@@ -640,7 +640,7 @@ const StudentCourses = () => {
                       : [{ title: item.topic, duration: item.hoursRequired ? `${item.hoursRequired} mins` : '', materials: [] }];
 
                     return topicRows.map((topic, topicIdx) => {
-                      const topicMaterial = findTopicMaterial(topic);
+                      const topicMaterial = findTopicMaterial(topic) || (topicIdx === 0 ? item.lectureMaterial : null);
                       const topicVideo = findTopicVideo(topic) || (topicIdx === 0 ? item.lectureVideo : null);
                       const showUnitCell = topicIdx === 0;
                       const rowSpan = topicRows.length;
