@@ -794,7 +794,39 @@ const AdminStudents = () => {
             const email = String(row['Email'] || row['email'] || '').trim().toLowerCase();
             const rollNo = String(row['Roll No'] || row['rollNo'] || row['rollno'] || '').trim();
             const enrollmentNo = String(row['Enrollment No'] || row['enrollmentNo'] || '').trim();
-            const department = String(row['Department'] || row['department'] || '').trim();
+            
+            // Department mapping - try to match with department master
+            let department = String(row['Department'] || row['department'] || '').trim();
+            
+            // If department is provided, try to find a match in department master
+            if (department && departments.length > 0) {
+              // Try exact match first (by name)
+              const exactMatch = departments.find(d => 
+                d.name?.toLowerCase() === department.toLowerCase()
+              );
+              
+              // Try match by code
+              const codeMatch = departments.find(d => 
+                d.code?.toLowerCase() === department.toLowerCase()
+              );
+              
+              // Try partial match
+              const partialMatch = departments.find(d => 
+                d.name?.toLowerCase().includes(department.toLowerCase()) ||
+                department.toLowerCase().includes(d.name?.toLowerCase())
+              );
+              
+              // Use the matched department name
+              if (exactMatch) {
+                department = exactMatch.name;
+              } else if (codeMatch) {
+                department = codeMatch.name;
+              } else if (partialMatch) {
+                department = partialMatch.name;
+              }
+              // If no match found, keep the original value from Excel
+            }
+            
             const course = String(row['Course/Branch'] || row['course'] || row['branch'] || '').trim();
             const semester = row['Semester'] || row['semester'] ? parseInt(row['Semester'] || row['semester']) : null;
             const batch = String(row['Batch'] || row['batch'] || '').trim();
@@ -888,18 +920,59 @@ const AdminStudents = () => {
   const downloadSampleTemplate = () => {
     const sampleData = [
       {
-        'Name': 'John Doe', 'Email': 'john.doe@example.com', 'Roll No': '2024001',
-        'Enrollment No': 'ENR001', 'Department': 'Computer Science',
-        'Course/Branch': 'B.Sc Computer Science', 'Semester': 3, 'Batch': '2023-2026',
-        'Phone': '9876543210', 'Address': '123 Main Street, City',
-        'Admission Year': '2023', 'Age': 20, 'Gender': 'Male'
+        'Name': 'John Doe', 
+        'Email': 'john.doe@example.com', 
+        'Roll No': '2024001',
+        'Enrollment No': 'ENR001', 
+        'Department': 'Civil Engineering',
+        'Course/Branch': 'B.E Civil Engineering', 
+        'Semester': 3, 
+        'Batch': '2023-2026',
+        'Phone': '9876543210', 
+        'Address': '123 Main Street, City',
+        'Admission Year': '2023', 
+        'Age': 20, 
+        'Gender': 'Male'
+      },
+      {
+        'Name': 'Jane Smith', 
+        'Email': 'jane.smith@example.com', 
+        'Roll No': '2024002',
+        'Enrollment No': 'ENR002', 
+        'Department': 'Computer Science and Design',
+        'Course/Branch': 'B.E Computer Science and Design', 
+        'Semester': 3, 
+        'Batch': '2023-2026',
+        'Phone': '9876543211', 
+        'Address': '456 Park Avenue, City',
+        'Admission Year': '2023', 
+        'Age': 21, 
+        'Gender': 'Female'
       }
     ];
 
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(sampleData);
-    ws['!cols'] = [{ wch: 20 }, { wch: 25 }, { wch: 12 }, { wch: 15 }, { wch: 20 }, { wch: 25 }, { wch: 10 }, { wch: 12 }, { wch: 15 }, { wch: 30 }, { wch: 15 }, { wch: 8 }, { wch: 10 }];
+    
+    // Add a note sheet with department list
+    const departmentList = departments.length > 0 
+      ? departments.map(d => ({ 'Department Code': d.code, 'Department Name': d.name }))
+      : [
+          { 'Department Code': 'CENG', 'Department Name': 'Civil Engineering' },
+          { 'Department Code': 'BENG', 'Department Name': 'Biomedical Engineering' },
+          { 'Department Code': 'AENG', 'Department Name': 'Aerospace Engineering' },
+          { 'Department Code': 'MENG', 'Department Name': 'Mechanical Engineering' },
+          { 'Department Code': 'CDES', 'Department Name': 'Computer Science and Design' }
+        ];
+    
+    const wsNotes = XLSX.utils.json_to_sheet(departmentList);
+    
+    ws['!cols'] = [{ wch: 20 }, { wch: 25 }, { wch: 12 }, { wch: 15 }, { wch: 30 }, { wch: 30 }, { wch: 10 }, { wch: 12 }, { wch: 15 }, { wch: 30 }, { wch: 15 }, { wch: 8 }, { wch: 10 }];
+    wsNotes['!cols'] = [{ wch: 20 }, { wch: 40 }];
+    
     XLSX.utils.book_append_sheet(wb, ws, 'Student Template');
+    XLSX.utils.book_append_sheet(wb, wsNotes, 'Department List');
+    
     XLSX.writeFile(wb, 'student_import_template.xlsx');
     setShowImportMenu(false);
   };

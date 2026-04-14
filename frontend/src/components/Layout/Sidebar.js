@@ -74,7 +74,7 @@ const Sidebar = () => {
         { path: '/staff/students', label: 'My Students', icon: <Users size={18} /> },
         { path: '/staff/attendance', label: 'Attendance', icon: <Calendar size={18} /> },
         { path: '/staff/reports', label: 'Reports', icon: <BarChart3 size={18} /> },
-        { path: '/staff/communication', label: 'Communication', icon: <MessageSquare size={18} /> },
+        // { path: '/staff/communication', label: 'Communication', icon: <MessageSquare size={18} /> },
       ];
     }
     else if (role === 'STUDENT') {
@@ -82,9 +82,9 @@ const Sidebar = () => {
         { path: '/student/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
         { path: '/student/courses', label: 'My Courses', icon: <BookOpen size={18} /> },
         { path: '/student/attendance', label: 'Attendance', icon: <Calendar size={18} /> },
-        { path: '/student/assignments', label: 'Assignments', icon: <FileText size={18} /> },
-        { path: '/student/grades', label: 'My Grades', icon: <Award size={18} /> },
-        { path: '/student/schedule', label: 'Schedule', icon: <Clock size={18} /> },
+        // { path: '/student/assignments', label: 'Assignments', icon: <FileText size={18} /> },
+        // { path: '/student/grades', label: 'My Grades', icon: <Award size={18} /> },
+        // { path: '/student/schedule', label: 'Schedule', icon: <Clock size={18} /> },
       ];
     }
     

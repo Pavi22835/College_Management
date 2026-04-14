@@ -178,6 +178,21 @@ const AdminAttendance = () => {
       }
 
       setAttendanceData(records);
+      
+      // Calculate stats directly from records
+      const presentCount = records.filter(r => r.status === 'PRESENT').length;
+      const absentCount = records.filter(r => r.status === 'ABSENT').length;
+      const lateCount = records.filter(r => r.status === 'LATE').length;
+      
+      console.log('📊 Direct Stats from Records:', { presentCount, absentCount, lateCount, total: records.length });
+      
+      setStats(prev => ({
+        ...prev,
+        presentToday: presentCount,
+        absentToday: absentCount,
+        lateToday: lateCount
+      }));
+      
       setError(null);
     } catch (err) {
       console.error('Error fetching attendance:', err);
@@ -200,19 +215,25 @@ const AdminAttendance = () => {
       }
 
       const response = await attendanceApi.getAttendanceStats(params);
+      console.log('📊 Attendance Stats Response:', response);
       
       if (response?.data) {
         const statsData = response.data;
+        console.log('📊 Stats Data:', statsData);
+        console.log('📊 Daily Stats:', statsData.dailyStats);
+        console.log('📊 Selected Date:', selectedDate);
         
-        // Calculate today's stats
-        let presentCount = 0, absentCount = 0, lateCount = 0;
+        // Calculate today's stats from attendance data directly
+        const todayRecords = attendanceData.filter(r => {
+          const recordDate = r.date ? new Date(r.date).toISOString().split('T')[0] : null;
+          return recordDate === selectedDate;
+        });
         
-        if (statsData.dailyStats && statsData.dailyStats[selectedDate]) {
-          const dayStats = statsData.dailyStats[selectedDate];
-          presentCount = dayStats.present || 0;
-          absentCount = dayStats.absent || 0;
-          lateCount = dayStats.late || 0;
-        }
+        const presentCount = todayRecords.filter(r => r.status === 'PRESENT').length;
+        const absentCount = todayRecords.filter(r => r.status === 'ABSENT').length;
+        const lateCount = todayRecords.filter(r => r.status === 'LATE').length;
+        
+        console.log('📊 Calculated Stats:', { presentCount, absentCount, lateCount, todayRecords: todayRecords.length });
         
         setStats({
           totalStudents: students.length,
