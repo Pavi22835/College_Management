@@ -548,26 +548,6 @@
   padding: 16px 12px 12px;
 }
 
-.hours-cell {
-  text-align: center;
-  color: #475569;
-  font-weight: 500;
-  min-width: 100px;
-  vertical-align: top;
-  padding: 12px 16px !important;
-  background-color: #fef3c7 !important; /* Temporary debug color */
-}
-
-.description-cell {
-  color: #475569;
-  font-size: 13px;
-  line-height: 1.5;
-  max-width: 200px;
-  vertical-align: top;
-  padding: 12px 16px !important;
-  background-color: #dbeafe !important; /* Temporary debug color */
-}
-
 /* Material and Video Cell Alignment */
 .material-cell,
 .video-cell {

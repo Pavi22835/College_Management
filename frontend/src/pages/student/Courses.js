@@ -632,8 +632,6 @@ const StudentCourses = () => {
                   <th>Topic</th>
                   <th style={{ width: '200px' }}>Lecture Material</th>
                   <th style={{ width: '200px' }}>Lecture Video</th>
-                  <th style={{ width: '150px' }}>Duration</th>
-                  <th style={{ width: '200px' }}>Description</th>
                 </tr>
               </thead>
               <tbody>
@@ -701,16 +699,7 @@ const StudentCourses = () => {
                               <span className="no-material">—</span>
                             )}
                           </td>
-                          {showUnitCell && (
-                            <td rowSpan={rowSpan} className="hours-cell">
-                              {item.duration || topic.duration || '-'}
-                            </td>
-                          )}
-                          {showUnitCell && (
-                            <td rowSpan={rowSpan} className="description-cell">
-                              {item.description || topic.description || '-'}
-                            </td>
-                          )}
+
                         </tr>
                       );
                     });
