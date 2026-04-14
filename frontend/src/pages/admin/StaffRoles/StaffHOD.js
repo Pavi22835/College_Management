@@ -216,15 +216,22 @@ const StaffHOD = () => {
       setLoading(true);
       setError(null);
       
-      const response = await staffApi.getAll();
+      const [activeResponse, trashedResponse] = await Promise.all([
+        staffApi.getAll(),
+        staffApi.getTrashed()
+      ]);
       
       let staffData = [];
-      if (response?.success && response?.data) {
-        staffData = response.data;
-      } else if (Array.isArray(response)) {
-        staffData = response;
-      } else if (response?.data && Array.isArray(response.data)) {
-        staffData = response.data;
+      if (activeResponse?.success && activeResponse?.data) {
+        staffData = staffData.concat(activeResponse.data);
+      } else if (Array.isArray(activeResponse)) {
+        staffData = staffData.concat(activeResponse);
+      }
+      
+      if (trashedResponse?.success && trashedResponse?.data) {
+        staffData = staffData.concat(trashedResponse.data);
+      } else if (Array.isArray(trashedResponse)) {
+        staffData = staffData.concat(trashedResponse);
       }
       
       // Filter HODs - active and deleted
