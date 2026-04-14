@@ -13,3 +13,28 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* Standardize action icon size across the app */
+.action-btn svg,
+.btn-primary svg,
+.btn-secondary svg,
+.btn-danger svg,
+.material-link-btn svg,
+.action-icon,
+.login-title-icon svg,
+.role-icon,
+.field-icon,
+.button-icon,
+.toast-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.action-btn svg,
+.btn-primary svg,
+.btn-secondary svg,
+.btn-danger svg,
+.material-link-btn svg {
+  min-width: 18px;
+  min-height: 18px;
+}
