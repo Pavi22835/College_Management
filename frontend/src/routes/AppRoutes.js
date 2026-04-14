@@ -45,8 +45,15 @@ import StudentSchedule from '../pages/student/Schedule';
 import StudentCommunication from '../pages/student/Communication';
 import StudentProfile from '../pages/student/Profile';
 
-// Shared Page
+// Shared Pages
 import NotFound from '../pages/shared/NotFound';
+import Profile from '../pages/shared/Profile';
+
+// Admin Profile Page (create this)
+import AdminProfile from '../pages/admin/AdminProfile';
+
+// Staff Profile Page (create this)
+import StaffProfile from '../pages/staff/StaffProfile';
 
 // Route Guards
 import PrivateRoute from './PrivateRoute';
@@ -126,6 +133,9 @@ const AppRoutes = () => {
           <Route path="fees" element={<FeeManagement />} />
           <Route path="trash" element={<AdminTrash />} />
           <Route path="logs" element={<AdminLogs />} />
+          
+          {/* Profile Routes - UPDATED: Use AdminProfile for admin */}
+          <Route path="profile" element={<AdminProfile />} />
         </Route>
       )}
 
@@ -146,6 +156,9 @@ const AppRoutes = () => {
           <Route path="attendance" element={<StaffAttendance />} />
           <Route path="reports" element={<StaffReports />} />
           <Route path="communication" element={<StaffCommunication />} />
+          
+          {/* Profile Routes - UPDATED: Use StaffProfile for staff */}
+          <Route path="profile" element={<StaffProfile />} />
         </Route>
       )}
 
