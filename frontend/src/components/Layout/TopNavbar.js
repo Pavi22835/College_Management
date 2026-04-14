@@ -3,15 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { 
   LogOut, 
-  Settings, 
   User, 
   ChevronDown,
   FileText,
-  Bell,
-  HelpCircle,
   Shield,
   GraduationCap,
-  BookOpen
+  BookOpen,
+  Bell,
+  HelpCircle
 } from 'lucide-react';
 import './TopNavbar.css';
 
@@ -55,6 +54,22 @@ const TopNavbar = () => {
     return 'User';
   };
 
+  // Get role-specific profile URL - FIXED
+  const getProfileUrl = () => {
+    if (isAdmin) return '/admin/profile';
+    if (isTeacher) return '/staff/profile';
+    if (isStudent) return '/student/profile';
+    return '/profile';
+  };
+
+  // Handle profile click - FIXED
+  const handleProfileClick = () => {
+    const profileUrl = getProfileUrl();
+    console.log('Navigating to profile:', profileUrl);
+    navigate(profileUrl);
+    setIsProfileOpen(false);
+  };
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (profileRef.current && !profileRef.current.contains(event.target)) {
@@ -69,14 +84,6 @@ const TopNavbar = () => {
     <div className="top-navbar">
       {/* Right Section - Icons and Profile Only */}
       <div className="navbar-right">
-        {/* Notification Bell */}
-        <div className="notification-wrapper">
-          <button className="notification-btn">
-            <Bell size={20} />
-            <span className="notification-badge">3</span>
-          </button>
-        </div>
-
         {/* User Profile - Shows LOGGED IN USER's info */}
         <div className="profile-wrapper" ref={profileRef}>
           <button 
@@ -110,7 +117,8 @@ const TopNavbar = () => {
               </div>
 
               <div className="panel-menu">
-                <button className="panel-item" onClick={() => navigate('/profile')}>
+                {/* FIXED: Use handleProfileClick instead of inline navigation */}
+                <button className="panel-item" onClick={handleProfileClick}>
                   <User size={16} className="panel-icon" />
                   <div className="panel-item-content">
                     <span className="panel-item-title">My Profile</span>
@@ -118,26 +126,8 @@ const TopNavbar = () => {
                   </div>
                 </button>
 
-                <button className="panel-item" onClick={() => navigate('/settings')}>
-                  <Settings size={16} className="panel-icon" />
-                  <div className="panel-item-content">
-                    <span className="panel-item-title">Settings</span>
-                    <span className="panel-item-desc">Account preferences</span>
-                  </div>
-                </button>
-
-                {isAdmin && (
-                  <button className="panel-item" onClick={() => navigate('/admin/logs')}>
-                    <FileText size={16} className="panel-icon" />
-                    <div className="panel-item-content">
-                      <span className="panel-item-title">System Logs</span>
-                      <span className="panel-item-desc">View system activity</span>
-                    </div>
-                  </button>
-                )}
-
                 {isTeacher && (
-                  <button className="panel-item" onClick={() => navigate('/teacher/reports')}>
+                  <button className="panel-item" onClick={() => { navigate('/teacher/reports'); setIsProfileOpen(false); }}>
                     <FileText size={16} className="panel-icon" />
                     <div className="panel-item-content">
                       <span className="panel-item-title">Class Reports</span>
@@ -147,7 +137,7 @@ const TopNavbar = () => {
                 )}
 
                 {isStudent && (
-                  <button className="panel-item" onClick={() => navigate('/student/grades')}>
+                  <button className="panel-item" onClick={() => { navigate('/student/grades'); setIsProfileOpen(false); }}>
                     <FileText size={16} className="panel-icon" />
                     <div className="panel-item-content">
                       <span className="panel-item-title">My Grades</span>
@@ -155,14 +145,6 @@ const TopNavbar = () => {
                     </div>
                   </button>
                 )}
-
-                <button className="panel-item" onClick={() => navigate('/help')}>
-                  <HelpCircle size={16} className="panel-icon" />
-                  <div className="panel-item-content">
-                    <span className="panel-item-title">Help & Support</span>
-                    <span className="panel-item-desc">Get help with the system</span>
-                  </div>
-                </button>
 
                 <div className="panel-divider"></div>
 
