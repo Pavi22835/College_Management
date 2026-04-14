@@ -33,7 +33,7 @@ const StudentDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [dashboardData, setDashboardData] = useState({
-    student: { name: '', rollNo: '', course: '', semester: '', email: '' },
+    student: { name: '', rollNo: '', course: '', semester: '', batch: '', email: '' },
     stats: { totalCourses: 0, totalStudents: 0, todayAttendance: 0, averageAttendance: 0 },
     recentActivities: [],
     upcomingTasks: []
@@ -50,14 +50,18 @@ const StudentDashboard = () => {
       
       try {
         const response = await studentApi.getDashboard();
+        console.log('📊 Dashboard API Response:', response);
         if (response?.success && response?.data) {
           const data = response.data;
+          console.log('📊 Dashboard Data:', data);
+          console.log('📊 Stats:', data.stats);
           setDashboardData({
             student: data.student || {
               name: user?.name || 'Ranjith Kumar',
               rollNo: 'CS2024001',
               course: 'Computer Science Engineering',
               semester: '6th Semester',
+              batch: 'N/A',
               email: 'ranjith.kumar@college.edu'
             },
             stats: data.stats || {
@@ -92,6 +96,7 @@ const StudentDashboard = () => {
           rollNo: 'CS2024001',
           course: 'Computer Science Engineering',
           semester: '6th Semester',
+          batch: 'N/A',
           email: 'ranjith.kumar@college.edu'
         },
         stats: {
@@ -170,11 +175,13 @@ const StudentDashboard = () => {
         <div className="sd-stats-cards">
           <div className="sd-stat-card" onClick={() => navigate('/student/courses')}>
             <div className="sd-stat-icon blue">
-              <BookOpen size={24} />
+              <GraduationCap size={24} />
             </div>
             <div className="sd-stat-info">
-              <span className="sd-stat-number">{dashboardData.stats.totalCourses}</span>
-              <span className="sd-stat-label">TOTAL COURSES</span>
+              <span className="sd-stat-number" style={{ fontSize: '20px' }}>
+                {dashboardData.student.batch || 'N/A'}
+              </span>
+              <span className="sd-stat-label">STUDENT BATCH</span>
             </div>
           </div>
 
@@ -183,7 +190,9 @@ const StudentDashboard = () => {
               <Users size={24} />
             </div>
             <div className="sd-stat-info">
-              <span className="sd-stat-number">{dashboardData.stats.totalStudents}</span>
+              <span className="sd-stat-number">
+                {dashboardData.stats.totalStudents || 0}
+              </span>
               <span className="sd-stat-label">CLASSMATES</span>
             </div>
           </div>
@@ -193,7 +202,9 @@ const StudentDashboard = () => {
               <Calendar size={24} />
             </div>
             <div className="sd-stat-info">
-              <span className="sd-stat-number">{dashboardData.stats.todayAttendance}%</span>
+              <span className="sd-stat-number">
+                {dashboardData.stats.todayAttendance || 0}%
+              </span>
               <span className="sd-stat-label">TODAY'S ATTENDANCE</span>
             </div>
           </div>
@@ -203,7 +214,9 @@ const StudentDashboard = () => {
               <BarChart3 size={24} />
             </div>
             <div className="sd-stat-info">
-              <span className="sd-stat-number">{dashboardData.stats.averageAttendance}%</span>
+              <span className="sd-stat-number">
+                {dashboardData.stats.averageAttendance || 0}%
+              </span>
               <span className="sd-stat-label">AVERAGE ATTENDANCE</span>
             </div>
           </div>
@@ -227,7 +240,7 @@ const StudentDashboard = () => {
               </div>
             </button>
             
-            <button className="sd-action-item" onClick={() => navigate('/student/assignments')}>
+            {/* <button className="sd-action-item" onClick={() => navigate('/student/assignments')}>
               <div className="sd-action-icon">
                 <FileText size={20} />
               </div>
@@ -235,7 +248,7 @@ const StudentDashboard = () => {
                 <span className="sd-action-title">View Assignments</span>
                 <span className="sd-action-desc">Check pending submissions</span>
               </div>
-            </button>
+            </button> */}
             
             <button className="sd-action-item" onClick={() => navigate('/student/materials')}>
               <div className="sd-action-icon">
@@ -247,7 +260,7 @@ const StudentDashboard = () => {
               </div>
             </button>
             
-            <button className="sd-action-item" onClick={() => navigate('/student/communication')}>
+            {/* <button className="sd-action-item" onClick={() => navigate('/student/communication')}>
               <div className="sd-action-icon">
                 <MessageSquare size={20} />
               </div>
@@ -255,9 +268,9 @@ const StudentDashboard = () => {
                 <span className="sd-action-title">Send Message</span>
                 <span className="sd-action-desc">Communicate with teachers</span>
               </div>
-            </button>
+            </button> */}
             
-            <button className="sd-action-item" onClick={() => navigate('/student/assignments/create')}>
+            {/* <button className="sd-action-item" onClick={() => navigate('/student/assignments/create')}>
               <div className="sd-action-icon">
                 <Upload size={20} />
               </div>
@@ -265,7 +278,7 @@ const StudentDashboard = () => {
                 <span className="sd-action-title">Submit Assignment</span>
                 <span className="sd-action-desc">Upload your work</span>
               </div>
-            </button>
+            </button> */}
             
             <button className="sd-action-item" onClick={() => navigate('/student/grades')}>
               <div className="sd-action-icon">
