@@ -37,7 +37,7 @@ const StaffHOD = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('all');
-  const [activeTab, setActiveTab] = useState('active'); // 'active' or 'deleted'
+  const [activeTab, setActiveTab] = useState('active');
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -48,13 +48,11 @@ const StaffHOD = () => {
   const [departmentSearchTerm, setDepartmentSearchTerm] = useState('');
   const departmentSearchRef = useRef(null);
   
-  // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [selectedRows, setSelectedRows] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
 
-  // Form data for add/edit
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -66,15 +64,12 @@ const StaffHOD = () => {
     appointedDate: ''
   });
 
-  // Department options from centralized constant (all 25 departments)
   const departmentOptions = DEPARTMENTS;
 
-  // Filter departments based on search term
   const filteredDepartments = departmentOptions.filter(dept =>
     dept.toLowerCase().includes(departmentSearchTerm.toLowerCase())
   );
 
-  // Designation options for HOD
   const designationOptions = [
     "Head of Department",
     "Professor & Head",
@@ -82,20 +77,17 @@ const StaffHOD = () => {
     "Assistant Professor & Head"
   ];
 
-  // Pagination calculations
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = filteredStaff.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredStaff.length / itemsPerPage);
 
-  // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
     setSelectedRows([]);
     setSelectAll(false);
   }, [searchTerm, departmentFilter, activeTab]);
 
-  // Handle individual row selection
   const handleRowSelect = (id) => {
     setSelectedRows(prev => {
       let newSelected;
@@ -108,7 +100,6 @@ const StaffHOD = () => {
     });
   };
 
-  // Update selectAll when selectedRows changes
   useEffect(() => {
     if (currentItems.length > 0) {
       const allSelected = currentItems.every(item => selectedRows.includes(item.id));
@@ -120,7 +111,6 @@ const StaffHOD = () => {
     }
   }, [selectedRows, currentItems]);
 
-  // Handle select all checkbox click
   const handleSelectAllChange = (e) => {
     const checked = e.target.checked;
     setSelectAll(checked);
@@ -132,7 +122,6 @@ const StaffHOD = () => {
     }
   };
 
-  // Handle bulk delete/move to trash
   const handleBulkAction = async (action) => {
     if (selectedRows.length === 0) {
       setError('Please select at least one HOD');
@@ -181,7 +170,6 @@ const StaffHOD = () => {
     fetchHODStaff();
   }, []);
 
-  // Click outside handler for department dropdown
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (departmentSearchRef.current && !departmentSearchRef.current.contains(event.target)) {
@@ -192,7 +180,6 @@ const StaffHOD = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Filter staff based on search term, department, and active tab
   useEffect(() => {
     let filtered = activeTab === 'active' ? hodStaff : deletedStaff;
 
@@ -234,14 +221,12 @@ const StaffHOD = () => {
         staffData = staffData.concat(trashedResponse);
       }
       
-      // Filter HODs - active and deleted
       const allHODs = staffData.filter(staff => 
         staff.staffRole === 'HOD' ||
         staff.designation?.toLowerCase().includes('head') || 
         staff.designation?.toLowerCase().includes('hod')
       );
       
-      // Separate active and deleted based on deletedAt field (from your backend)
       const active = allHODs.filter(staff => !staff.deletedAt);
       const deleted = allHODs.filter(staff => staff.deletedAt);
       
@@ -310,21 +295,17 @@ const StaffHOD = () => {
     setShowModal(true);
   };
 
-  // Soft Delete - Move to trash
   const handleSoftDelete = async (staff) => {
     setSelectedStaff(staff);
     setModalType('softDelete');
     setShowModal(true);
   };
 
-  // Confirm Soft Delete
   const confirmSoftDelete = async () => {
     try {
       setLoading(true);
-      // Call delete API (soft delete)
       await staffApi.delete(selectedStaff.id);
       
-      // Update local state
       const updatedActive = hodStaff.filter(s => s.id !== selectedStaff.id);
       const deletedStaffWithDate = {
         ...selectedStaff,
@@ -347,17 +328,13 @@ const StaffHOD = () => {
     }
   };
 
-  // Restore from trash
   const handleRestore = async (staff) => {
     if (!window.confirm(`Are you sure you want to restore ${staff.name}?`)) return;
     
     try {
       setLoading(true);
-      
-      // Call restore API
       await staffApi.restore(staff.id);
       
-      // Update local state
       const updatedDeleted = deletedStaff.filter(s => s.id !== staff.id);
       const restoredStaff = {
         ...staff,
@@ -380,17 +357,13 @@ const StaffHOD = () => {
     }
   };
 
-  // Permanent Delete
   const handlePermanentDelete = async (staff) => {
     if (!window.confirm(`⚠️ Are you sure you want to permanently delete ${staff.name}? This action cannot be undone.`)) return;
     
     try {
       setLoading(true);
-      
-      // Call permanent delete API
       await staffApi.permanentDelete(staff.id);
       
-      // Update local state
       const updatedDeleted = deletedStaff.filter(s => s.id !== staff.id);
       setDeletedStaff(updatedDeleted);
       setFilteredStaff(updatedDeleted);
@@ -461,7 +434,6 @@ const StaffHOD = () => {
         staffData.password = formData.password;
         const response = await staffApi.create(staffData);
         
-        // Add to local state
         const newStaff = {
           ...response.data,
           ...staffData,
@@ -474,7 +446,6 @@ const StaffHOD = () => {
       } else if (modalType === 'edit') {
         await staffApi.update(selectedStaff.id, staffData);
         
-        // Update local state
         const updatedStaff = hodStaff.map(s => 
           s.id === selectedStaff.id ? { ...s, ...staffData } : s
         );
@@ -546,7 +517,6 @@ const StaffHOD = () => {
           <p className="page-description">Manage department heads and their responsibilities</p>
         </div>
         <div className="header-actions">
-          {/* Trash icon with badge */}
           <button 
             className={`btn-icon ${activeTab === 'deleted' ? 'active-trash' : ''}`} 
             onClick={() => setActiveTab(activeTab === 'active' ? 'deleted' : 'active')}
@@ -565,7 +535,6 @@ const StaffHOD = () => {
         </div>
       </div>
 
-      {/* Stats Cards */}
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-icon blue">
@@ -596,7 +565,6 @@ const StaffHOD = () => {
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="tabs-container">
         <button 
           className={`tab-btn ${activeTab === 'active' ? 'active' : ''}`}
@@ -616,7 +584,6 @@ const StaffHOD = () => {
         </button>
       </div>
 
-      {/* Search and Filter Section */}
       <div className="search-filter-section">
         <div className="search-box">
           <Search className="search-icon" size={18} />
@@ -650,7 +617,6 @@ const StaffHOD = () => {
         </div>
       </div>
 
-      {/* Table Actions Bar */}
       {selectedRows.length > 0 && (
         <div className="table-actions-bar">
           <span className="selected-count">{selectedRows.length} HOD(s) selected</span>
@@ -675,7 +641,6 @@ const StaffHOD = () => {
         </div>
       )}
 
-      {/* HOD Table */}
       <div className="table-container">
         <table className="hod-table">
           <thead>
@@ -773,35 +738,37 @@ const StaffHOD = () => {
                 );
               })
             ) : (
-              <tr>
-                <td colSpan="7" className="empty-state">
-                  {activeTab === 'active' ? (
-                    hodStaff.length === 0 ? (
-                      <>
-                        <UserCheck size={48} />
-                        <h3>No HODs Found</h3>
-                        <p>Click "Add HOD" to assign a department head.</p>
-                        <button className="btn-primary" onClick={handleAdd}>
-                          <Plus size={16} /> Add HOD
-                        </button>
-                      </>
+              <tr className="empty-state-row">
+                <td colSpan="7" style={{ textAlign: 'center', padding: '48px 20px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+                    {activeTab === 'active' ? (
+                      hodStaff.length === 0 ? (
+                        <>
+                          <UserCheck size={48} style={{ marginBottom: '16px', color: '#cbd5e1' }} />
+                          <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', color: '#334155' }}>No HODs Found</h3>
+                          <p style={{ margin: '0 0 16px 0', color: '#64748b' }}>Click "Add HOD" to assign a department head.</p>
+                          <button className="btn-primary" onClick={handleAdd} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            <Plus size={16} /> Add HOD
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <Search size={48} style={{ marginBottom: '16px', color: '#cbd5e1' }} />
+                          <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', color: '#334155' }}>No Matching HODs</h3>
+                          <p style={{ margin: '0 0 16px 0', color: '#64748b' }}>Try adjusting your search criteria.</p>
+                          <button className="btn-secondary" onClick={clearFilters} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            Clear Filters
+                          </button>
+                        </>
+                      )
                     ) : (
                       <>
-                        <Search size={48} />
-                        <h3>No Matching HODs</h3>
-                        <p>Try adjusting your search criteria.</p>
-                        <button className="btn-secondary" onClick={clearFilters}>
-                          Clear Filters
-                        </button>
+                        <Trash2 size={48} style={{ marginBottom: '16px', color: '#cbd5e1' }} />
+                        <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', color: '#334155' }}>Trash is Empty</h3>
+                        <p style={{ margin: 0, color: '#64748b' }}>No deleted HODs found. Deleted HODs will appear here for restoration.</p>
                       </>
-                    )
-                  ) : (
-                    <>
-                      <Trash2 size={48} />
-                      <h3>Trash is Empty</h3>
-                      <p>No deleted HODs found. Deleted HODs will appear here for restoration.</p>
-                    </>
-                  )}
+                    )}
+                  </div>
                 </td>
               </tr>
             )}
@@ -809,7 +776,6 @@ const StaffHOD = () => {
         </table>
       </div>
 
-      {/* Pagination */}
       {filteredStaff.length > 0 && (
         <div className="pagination-container">
           <div className="pagination-info">
@@ -870,7 +836,7 @@ const StaffHOD = () => {
         </div>
       )}
 
-      {/* Add/Edit HOD Modal */}
+      {/* Modals remain the same - keeping them short for brevity */}
       {(modalType === 'add' || modalType === 'edit') && showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -880,137 +846,63 @@ const StaffHOD = () => {
                 <X size={20} />
               </button>
             </div>
-
             <form onSubmit={handleSubmit}>
               <div className="modal-body">
                 <div className="form-row">
                   <div className="form-group">
                     <label>Full Name *</label>
-                    <input
-                      type="text"
-                      name="name"
-                      value={formData.name}
-                      onChange={handleChange}
-                      placeholder="Enter HOD name"
-                      required
-                    />
+                    <input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Enter HOD name" required />
                   </div>
                   <div className="form-group">
                     <label>Email *</label>
-                    <input
-                      type="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleChange}
-                      placeholder="Enter email address"
-                      required
-                      autoComplete="off"
-                    />
+                    <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="Enter email address" required autoComplete="off" />
                   </div>
                 </div>
-
                 {modalType === 'add' && (
                   <div className="form-row">
                     <div className="form-group">
                       <label>Password *</label>
                       <div className="password-field-wrapper">
-                        <input
-                          type={showPassword ? "text" : "password"}
-                          name="password"
-                          value={formData.password}
-                          onChange={handleChange}
-                          placeholder="Enter password"
-                          required
-                          autoComplete="new-password"
-                        />
+                        <input type={showPassword ? "text" : "password"} name="password" value={formData.password} onChange={handleChange} placeholder="Enter password" required autoComplete="new-password" />
                         <Lock className="password-lock-icon" size={18} />
-                        <button
-                          type="button"
-                          className="password-eye-toggle"
-                          onClick={() => setShowPassword(!showPassword)}
-                        >
+                        <button type="button" className="password-eye-toggle" onClick={() => setShowPassword(!showPassword)}>
                           {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                         </button>
                       </div>
                     </div>
                     <div className="form-group">
                       <label>Employee ID</label>
-                      <input
-                        type="text"
-                        name="employeeId"
-                        value={formData.employeeId}
-                        onChange={handleChange}
-                        placeholder="e.g., HOD001"
-                        autoComplete="off"
-                      />
+                      <input type="text" name="employeeId" value={formData.employeeId} onChange={handleChange} placeholder="e.g., HOD001" autoComplete="off" />
                     </div>
                   </div>
                 )}
-
                 {modalType === 'edit' && (
                   <div className="form-group">
                     <label>Employee ID</label>
-                    <input
-                      type="text"
-                      name="employeeId"
-                      value={formData.employeeId}
-                      onChange={handleChange}
-                      placeholder="e.g., HOD001"
-                      autoComplete="off"
-                    />
+                    <input type="text" name="employeeId" value={formData.employeeId} onChange={handleChange} placeholder="e.g., HOD001" autoComplete="off" />
                   </div>
                 )}
-
                 <div className="form-row">
                   <div className="form-group" ref={departmentSearchRef}>
                     <label>Department *</label>
                     <div className="searchable-select">
-                      <div 
-                        className="searchable-select-input"
-                        onClick={() => setShowDepartmentDropdown(!showDepartmentDropdown)}
-                      >
-                        <input
-                          type="text"
-                          placeholder="Search and select department"
-                          value={departmentSearchTerm}
-                          onChange={(e) => {
-                            setDepartmentSearchTerm(e.target.value);
-                            setShowDepartmentDropdown(true);
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                          required
-                          autoComplete="off"
-                        />
+                      <div className="searchable-select-input" onClick={() => setShowDepartmentDropdown(!showDepartmentDropdown)}>
+                        <input type="text" placeholder="Search and select department" value={departmentSearchTerm} onChange={(e) => { setDepartmentSearchTerm(e.target.value); setShowDepartmentDropdown(true); }} onClick={(e) => e.stopPropagation()} required autoComplete="off" />
                         <ChevronDown size={16} className="select-arrow" />
                       </div>
                       {showDepartmentDropdown && (
                         <div className="searchable-select-dropdown">
                           <div className="dropdown-search">
                             <Search size={14} />
-                            <input
-                              type="text"
-                              placeholder="Search departments..."
-                              value={departmentSearchTerm}
-                              onChange={(e) => setDepartmentSearchTerm(e.target.value)}
-                              autoFocus
-                              autoComplete="off"
-                            />
+                            <input type="text" placeholder="Search departments..." value={departmentSearchTerm} onChange={(e) => setDepartmentSearchTerm(e.target.value)} autoFocus autoComplete="off" />
                           </div>
                           <div className="dropdown-options">
-                            {filteredDepartments.length > 0 ? (
-                              filteredDepartments.map(dept => (
-                                <div
-                                  key={dept}
-                                  className={`dropdown-option ${formData.department === dept ? 'selected' : ''}`}
-                                  onClick={() => handleDepartmentSelect(dept)}
-                                >
-                                  {dept}
-                                  {formData.department === dept && <CheckCircle size={14} />}
-                                </div>
-                              ))
-                            ) : (
-                              <div className="dropdown-no-results">No departments found</div>
-                            )}
+                            {filteredDepartments.length > 0 ? filteredDepartments.map(dept => (
+                              <div key={dept} className={`dropdown-option ${formData.department === dept ? 'selected' : ''}`} onClick={() => handleDepartmentSelect(dept)}>
+                                {dept}
+                                {formData.department === dept && <CheckCircle size={14} />}
+                              </div>
+                            )) : <div className="dropdown-no-results">No departments found</div>}
                           </div>
                         </div>
                       )}
@@ -1018,43 +910,22 @@ const StaffHOD = () => {
                   </div>
                   <div className="form-group">
                     <label>Designation *</label>
-                    <select
-                      name="designation"
-                      value={formData.designation}
-                      onChange={handleChange}
-                      required
-                    >
+                    <select name="designation" value={formData.designation} onChange={handleChange} required>
                       <option value="">Select Designation</option>
-                      {designationOptions.map(desig => (
-                        <option key={desig} value={desig}>{desig}</option>
-                      ))}
+                      {designationOptions.map(desig => <option key={desig} value={desig}>{desig}</option>)}
                     </select>
                   </div>
                 </div>
-
                 <div className="form-row">
                   <div className="form-group">
                     <label>Phone Number</label>
-                    <input
-                      type="tel"
-                      name="phone"
-                      value={formData.phone}
-                      onChange={handleChange}
-                      placeholder="Enter phone number"
-                      autoComplete="off"
-                    />
+                    <input type="tel" name="phone" value={formData.phone} onChange={handleChange} placeholder="Enter phone number" autoComplete="off" />
                   </div>
                   <div className="form-group">
                     <label>Appointed Date</label>
-                    <input
-                      type="date"
-                      name="appointedDate"
-                      value={formData.appointedDate}
-                      onChange={handleChange}
-                    />
+                    <input type="date" name="appointedDate" value={formData.appointedDate} onChange={handleChange} />
                   </div>
                 </div>
-
                 {modalType === 'add' && (
                   <div className="info-note">
                     <CheckCircle size={16} />
@@ -1062,127 +933,66 @@ const StaffHOD = () => {
                   </div>
                 )}
               </div>
-
               <div className="modal-footer">
-                <button type="button" className="btn-secondary" onClick={() => setShowModal(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn-primary">
-                  <Save size={16} />
-                  {modalType === 'add' ? 'Add HOD' : 'Update HOD'}
-                </button>
+                <button type="button" className="btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
+                <button type="submit" className="btn-primary"><Save size={16} />{modalType === 'add' ? 'Add HOD' : 'Update HOD'}</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* View HOD Modal */}
       {modalType === 'view' && selectedStaff && showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>HOD Details</h2>
-              <button className="close-btn" onClick={() => setShowModal(false)}>
-                <X size={20} />
-              </button>
+              <button className="close-btn" onClick={() => setShowModal(false)}><X size={20} /></button>
             </div>
-
             <div className="modal-body">
               <div className="profile-header">
-                <div className="profile-avatar">
-                  {selectedStaff.name?.charAt(0).toUpperCase()}
-                </div>
+                <div className="profile-avatar">{selectedStaff.name?.charAt(0).toUpperCase()}</div>
                 <div className="profile-info">
                   <h3>{selectedStaff.name}</h3>
                   <p>{selectedStaff.email}</p>
-                  {selectedStaff.deletedAt && (
-                    <p className="deleted-info">Deleted on: {new Date(selectedStaff.deletedAt).toLocaleString()}</p>
-                  )}
+                  {selectedStaff.deletedAt && <p className="deleted-info">Deleted on: {new Date(selectedStaff.deletedAt).toLocaleString()}</p>}
                 </div>
               </div>
-
               <div className="details-grid">
-                <div className="detail-item">
-                  <span className="detail-label">Department</span>
-                  <span className="detail-value">{selectedStaff.department}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-label">Designation</span>
-                  <span className="detail-value">{selectedStaff.designation}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-label">Employee ID</span>
-                  <span className="detail-value">{selectedStaff.employeeId || '—'}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-label">Phone</span>
-                  <span className="detail-value">{selectedStaff.phone || '—'}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-label">Appointed Date</span>
-                  <span className="detail-value">
-                    {selectedStaff.appointedDate ? new Date(selectedStaff.appointedDate).toLocaleDateString() : '—'}
-                  </span>
-                </div>
+                <div className="detail-item"><span className="detail-label">Department</span><span className="detail-value">{selectedStaff.department}</span></div>
+                <div className="detail-item"><span className="detail-label">Designation</span><span className="detail-value">{selectedStaff.designation}</span></div>
+                <div className="detail-item"><span className="detail-label">Employee ID</span><span className="detail-value">{selectedStaff.employeeId || '—'}</span></div>
+                <div className="detail-item"><span className="detail-label">Phone</span><span className="detail-value">{selectedStaff.phone || '—'}</span></div>
+                <div className="detail-item"><span className="detail-label">Appointed Date</span><span className="detail-value">{selectedStaff.appointedDate ? new Date(selectedStaff.appointedDate).toLocaleDateString() : '—'}</span></div>
               </div>
             </div>
-
             <div className="modal-footer">
-              <button className="btn-secondary" onClick={() => setShowModal(false)}>
-                Close
-              </button>
+              <button className="btn-secondary" onClick={() => setShowModal(false)}>Close</button>
               {selectedStaff.deletedAt ? (
-                <button className="btn-primary" onClick={() => {
-                  setShowModal(false);
-                  handleRestore(selectedStaff);
-                }}>
-                  <RotateCcw size={16} />
-                  Restore HOD
-                </button>
+                <button className="btn-primary" onClick={() => { setShowModal(false); handleRestore(selectedStaff); }}><RotateCcw size={16} /> Restore HOD</button>
               ) : (
-                <button className="btn-primary" onClick={() => {
-                  setShowModal(false);
-                  handleEdit(selectedStaff);
-                }}>
-                  <Edit size={16} />
-                  Edit HOD
-                </button>
+                <button className="btn-primary" onClick={() => { setShowModal(false); handleEdit(selectedStaff); }}><Edit size={16} /> Edit HOD</button>
               )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Soft Delete Confirmation Modal */}
       {modalType === 'softDelete' && selectedStaff && showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content modal-sm" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>Move to Trash</h2>
-              <button className="close-btn" onClick={() => setShowModal(false)}>
-                <X size={20} />
-              </button>
+              <button className="close-btn" onClick={() => setShowModal(false)}><X size={20} /></button>
             </div>
-
             <div className="modal-body text-center">
-              <div className="delete-icon warning">
-                <Archive size={48} />
-              </div>
-              <p className="delete-message">
-                Are you sure you want to move <strong>{selectedStaff.name}</strong> to trash?
-              </p>
+              <div className="delete-icon warning"><Archive size={48} /></div>
+              <p className="delete-message">Are you sure you want to move <strong>{selectedStaff.name}</strong> to trash?</p>
               <p className="delete-warning">You can restore this HOD from trash later.</p>
             </div>
-
             <div className="modal-footer">
-              <button className="btn-secondary" onClick={() => setShowModal(false)}>
-                Cancel
-              </button>
-              <button className="btn-warning" onClick={confirmSoftDelete}>
-                <Archive size={16} />
-                Move to Trash
-              </button>
+              <button className="btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
+              <button className="btn-warning" onClick={confirmSoftDelete}><Archive size={16} /> Move to Trash</button>
             </div>
           </div>
         </div>
