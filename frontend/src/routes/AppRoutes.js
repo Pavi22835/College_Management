@@ -90,7 +90,7 @@ const AppRoutes = () => {
     );
   }
 
-  const role = user.role?.toUpperCase();
+  const role = user.role?.trim().toUpperCase();
   console.log('📍 AppRoutes - User is authenticated with role:', role);
 
   // If user has no role (shouldn't happen, but just in case)

@@ -508,13 +508,15 @@ export const dashboardApi = {
 
 // ==================== USER MANAGEMENT API ====================
 export const userApi = {
-  // Get all users with optional filtering
-  getAll: async (role, status) => {
+  // Get all users with optional filtering, pagination support
+  getAll: async (role, status, page = 1, limit = 1000) => {
     try {
       const params = new URLSearchParams();
       if (role) params.append('role', role);
       if (status) params.append('status', status);
-      const url = `/admin/users${params.toString() ? '?' + params : ''}`;
+      params.append('page', page);
+      params.append('limit', limit);
+      const url = `/admin/users?${params.toString()}`;
       const response = await axiosConfig.get(url);
       return response.data?.data || response.data;
     } catch (error) {
