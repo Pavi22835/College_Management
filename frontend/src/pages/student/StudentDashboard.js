@@ -135,6 +135,13 @@ const StudentDashboard = () => {
     return 'Good Evening';
   };
 
+  const getSemesterText = (semester) => {
+    if (!semester) return '';
+    const sem = String(semester).trim();
+    if (/semester/i.test(sem)) return sem;
+    return `Semester ${sem}`;
+  };
+
   if (loading) {
     return (
       <div className="sd-loading-container">
@@ -169,6 +176,16 @@ const StudentDashboard = () => {
           <p className="sd-welcome-message">
             Welcome back to your student dashboard. Here's what's happening with your courses today.
           </p>
+          <div className="sd-student-info">
+            <div className="sd-student-info-card">
+              <span className="sd-info-label">Course</span>
+              <span className="sd-info-value">{dashboardData.student.course || 'N/A'}</span>
+            </div>
+            <div className="sd-student-info-card">
+              <span className="sd-info-label">Semester</span>
+              <span className="sd-info-value">{getSemesterText(dashboardData.student.semester) || 'Semester N/A'}</span>
+            </div>
+          </div>
         </div>
 
         {/* Stats Cards - 4 Cards */}

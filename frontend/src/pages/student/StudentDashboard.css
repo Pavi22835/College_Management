@@ -154,6 +154,38 @@
   line-height: 1.5;
 }
 
+.sd-student-info {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 22px;
+}
+
+.sd-student-info-card {
+  background: #ffffff;
+  border: 1px solid #e7eef9;
+  border-radius: 18px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
+}
+
+.sd-info-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.sd-info-value {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
 /* Stats Cards */
 .sd-stats-cards {
   display: grid;

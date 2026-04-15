@@ -13,7 +13,8 @@ const StudentRoute = ({ children }) => {
     return <Navigate to="/login" replace />;
   }
 
-  const isStudent = user.role === 'STUDENT' || user.role === 'student';
+  const studentRole = user.role?.trim().toUpperCase();
+  const isStudent = studentRole === 'STUDENT';
   
   if (!isStudent) {
     return <Navigate to="/" replace />;
