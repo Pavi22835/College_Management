@@ -24,7 +24,8 @@ import {
   CheckCircle,
   AlertCircle,
   Archive,
-  RotateCcw
+  RotateCcw,
+  Users
 } from 'lucide-react';
 import courseApi from '../../api/courseApi';
 import { departmentApi } from '../../api/adminApi';
@@ -967,33 +968,107 @@ const AdminCourses = () => {
                         )}
                       </div>
                     </td>
-                   </tr>
+                  </tr>
                 );
               })
             ) : (
-              <tr>
-                <td colSpan="10" className="empty-state">
-                  {activeTab === 'active' ? (
-                    courses.length === 0 ? (
-                      <>
-                        <BookOpen size={48} />
-                        <h4>No Courses Found</h4>
-                        <p>Click "Add Course" to create your first course.</p>
-                      </>
+              <tr className="empty-state-row">
+                <td colSpan="10" style={{ textAlign: 'center', padding: '60px 20px' }}>
+                  <div style={{ 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    width: '100%'
+                  }}>
+                    {activeTab === 'active' ? (
+                      courses.length === 0 ? (
+                        <>
+                          <div style={{
+                            width: '80px',
+                            height: '80px',
+                            background: '#f1f5f9',
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            marginBottom: '20px'
+                          }}>
+                            <BookOpen size={40} style={{ color: '#94a3b8' }} />
+                          </div>
+                          <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 600, color: '#334155' }}>No courses found</h3>
+                          <p style={{ margin: '0 0 24px 0', fontSize: '14px', color: '#64748b' }}>
+                            Get started by adding a new course.
+                          </p>
+                          <button 
+                            className="btn-primary" 
+                            onClick={handleAdd}
+                            style={{ 
+                              display: 'inline-flex', 
+                              alignItems: 'center', 
+                              gap: '8px',
+                              padding: '10px 20px'
+                            }}
+                          >
+                            <Plus size={18} /> Add New Course
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{
+                            width: '80px',
+                            height: '80px',
+                            background: '#f1f5f9',
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            marginBottom: '20px'
+                          }}>
+                            <Search size={40} style={{ color: '#94a3b8' }} />
+                          </div>
+                          <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 600, color: '#334155' }}>No matching courses</h3>
+                          <p style={{ margin: '0 0 24px 0', fontSize: '14px', color: '#64748b' }}>
+                            Try adjusting your search or filter criteria.
+                          </p>
+                          <button 
+                            className="btn-secondary" 
+                            onClick={() => {
+                              setSearchTerm('');
+                              setDepartmentFilter('all');
+                            }}
+                            style={{ 
+                              display: 'inline-flex', 
+                              alignItems: 'center', 
+                              gap: '8px',
+                              padding: '10px 20px'
+                            }}
+                          >
+                            Clear Filters
+                          </button>
+                        </>
+                      )
                     ) : (
                       <>
-                        <Search size={48} />
-                        <h4>No Matching Courses</h4>
-                        <p>Try adjusting your search criteria.</p>
+                        <div style={{
+                          width: '80px',
+                          height: '80px',
+                          background: '#f1f5f9',
+                          borderRadius: '50%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          marginBottom: '20px'
+                        }}>
+                          <Trash2 size={40} style={{ color: '#94a3b8' }} />
+                        </div>
+                        <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 600, color: '#334155' }}>Trash is empty</h3>
+                        <p style={{ margin: 0, fontSize: '14px', color: '#64748b' }}>
+                          No deleted courses found. Deleted courses will appear here.
+                        </p>
                       </>
-                    )
-                  ) : (
-                    <>
-                      <Trash2 size={48} />
-                      <h4>Trash is Empty</h4>
-                      <p>No deleted courses found. Deleted courses will appear here for restoration.</p>
-                    </>
-                  )}
+                    )}
+                  </div>
                 </td>
               </tr>
             )}
