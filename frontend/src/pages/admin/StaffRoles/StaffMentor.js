@@ -1,26 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  UserCheck, 
-  Plus, 
-  Search, 
-  Filter, 
-  ChevronDown, 
+import {
+  Users,
+  Plus,
+  Search,
+  Filter,
+  ChevronDown,
   X,
-  Users as StudentsIcon,
+  Building2,
   Eye,
   Edit,
   Trash2,
   RefreshCw,
   Mail,
   Phone,
-  Star,
   Save,
   CheckCircle,
-  AlertCircle,
-  Lock,
   EyeOff,
+  Lock,
   Archive,
   RotateCcw,
+  UserCheck,
   AlertTriangle,
   ChevronLeft,
   ChevronRight
@@ -46,14 +45,12 @@ const StaffMentor = () => {
   const [showDepartmentDropdown, setShowDepartmentDropdown] = useState(false);
   const [departmentSearchTerm, setDepartmentSearchTerm] = useState('');
   const departmentSearchRef = useRef(null);
-  
-  // Pagination states
+
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [selectedRows, setSelectedRows] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
 
-  // Form data for add/edit
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -62,43 +59,34 @@ const StaffMentor = () => {
     designation: '',
     phone: '',
     employeeId: '',
-    address: '',
-    qualification: '',
-    joiningDate: '',
-    maxStudents: 20
+    appointedDate: ''
   });
 
-  // Department options from centralized constant (all 25 departments)
   const departmentOptions = DEPARTMENTS;
 
-  // Filter departments based on search term
   const filteredDepartments = departmentOptions.filter(dept =>
     dept.toLowerCase().includes(departmentSearchTerm.toLowerCase())
   );
 
-  // Designation options for Mentor
   const designationOptions = [
+    "Mentor",
     "Senior Mentor",
+    "Faculty Mentor",
     "Academic Mentor",
-    "Student Mentor",
-    "Career Mentor",
-    "Faculty Mentor"
+    "Student Mentor"
   ];
 
-  // Pagination calculations
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = filteredStaff.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredStaff.length / itemsPerPage);
 
-  // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
     setSelectedRows([]);
     setSelectAll(false);
   }, [searchTerm, departmentFilter, activeTab]);
 
-  // Handle individual row selection
   const handleRowSelect = (id) => {
     setSelectedRows(prev => {
       let newSelected;
@@ -111,7 +99,6 @@ const StaffMentor = () => {
     });
   };
 
-  // Update selectAll when selectedRows changes
   useEffect(() => {
     if (currentItems.length > 0) {
       const allSelected = currentItems.every(item => selectedRows.includes(item.id));
@@ -123,7 +110,6 @@ const StaffMentor = () => {
     }
   }, [selectedRows, currentItems]);
 
-  // Handle select all checkbox click
   const handleSelectAllChange = (e) => {
     const checked = e.target.checked;
     setSelectAll(checked);
@@ -135,24 +121,23 @@ const StaffMentor = () => {
     }
   };
 
-  // Handle bulk delete/move to trash
   const handleBulkAction = async (action) => {
     if (selectedRows.length === 0) {
-      setError('Please select at least one mentor');
+      setError('Please select at least one Mentor');
       setTimeout(() => setError(null), 3000);
       return;
     }
 
-    const confirmMessage = action === 'delete' 
-      ? `Are you sure you want to move ${selectedRows.length} mentor(s) to trash?`
-      : `Are you sure you want to permanently delete ${selectedRows.length} mentor(s)? This action cannot be undone.`;
+    const confirmMessage = action === 'delete'
+      ? `Are you sure you want to move ${selectedRows.length} Mentor(s) to trash?`
+      : `Are you sure you want to permanently delete ${selectedRows.length} Mentor(s)? This action cannot be undone.`;
 
     if (!window.confirm(confirmMessage)) return;
 
     try {
       setLoading(true);
       let successCount = 0;
-      
+
       for (const id of selectedRows) {
         try {
           if (action === 'delete') {
@@ -162,18 +147,18 @@ const StaffMentor = () => {
           }
           successCount++;
         } catch (err) {
-          console.error(`Failed to ${action} mentor ${id}:`, err);
+          console.error(`Failed to ${action} Mentor ${id}:`, err);
         }
       }
-      
-      setSuccessMessage(`Successfully ${action === 'delete' ? 'moved' : 'permanently deleted'} ${successCount} mentor(s)`);
+
+      setSuccessMessage(`Successfully ${action === 'delete' ? 'moved' : 'permanently deleted'} ${successCount} Mentor(s)`);
       setTimeout(() => setSuccessMessage(''), 3000);
       setSelectedRows([]);
       setSelectAll(false);
       fetchMentorStaff();
     } catch (err) {
       console.error(`Error during bulk ${action}:`, err);
-      setError(`Failed to ${action} mentors`);
+      setError(`Failed to ${action} Mentors`);
       setTimeout(() => setError(null), 3000);
     } finally {
       setLoading(false);
@@ -184,7 +169,6 @@ const StaffMentor = () => {
     fetchMentorStaff();
   }, []);
 
-  // Click outside handler for department dropdown
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (departmentSearchRef.current && !departmentSearchRef.current.contains(event.target)) {
@@ -195,7 +179,6 @@ const StaffMentor = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Filter staff based on search term and department
   useEffect(() => {
     let filtered = activeTab === 'active' ? mentorStaff : deletedStaff;
 
@@ -218,41 +201,40 @@ const StaffMentor = () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const [activeResponse, trashedResponse] = await Promise.all([
         staffApi.getAll(),
         staffApi.getTrashed()
       ]);
-      
+
       let staffData = [];
       if (activeResponse?.success && activeResponse?.data) {
         staffData = staffData.concat(activeResponse.data);
       } else if (Array.isArray(activeResponse)) {
         staffData = staffData.concat(activeResponse);
       }
-      
+
       if (trashedResponse?.success && trashedResponse?.data) {
         staffData = staffData.concat(trashedResponse.data);
       } else if (Array.isArray(trashedResponse)) {
         staffData = staffData.concat(trashedResponse);
       }
-      
-      // Filter mentors and separate active/deleted based on deletedAt field
-      const allMentors = staffData.filter(staff => 
-        staff.staffRole === 'MENTOR' || 
+
+      const allMentors = staffData.filter(staff =>
+        staff.staffRole === 'MENTOR' ||
         staff.designation?.toLowerCase().includes('mentor')
       );
-      
-      // Separate active and deleted based on deletedAt field (from your backend)
+
       const active = allMentors.filter(staff => !staff.deletedAt);
       const deleted = allMentors.filter(staff => staff.deletedAt);
-      
+
       setMentorStaff(active);
       setDeletedStaff(deleted);
       setFilteredStaff(active);
     } catch (error) {
-      console.error('Error fetching mentor staff:', error);
-      setError('Failed to load mentor data');
+      console.error('Error fetching Mentor staff:', error);
+      const errorMsg = error.response?.data?.message || error.message || 'Unknown error';
+      setError(`Failed to load Mentor data: ${errorMsg}`);
     } finally {
       setLoading(false);
     }
@@ -267,7 +249,6 @@ const StaffMentor = () => {
     setDepartmentFilter('all');
   };
 
-  // Handle Add button click
   const handleAdd = () => {
     setFormData({
       name: '',
@@ -277,10 +258,7 @@ const StaffMentor = () => {
       designation: '',
       phone: '',
       employeeId: '',
-      address: '',
-      qualification: '',
-      joiningDate: '',
-      maxStudents: 20
+      appointedDate: ''
     });
     setDepartmentSearchTerm('');
     setShowPassword(false);
@@ -290,7 +268,6 @@ const StaffMentor = () => {
     setError(null);
   };
 
-  // Handle Edit button click
   const handleEdit = (staff) => {
     setSelectedStaff(staff);
     setFormData({
@@ -301,10 +278,7 @@ const StaffMentor = () => {
       designation: staff.designation || '',
       phone: staff.phone || '',
       employeeId: staff.employeeId || '',
-      address: staff.address || '',
-      qualification: staff.qualification || '',
-      joiningDate: staff.joiningDate?.split('T')[0] || '',
-      maxStudents: staff.maxStudents || 20
+      appointedDate: staff.appointedDate || staff.createdAt?.split('T')[0] || ''
     });
     setDepartmentSearchTerm(staff.department || '');
     setShowPassword(false);
@@ -313,38 +287,33 @@ const StaffMentor = () => {
     setError(null);
   };
 
-  // Handle View button click
   const handleView = (staff) => {
     setSelectedStaff(staff);
     setModalType('view');
     setShowModal(true);
   };
 
-  // Soft Delete - Move to trash
   const handleSoftDelete = async (staff) => {
     setSelectedStaff(staff);
     setModalType('softDelete');
     setShowModal(true);
   };
 
-  // Confirm Soft Delete
   const confirmSoftDelete = async () => {
     try {
       setLoading(true);
-      // Call delete API (soft delete)
       await staffApi.delete(selectedStaff.id);
-      
-      // Update local state
+
       const updatedActive = mentorStaff.filter(s => s.id !== selectedStaff.id);
       const deletedStaffWithDate = {
         ...selectedStaff,
         deletedAt: new Date().toISOString()
       };
-      
+
       setMentorStaff(updatedActive);
       setDeletedStaff([deletedStaffWithDate, ...deletedStaff]);
       setFilteredStaff(updatedActive);
-      
+
       setSuccessMessage(`${selectedStaff.name} moved to trash successfully`);
       setTimeout(() => setSuccessMessage(''), 3000);
       setShowModal(false);
@@ -357,28 +326,24 @@ const StaffMentor = () => {
     }
   };
 
-  // Restore from trash
   const handleRestore = async (staff) => {
     if (!window.confirm(`Are you sure you want to restore ${staff.name}?`)) return;
-    
+
     try {
       setLoading(true);
-      
-      // Call restore API
       await staffApi.restore(staff.id);
-      
-      // Update local state
+
       const updatedDeleted = deletedStaff.filter(s => s.id !== staff.id);
       const restoredStaff = {
         ...staff,
         deletedAt: null,
         restoredAt: new Date().toISOString()
       };
-      
+
       setDeletedStaff(updatedDeleted);
       setMentorStaff([restoredStaff, ...mentorStaff]);
       setFilteredStaff(activeTab === 'active' ? [restoredStaff, ...mentorStaff] : updatedDeleted);
-      
+
       setSuccessMessage(`${staff.name} restored successfully`);
       setTimeout(() => setSuccessMessage(''), 3000);
     } catch (err) {
@@ -390,21 +355,17 @@ const StaffMentor = () => {
     }
   };
 
-  // Permanent Delete
   const handlePermanentDelete = async (staff) => {
     if (!window.confirm(`⚠️ Are you sure you want to permanently delete ${staff.name}? This action cannot be undone.`)) return;
-    
+
     try {
       setLoading(true);
-      
-      // Call permanent delete API
       await staffApi.permanentDelete(staff.id);
-      
-      // Update local state
+
       const updatedDeleted = deletedStaff.filter(s => s.id !== staff.id);
       setDeletedStaff(updatedDeleted);
       setFilteredStaff(updatedDeleted);
-      
+
       setSuccessMessage(`${staff.name} permanently deleted`);
       setTimeout(() => setSuccessMessage(''), 3000);
     } catch (err) {
@@ -416,7 +377,6 @@ const StaffMentor = () => {
     }
   };
 
-  // Handle form input change
   const handleChange = (e) => {
     setFormData({
       ...formData,
@@ -424,7 +384,6 @@ const StaffMentor = () => {
     });
   };
 
-  // Handle department selection from searchable dropdown
   const handleDepartmentSelect = (dept) => {
     setFormData(prev => ({
       ...prev,
@@ -434,12 +393,11 @@ const StaffMentor = () => {
     setShowDepartmentDropdown(false);
   };
 
-  // Handle form submit
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       setError(null);
-      
+
       if (!formData.name || !formData.email || !formData.department || !formData.designation) {
         setError('Please fill in all required fields');
         setTimeout(() => setError(null), 3000);
@@ -467,17 +425,13 @@ const StaffMentor = () => {
         staffRole: 'MENTOR',
         phone: formData.phone || null,
         employeeId: formData.employeeId || null,
-        address: formData.address || null,
-        qualification: formData.qualification || null,
-        joiningDate: formData.joiningDate || null,
-        maxStudents: formData.maxStudents ? parseInt(formData.maxStudents) : 20
+        appointedDate: formData.appointedDate || null
       };
 
       if (modalType === 'add') {
         staffData.password = formData.password;
         const response = await staffApi.create(staffData);
-        
-        // Add to local state
+
         const newStaff = {
           ...response.data,
           ...staffData,
@@ -485,31 +439,30 @@ const StaffMentor = () => {
         };
         setMentorStaff([newStaff, ...mentorStaff]);
         setFilteredStaff([newStaff, ...filteredStaff]);
-        
+
         setSuccessMessage(`✅ Mentor "${formData.name}" added successfully!`);
       } else if (modalType === 'edit') {
         await staffApi.update(selectedStaff.id, staffData);
-        
-        // Update local state
-        const updatedStaff = mentorStaff.map(s => 
+
+        const updatedStaff = mentorStaff.map(s =>
           s.id === selectedStaff.id ? { ...s, ...staffData } : s
         );
         setMentorStaff(updatedStaff);
         setFilteredStaff(updatedStaff);
-        
+
         setSuccessMessage(`✅ Mentor "${formData.name}" updated successfully!`);
       }
-      
+
       setTimeout(() => setSuccessMessage(''), 3000);
       setShowModal(false);
     } catch (err) {
-      console.error('Error saving mentor:', err);
-      setError(err.response?.data?.message || err.message || 'Failed to save mentor');
+      console.error('❌ Error saving Mentor:', err);
+      const errorMsg = err.response?.data?.message || err.message || 'Failed to save Mentor';
+      setError(errorMsg);
       setTimeout(() => setError(null), 3000);
     }
   };
 
-  // Get unique departments for filter
   const getUniqueDepartments = () => {
     const allStaff = [...mentorStaff, ...deletedStaff];
     const depts = allStaff.map(s => s.department).filter(Boolean);
@@ -542,7 +495,6 @@ const StaffMentor = () => {
 
   return (
     <div className="staff-mentor">
-      {/* Error Message */}
       {error && (
         <div className="error-message">
           <AlertTriangle size={16} />
@@ -550,7 +502,6 @@ const StaffMentor = () => {
         </div>
       )}
 
-      {/* Success Message */}
       {successMessage && (
         <div className="success-message">
           <CheckCircle size={16} />
@@ -558,15 +509,14 @@ const StaffMentor = () => {
         </div>
       )}
 
-      {/* Header */}
       <div className="page-header">
         <div>
           <h1 className="page-title">Mentors</h1>
-          <p className="page-description">Manage student mentors and their assigned students</p>
+          <p className="page-description">Manage mentors and their responsibilities</p>
         </div>
         <div className="header-actions">
-          <button 
-            className={`btn-icon ${activeTab === 'deleted' ? 'active-trash' : ''}`} 
+          <button
+            className={`btn-icon ${activeTab === 'deleted' ? 'active-trash' : ''}`}
             onClick={() => setActiveTab(activeTab === 'active' ? 'deleted' : 'active')}
             title={activeTab === 'active' ? "View Trash" : "View Active Mentors"}
           >
@@ -583,7 +533,6 @@ const StaffMentor = () => {
         </div>
       </div>
 
-      {/* Stats Cards */}
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-icon blue">
@@ -595,6 +544,15 @@ const StaffMentor = () => {
           </div>
         </div>
         <div className="stat-card">
+          <div className="stat-icon green">
+            <Building2 size={24} />
+          </div>
+          <div className="stat-content">
+            <span className="stat-label">Departments</span>
+            <span className="stat-value">{uniqueDepartments.length}</span>
+          </div>
+        </div>
+        <div className="stat-card">
           <div className="stat-icon purple">
             <Archive size={24} />
           </div>
@@ -603,30 +561,18 @@ const StaffMentor = () => {
             <span className="stat-value">{deletedStaff.length}</span>
           </div>
         </div>
-        <div className="stat-card">
-          <div className="stat-icon green">
-            <StudentsIcon size={24} />
-          </div>
-          <div className="stat-content">
-            <span className="stat-label">Total Students</span>
-            <span className="stat-value">
-              {mentorStaff.reduce((total, mentor) => total + (mentor.studentsCount || 0), 0)}
-            </span>
-          </div>
-        </div>
       </div>
 
-      {/* Tabs */}
       <div className="tabs-container">
-        <button 
+        <button
           className={`tab-btn ${activeTab === 'active' ? 'active' : ''}`}
           onClick={() => setActiveTab('active')}
         >
-          <UserCheck size={16} />
+          <Users size={16} />
           <span>Active Mentors</span>
           <span className="tab-count">{mentorStaff.length}</span>
         </button>
-        <button 
+        <button
           className={`tab-btn ${activeTab === 'deleted' ? 'active' : ''}`}
           onClick={() => setActiveTab('deleted')}
         >
@@ -636,14 +582,13 @@ const StaffMentor = () => {
         </button>
       </div>
 
-      {/* Search and Filter Section */}
       <div className="search-filter-section">
         <div className="search-box">
           <Search className="search-icon" size={18} />
           <input
             type="text"
             className="search-input"
-            placeholder={activeTab === 'active' ? "Search mentor by name, email, department..." : "Search deleted mentors..."}
+            placeholder={activeTab === 'active' ? "Search Mentor by name, email, department..." : "Search deleted Mentors..."}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -670,21 +615,20 @@ const StaffMentor = () => {
         </div>
       </div>
 
-      {/* Table Actions Bar */}
       {selectedRows.length > 0 && (
         <div className="table-actions-bar">
-          <span className="selected-count">{selectedRows.length} mentor(s) selected</span>
+          <span className="selected-count">{selectedRows.length} Mentor(s) selected</span>
           <div className="bulk-actions">
-            <button 
-              className="btn-bulk-delete" 
+            <button
+              className="btn-bulk-delete"
               onClick={() => handleBulkAction('delete')}
               title="Move selected to trash"
             >
               <Archive size={16} /> Move to Trash
             </button>
             {activeTab === 'deleted' && (
-              <button 
-                className="btn-bulk-permanent-delete" 
+              <button
+                className="btn-bulk-permanent-delete"
                 onClick={() => handleBulkAction('permanent')}
                 title="Permanently delete selected"
               >
@@ -695,7 +639,6 @@ const StaffMentor = () => {
         </div>
       )}
 
-      {/* Mentor Table */}
       <div className="table-container">
         <table className="mentor-table">
           <thead>
@@ -711,7 +654,7 @@ const StaffMentor = () => {
               <th>Department</th>
               <th>Email</th>
               <th>Phone</th>
-              <th>Students Assigned</th>
+              <th>Since</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -720,7 +663,7 @@ const StaffMentor = () => {
               currentItems.map((mentor) => {
                 const isDeleted = activeTab === 'deleted';
                 const deletedDate = mentor.deletedAt ? new Date(mentor.deletedAt).toLocaleDateString() : null;
-                
+
                 return (
                   <tr key={mentor.id} className={isDeleted ? 'deleted-row' : ''}>
                     <td style={{ textAlign: 'center' }}>
@@ -762,7 +705,8 @@ const StaffMentor = () => {
                       ) : '—'}
                     </td>
                     <td>
-                      <span className="students-count">{mentor.studentsCount || 0}</span>
+                      {mentor.appointedDate || mentor.createdAt ?
+                        new Date(mentor.appointedDate || mentor.createdAt).toLocaleDateString() : '—'}
                     </td>
                     <td>
                       <div className="action-group">
@@ -794,35 +738,100 @@ const StaffMentor = () => {
                 );
               })
             ) : (
-              <tr>
-                <td colSpan="7" className="empty-state">
-                  {activeTab === 'active' ? (
-                    mentorStaff.length === 0 ? (
-                      <>
-                        <UserCheck size={48} />
-                        <h3>No Mentors Found</h3>
-                        <p>Click "Add Mentor" to assign a mentor.</p>
-                        <button className="btn-primary" onClick={handleAdd}>
-                          <Plus size={16} /> Add Mentor
-                        </button>
-                      </>
+              <tr className="empty-state-row">
+                <td colSpan="7" style={{ textAlign: 'center', padding: '60px 20px' }}>
+                  <div style={{ 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    width: '100%'
+                  }}>
+                    {activeTab === 'active' ? (
+                      mentorStaff.length === 0 ? (
+                        <>
+                          <div style={{
+                            width: '80px',
+                            height: '80px',
+                            background: '#f1f5f9',
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            marginBottom: '20px'
+                          }}>
+                            <Users size={40} style={{ color: '#94a3b8' }} />
+                          </div>
+                          <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 600, color: '#334155' }}>No mentors found</h3>
+                          <p style={{ margin: '0 0 24px 0', fontSize: '14px', color: '#64748b' }}>
+                            Get started by adding a new mentor.
+                          </p>
+                          <button 
+                            className="btn-primary" 
+                            onClick={handleAdd}
+                            style={{ 
+                              display: 'inline-flex', 
+                              alignItems: 'center', 
+                              gap: '8px',
+                              padding: '10px 20px'
+                            }}
+                          >
+                            <Plus size={18} /> Add New Mentor
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{
+                            width: '80px',
+                            height: '80px',
+                            background: '#f1f5f9',
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            marginBottom: '20px'
+                          }}>
+                            <Search size={40} style={{ color: '#94a3b8' }} />
+                          </div>
+                          <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 600, color: '#334155' }}>No matching mentors</h3>
+                          <p style={{ margin: '0 0 24px 0', fontSize: '14px', color: '#64748b' }}>
+                            Try adjusting your search or filter criteria.
+                          </p>
+                          <button 
+                            className="btn-secondary" 
+                            onClick={clearFilters}
+                            style={{ 
+                              display: 'inline-flex', 
+                              alignItems: 'center', 
+                              gap: '8px',
+                              padding: '10px 20px'
+                            }}
+                          >
+                            Clear Filters
+                          </button>
+                        </>
+                      )
                     ) : (
                       <>
-                        <Search size={48} />
-                        <h3>No Matching Mentors</h3>
-                        <p>Try adjusting your search criteria.</p>
-                        <button className="btn-secondary" onClick={clearFilters}>
-                          Clear Filters
-                        </button>
+                        <div style={{
+                          width: '80px',
+                          height: '80px',
+                          background: '#f1f5f9',
+                          borderRadius: '50%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          marginBottom: '20px'
+                        }}>
+                          <Trash2 size={40} style={{ color: '#94a3b8' }} />
+                        </div>
+                        <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 600, color: '#334155' }}>Trash is empty</h3>
+                        <p style={{ margin: 0, fontSize: '14px', color: '#64748b' }}>
+                          No deleted mentors found. Deleted mentors will appear here.
+                        </p>
                       </>
-                    )
-                  ) : (
-                    <>
-                      <Trash2 size={48} />
-                      <h3>Trash is Empty</h3>
-                      <p>No deleted mentors found. Deleted mentors will appear here for restoration.</p>
-                    </>
-                  )}
+                    )}
+                  </div>
                 </td>
               </tr>
             )}
@@ -830,13 +839,12 @@ const StaffMentor = () => {
         </table>
       </div>
 
-      {/* Pagination */}
       {filteredStaff.length > 0 && (
         <div className="pagination-container">
           <div className="pagination-info">
             <span>Show</span>
-            <select 
-              value={itemsPerPage} 
+            <select
+              value={itemsPerPage}
               onChange={(e) => {
                 setItemsPerPage(Number(e.target.value));
                 setCurrentPage(1);
@@ -894,7 +902,7 @@ const StaffMentor = () => {
       {/* Add/Edit Mentor Modal */}
       {(modalType === 'add' || modalType === 'edit') && showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal-content modal-lg" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>{modalType === 'add' ? 'Add New Mentor' : 'Edit Mentor'}</h2>
               <button className="close-btn" onClick={() => setShowModal(false)}>
@@ -935,7 +943,6 @@ const StaffMentor = () => {
                     <div className="form-group">
                       <label>Password *</label>
                       <div className="password-field-wrapper">
-                        <Lock className="password-lock-icon" size={18} />
                         <input
                           type={showPassword ? "text" : "password"}
                           name="password"
@@ -945,6 +952,7 @@ const StaffMentor = () => {
                           required
                           autoComplete="new-password"
                         />
+                        <Lock className="password-lock-icon" size={18} />
                         <button
                           type="button"
                           className="password-eye-toggle"
@@ -961,10 +969,24 @@ const StaffMentor = () => {
                         name="employeeId"
                         value={formData.employeeId}
                         onChange={handleChange}
-                        placeholder="e.g., MNT001"
+                        placeholder="e.g., MTR001"
                         autoComplete="off"
                       />
                     </div>
+                  </div>
+                )}
+
+                {modalType === 'edit' && (
+                  <div className="form-group">
+                    <label>Employee ID</label>
+                    <input
+                      type="text"
+                      name="employeeId"
+                      value={formData.employeeId}
+                      onChange={handleChange}
+                      placeholder="e.g., MTR001"
+                      autoComplete="off"
+                    />
                   </div>
                 )}
 
@@ -972,7 +994,7 @@ const StaffMentor = () => {
                   <div className="form-group" ref={departmentSearchRef}>
                     <label>Department *</label>
                     <div className="searchable-select">
-                      <div 
+                      <div
                         className="searchable-select-input"
                         onClick={() => setShowDepartmentDropdown(!showDepartmentDropdown)}
                       >
@@ -1052,53 +1074,22 @@ const StaffMentor = () => {
                     />
                   </div>
                   <div className="form-group">
-                    <label>Qualification</label>
-                    <input
-                      type="text"
-                      name="qualification"
-                      value={formData.qualification}
-                      onChange={handleChange}
-                      placeholder="e.g., Ph.D., M.Tech"
-                      autoComplete="off"
-                    />
-                  </div>
-                </div>
-
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Joining Date</label>
+                    <label>Appointed Date</label>
                     <input
                       type="date"
-                      name="joiningDate"
-                      value={formData.joiningDate}
+                      name="appointedDate"
+                      value={formData.appointedDate}
                       onChange={handleChange}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Max Students</label>
-                    <input
-                      type="number"
-                      name="maxStudents"
-                      value={formData.maxStudents}
-                      onChange={handleChange}
-                      placeholder="Max students to mentor"
-                      min="1"
-                      max="100"
                     />
                   </div>
                 </div>
 
-                <div className="form-group">
-                  <label>Address</label>
-                  <textarea
-                    name="address"
-                    value={formData.address}
-                    onChange={handleChange}
-                    placeholder="Enter full address"
-                    rows="3"
-                    className="address-textarea"
-                  />
-                </div>
+                {modalType === 'add' && (
+                  <div className="info-note">
+                    <CheckCircle size={16} />
+                    <span>Staff will be created with Mentor role and ACTIVE status</span>
+                  </div>
+                )}
               </div>
 
               <div className="modal-footer">
@@ -1158,27 +1149,9 @@ const StaffMentor = () => {
                   <span className="detail-value">{selectedStaff.phone || '—'}</span>
                 </div>
                 <div className="detail-item">
-                  <span className="detail-label">Qualification</span>
-                  <span className="detail-value">{selectedStaff.qualification || '—'}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-label">Joining Date</span>
+                  <span className="detail-label">Appointed Date</span>
                   <span className="detail-value">
-                    {selectedStaff.joiningDate ? new Date(selectedStaff.joiningDate).toLocaleDateString() : '—'}
-                  </span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-label">Max Students</span>
-                  <span className="detail-value">{selectedStaff.maxStudents || 20}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-label">Students Assigned</span>
-                  <span className="detail-value">{selectedStaff.studentsCount || 0}</span>
-                </div>
-                <div className="detail-item full-width">
-                  <span className="detail-label">Address</span>
-                  <span className="detail-value address-value">
-                    {selectedStaff.address || '—'}
+                    {selectedStaff.appointedDate ? new Date(selectedStaff.appointedDate).toLocaleDateString() : '—'}
                   </span>
                 </div>
               </div>

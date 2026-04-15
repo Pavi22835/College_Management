@@ -438,48 +438,54 @@
 }
 
 /* ========================================
-   Empty State
+   Empty State - Completely Centered
    ======================================== */
 
-.empty-state {
-  text-align: center;
+.empty-state-row .empty-state {
+  text-align: center !important;
   padding: 48px 20px !important;
-  color: #94a3b8;
 }
 
-.empty-state svg {
+.empty-state {
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+.empty-state-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  text-align: center;
+}
+
+.empty-state-content svg {
+  display: block;
+  margin: 0 auto 16px auto;
   width: 48px;
   height: 48px;
-  margin-bottom: 16px;
   color: #cbd5e1;
 }
 
-.empty-state h3 {
+.empty-state-content h3 {
   font-size: 18px;
   color: #334155;
-  margin: 0 0 4px;
+  margin: 0 0 4px 0;
+  text-align: center;
 }
 
-.empty-state p {
-  margin: 0 0 16px;
+.empty-state-content p {
+  margin: 0 0 16px 0;
   color: #64748b;
-  font-size: 14px;
+  text-align: center;
 }
 
-.btn-secondary {
-  background: white;
-  border: 1px solid #e2e8f0;
-  padding: 8px 16px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 500;
-  transition: all 0.2s;
-}
-
-.btn-secondary:hover {
-  background: #f8fafc;
-  border-color: #cbd5e1;
+.empty-state-content button {
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 /* ========================================
@@ -557,6 +563,49 @@
 
 .btn-retry:hover {
   background: #4338ca;
+}
+
+/* ========================================
+   Button Styles
+   ======================================== */
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 20px;
+  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  height: 38px;
+  transition: all 0.2s;
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+}
+
+.btn-secondary {
+  background: white;
+  border: 1px solid #e2e8f0;
+  padding: 0 16px;
+  border-radius: 8px;
+  height: 38px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #475569;
+  transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
 }
 
 /* ========================================
