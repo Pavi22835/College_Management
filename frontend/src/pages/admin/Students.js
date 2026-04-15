@@ -40,7 +40,8 @@ import {
   Archive,
   Undo2,
   RotateCcw,
-  AlertTriangle
+  AlertTriangle,
+  FolderOpen
 } from 'lucide-react';
 import studentApi from '../../api/studentApi';
 import staffApi from '../../api/staffApi';
@@ -1253,33 +1254,100 @@ const AdminStudents = () => {
                 );
               })
             ) : (
-              <tr>
-                <td colSpan="10" className="empty-state">
-                  {activeTab === 'active' ? (
-                    students.length === 0 ? (
-                      <>
-                        <Users size={48} />
-                        <h3>No Students Found</h3>
-                        <p>Click "Add Student" to create your first student record.</p>
-                        <button className="btn-primary" onClick={handleAdd}>
-                          <Plus size={16} /> Add Student
-                        </button>
-                      </>
+              <tr className="empty-state-row">
+                <td colSpan="10" style={{ textAlign: 'center', padding: '60px 20px' }}>
+                  <div style={{ 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    width: '100%'
+                  }}>
+                    {activeTab === 'active' ? (
+                      students.length === 0 ? (
+                        <>
+                          <div style={{
+                            width: '80px',
+                            height: '80px',
+                            background: '#f1f5f9',
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            marginBottom: '20px'
+                          }}>
+                            <Users size={40} style={{ color: '#94a3b8' }} />
+                          </div>
+                          <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 600, color: '#334155' }}>No students found</h3>
+                          <p style={{ margin: '0 0 24px 0', fontSize: '14px', color: '#64748b' }}>
+                            Get started by adding a new student.
+                          </p>
+                          <button 
+                            className="btn-primary" 
+                            onClick={handleAdd}
+                            style={{ 
+                              display: 'inline-flex', 
+                              alignItems: 'center', 
+                              gap: '8px',
+                              padding: '10px 20px'
+                            }}
+                          >
+                            <Plus size={18} /> Add New Student
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{
+                            width: '80px',
+                            height: '80px',
+                            background: '#f1f5f9',
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            marginBottom: '20px'
+                          }}>
+                            <Search size={40} style={{ color: '#94a3b8' }} />
+                          </div>
+                          <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 600, color: '#334155' }}>No matching students</h3>
+                          <p style={{ margin: '0 0 24px 0', fontSize: '14px', color: '#64748b' }}>
+                            Try adjusting your search or filter criteria.
+                          </p>
+                          <button 
+                            className="btn-secondary" 
+                            onClick={clearFilters}
+                            style={{ 
+                              display: 'inline-flex', 
+                              alignItems: 'center', 
+                              gap: '8px',
+                              padding: '10px 20px'
+                            }}
+                          >
+                            Clear Filters
+                          </button>
+                        </>
+                      )
                     ) : (
                       <>
-                        <Search size={48} />
-                        <h3>No Matching Students</h3>
-                        <p>Try adjusting your search criteria.</p>
-                        <button className="btn-secondary" onClick={clearFilters}>Clear Filters</button>
+                        <div style={{
+                          width: '80px',
+                          height: '80px',
+                          background: '#f1f5f9',
+                          borderRadius: '50%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          marginBottom: '20px'
+                        }}>
+                          <Trash2 size={40} style={{ color: '#94a3b8' }} />
+                        </div>
+                        <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 600, color: '#334155' }}>Trash is empty</h3>
+                        <p style={{ margin: 0, fontSize: '14px', color: '#64748b' }}>
+                          No deleted students found. Deleted students will appear here.
+                        </p>
                       </>
-                    )
-                  ) : (
-                    <>
-                      <Trash2 size={48} />
-                      <h3>Trash is Empty</h3>
-                      <p>No deleted students found. Deleted students will appear here for restoration.</p>
-                    </>
-                  )}
+                    )}
+                  </div>
                 </td>
               </tr>
             )}

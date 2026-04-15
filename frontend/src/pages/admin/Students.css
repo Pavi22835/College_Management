@@ -1146,7 +1146,12 @@
    ======================================== */
 
 .empty-state {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
   text-align: center;
+  min-height: 280px;
   padding: 60px 20px !important;
   color: #64748b;
 }
