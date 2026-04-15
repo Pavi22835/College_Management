@@ -103,7 +103,7 @@ const UserManagement = () => {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const data = await userApi.getAll(roleFilter, statusFilter);
+      const data = await userApi.getAll(roleFilter, statusFilter, 1, 1000);
       const usersData = Array.isArray(data) ? data : [];
       
       // Enhance user data with role-specific information
@@ -318,11 +318,11 @@ const UserManagement = () => {
   }
 
   // Calculate counts for cards
-  const totalUsers = users.length;
-  const studentsCount = users.filter(u => u.role === 'STUDENT').length;
-  const staffCount = users.filter(u => u.role === 'TEACHER' || u.role === 'STAFF').length;
-  const activeCount = users.filter(u => u.isActive).length;
-  const inactiveCount = users.filter(u => !u.isActive).length;
+  const totalUsers = stats?.total ?? users.length;
+  const studentsCount = stats?.byRole?.students ?? users.filter(u => u.role === 'STUDENT').length;
+  const staffCount = stats?.byRole?.teachers ?? users.filter(u => u.role === 'TEACHER' || u.role === 'STAFF').length;
+  const activeCount = stats?.active ?? users.filter(u => u.isActive).length;
+  const inactiveCount = stats?.inactive ?? users.filter(u => !u.isActive).length;
 
   return (
     <div className="user-management">
