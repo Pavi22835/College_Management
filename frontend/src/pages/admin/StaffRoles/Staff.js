@@ -1218,33 +1218,100 @@ const AdminStaff = () => {
                 );
               })
             ) : (
-              <tr>
-                <td colSpan="10" className="empty-state">
-                  {activeTab === 'active' ? (
-                    staff.length === 0 ? (
-                      <>
-                        <FolderOpen size={48} />
-                        <h3>No Staff Found</h3>
-                        <p>Click "Add Staff" to create your first staff record.</p>
-                        <button className="btn-primary" onClick={handleAdd}>
-                          <Plus size={16} /> Add Staff
-                        </button>
-                      </>
+              <tr className="empty-state-row">
+                <td colSpan="10" style={{ textAlign: 'center', padding: '60px 20px' }}>
+                  <div style={{ 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    width: '100%'
+                  }}>
+                    {activeTab === 'active' ? (
+                      staff.length === 0 ? (
+                        <>
+                          <div style={{
+                            width: '80px',
+                            height: '80px',
+                            background: '#f1f5f9',
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            marginBottom: '20px'
+                          }}>
+                            <Users size={40} style={{ color: '#94a3b8' }} />
+                          </div>
+                          <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 600, color: '#334155' }}>No staff found</h3>
+                          <p style={{ margin: '0 0 24px 0', fontSize: '14px', color: '#64748b' }}>
+                            Get started by adding a new staff member.
+                          </p>
+                          <button 
+                            className="btn-primary" 
+                            onClick={handleAdd}
+                            style={{ 
+                              display: 'inline-flex', 
+                              alignItems: 'center', 
+                              gap: '8px',
+                              padding: '10px 20px'
+                            }}
+                          >
+                            <Plus size={18} /> Add New Staff
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{
+                            width: '80px',
+                            height: '80px',
+                            background: '#f1f5f9',
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            marginBottom: '20px'
+                          }}>
+                            <Search size={40} style={{ color: '#94a3b8' }} />
+                          </div>
+                          <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 600, color: '#334155' }}>No matching staff</h3>
+                          <p style={{ margin: '0 0 24px 0', fontSize: '14px', color: '#64748b' }}>
+                            Try adjusting your search or filter criteria.
+                          </p>
+                          <button 
+                            className="btn-secondary" 
+                            onClick={clearFilters}
+                            style={{ 
+                              display: 'inline-flex', 
+                              alignItems: 'center', 
+                              gap: '8px',
+                              padding: '10px 20px'
+                            }}
+                          >
+                            Clear Filters
+                          </button>
+                        </>
+                      )
                     ) : (
                       <>
-                        <Search size={48} />
-                        <h3>No Matching Staff</h3>
-                        <p>Try adjusting your search criteria or clear filters.</p>
-                        <button className="btn-secondary" onClick={clearFilters}>Clear Filters</button>
+                        <div style={{
+                          width: '80px',
+                          height: '80px',
+                          background: '#f1f5f9',
+                          borderRadius: '50%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          marginBottom: '20px'
+                        }}>
+                          <TrashIcon size={40} style={{ color: '#94a3b8' }} />
+                        </div>
+                        <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 600, color: '#334155' }}>Trash is empty</h3>
+                        <p style={{ margin: 0, fontSize: '14px', color: '#64748b' }}>
+                          No deleted staff found. Deleted staff will appear here.
+                        </p>
                       </>
-                    )
-                  ) : (
-                    <>
-                      <TrashIcon size={48} />
-                      <h3>Trash is Empty</h3>
-                      <p>No deleted staff found. Deleted staff will appear here for restoration.</p>
-                    </>
-                  )}
+                    )}
+                  </div>
                 </td>
               </tr>
             )}
