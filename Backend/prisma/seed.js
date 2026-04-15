@@ -117,8 +117,8 @@ async function main() {
       isActive: true,
       student: {
         create: {
-          rollNo: '2024001',
-          enrollmentNo: 'ENR001',
+          rollNo: '2099001',
+          enrollmentNo: 'ENR901',
           email: 'ranjith@example.com',
           name: 'Ranjith Kumar',
           age: 20,
@@ -154,8 +154,8 @@ async function main() {
       isActive: true,
       student: {
         create: {
-          rollNo: '2024002',
-          enrollmentNo: 'ENR002',
+          rollNo: '2099002',
+          enrollmentNo: 'ENR902',
           email: 'priya@example.com',
           name: 'Priya Sharma',
           age: 19,
@@ -191,8 +191,8 @@ async function main() {
       isActive: true,
       student: {
         create: {
-          rollNo: '2024003',
-          enrollmentNo: 'ENR003',
+          rollNo: '2099003',
+          enrollmentNo: 'ENR903',
           email: 'rahul@example.com',
           name: 'Rahul Sharma',
           age: 21,
