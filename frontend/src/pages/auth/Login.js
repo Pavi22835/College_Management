@@ -87,7 +87,7 @@ const Login = () => {
           }
           
           // Show success toast based on role
-          const role = userData.role?.toLowerCase();
+          const role = userData.role?.trim().toLowerCase();
           const userName = userData.name || userData.email?.split('@')[0] || 'User';
           
           if (role === 'admin') {
@@ -131,8 +131,8 @@ const Login = () => {
         setLoading(false);
       }
     } catch (err) {
-      if (err.response?.data?.message) {
-        const serverMsg = err.response.data.message;
+      if (err.response?.data?.error || err.response?.data?.message) {
+        const serverMsg = err.response.data.error || err.response.data.message;
         if (serverMsg.toLowerCase().includes('deactivated') || 
             serverMsg.toLowerCase().includes('inactive')) {
           showToast('Account is Deactivated', 'error');

@@ -25,6 +25,9 @@ export const AuthProvider = ({ children }) => {
         
         if (storedToken && storedUser) {
           const parsedUser = JSON.parse(storedUser);
+          if (parsedUser.role) {
+            parsedUser.role = parsedUser.role.trim().toUpperCase();
+          }
           console.log('👤 User loaded from storage:', parsedUser);
           console.log('👤 User role from storage:', parsedUser.role);
           setToken(storedToken);
@@ -55,10 +58,10 @@ export const AuthProvider = ({ children }) => {
     // Log the raw role before normalization
     console.log('📝 Raw role from API:', userData?.role);
     
-    // Ensure role is uppercase
+    // Ensure role is uppercase and trimmed
     if (userData && userData.role) {
       const originalRole = userData.role;
-      userData.role = userData.role.toUpperCase();
+      userData.role = userData.role.trim().toUpperCase();
       console.log('🔄 Role normalized from', originalRole, 'to', userData.role);
     }
     
