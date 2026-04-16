@@ -203,30 +203,31 @@ const StaffMentor = () => {
       setError(null);
 
       const [activeResponse, trashedResponse] = await Promise.all([
-        staffApi.getAll(),
+        staffApi.getMentors(),
         staffApi.getTrashed()
       ]);
 
-      let staffData = [];
+      let activeMentors = [];
       if (activeResponse?.success && activeResponse?.data) {
-        staffData = staffData.concat(activeResponse.data);
+        activeMentors = activeResponse.data;
       } else if (Array.isArray(activeResponse)) {
-        staffData = staffData.concat(activeResponse);
+        activeMentors = activeResponse;
       }
 
+      let trashedMentors = [];
       if (trashedResponse?.success && trashedResponse?.data) {
-        staffData = staffData.concat(trashedResponse.data);
+        trashedMentors = trashedResponse.data;
       } else if (Array.isArray(trashedResponse)) {
-        staffData = staffData.concat(trashedResponse);
+        trashedMentors = trashedResponse;
       }
 
-      const allMentors = staffData.filter(staff =>
+      trashedMentors = trashedMentors.filter(staff =>
         staff.staffRole === 'MENTOR' ||
         staff.designation?.toLowerCase().includes('mentor')
       );
 
-      const active = allMentors.filter(staff => !staff.deletedAt);
-      const deleted = allMentors.filter(staff => staff.deletedAt);
+      const active = activeMentors.filter(staff => !staff.deletedAt);
+      const deleted = trashedMentors.filter(staff => staff.deletedAt);
 
       setMentorStaff(active);
       setDeletedStaff(deleted);

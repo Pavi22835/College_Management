@@ -322,14 +322,31 @@ const AdminStaff = () => {
       const uniqueDepts = [...new Set(staffData.map(t => t.department).filter(Boolean))];
       const activeStaff = normalizedActive.filter(t => t.user?.isActive !== false).length;
       const inactiveStaff = normalizedActive.filter(t => t.user?.isActive === false).length;
-      
-      setStats({
+
+      let statsPayload = {
         totalStaff: normalizedActive.length,
         totalDepartments: uniqueDepts.length,
         activeStaff: activeStaff,
         inactiveStaff: inactiveStaff,
         trashedStaff: normalizedDeleted.length
-      });
+      };
+
+      try {
+        const statsResponse = await staffApi.getStats();
+        const statsData = statsResponse?.data || statsResponse;
+
+        statsPayload = {
+          totalStaff: statsData?.total ?? statsPayload.totalStaff,
+          totalDepartments: Array.isArray(statsData?.departments) ? statsData.departments.length : statsPayload.totalDepartments,
+          activeStaff: statsData?.active ?? statsPayload.activeStaff,
+          inactiveStaff: statsData?.inactive ?? statsPayload.inactiveStaff,
+          trashedStaff: statsData?.trashed ?? statsPayload.trashedStaff
+        };
+      } catch (statsErr) {
+        console.warn('Unable to fetch backend staff stats, using local counts instead:', statsErr);
+      }
+
+      setStats(statsPayload);
 
     } catch (err) {
       console.error('Error fetching staff:', err);

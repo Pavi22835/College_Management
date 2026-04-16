@@ -226,35 +226,34 @@ const StaffFaculty = () => {
       setError(null);
       
       const [activeResponse, trashedResponse] = await Promise.all([
-        staffApi.getAll(),
+        staffApi.getFaculty(),
         staffApi.getTrashed()
       ]);
       
-      let staffData = [];
+      let activeFaculty = [];
       if (activeResponse?.success && activeResponse?.data) {
-        staffData = staffData.concat(activeResponse.data);
+        activeFaculty = activeResponse.data;
       } else if (Array.isArray(activeResponse)) {
-        staffData = staffData.concat(activeResponse);
+        activeFaculty = activeResponse;
       }
       
+      let trashedFaculty = [];
       if (trashedResponse?.success && trashedResponse?.data) {
-        staffData = staffData.concat(trashedResponse.data);
+        trashedFaculty = trashedResponse.data;
       } else if (Array.isArray(trashedResponse)) {
-        staffData = staffData.concat(trashedResponse);
+        trashedFaculty = trashedResponse;
       }
       
-      // Filter faculty members (exclude HODs and Mentors)
-      const allFaculty = staffData.filter(staff => 
+      trashedFaculty = trashedFaculty.filter(staff => 
         staff.staffRole === 'FACULTY' || 
-        (staff.designation && 
+        (staff.designation &&
          !staff.designation.toLowerCase().includes('head') &&
          !staff.designation.toLowerCase().includes('hod') &&
          !staff.designation.toLowerCase().includes('mentor'))
       );
       
-      // Separate active and deleted based on deletedAt field
-      const active = allFaculty.filter(staff => !staff.deletedAt);
-      const deleted = allFaculty.filter(staff => staff.deletedAt);
+      const active = activeFaculty.filter(staff => !staff.deletedAt);
+      const deleted = trashedFaculty.filter(staff => staff.deletedAt);
       
       setFacultyStaff(active);
       setDeletedStaff(deleted);

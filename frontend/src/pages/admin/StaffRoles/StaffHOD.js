@@ -204,35 +204,33 @@ const StaffHOD = () => {
       setError(null);
       
       const [activeResponse, trashedResponse] = await Promise.all([
-        staffApi.getAll(),
+        staffApi.getHODs(),
         staffApi.getTrashed()
       ]);
       
-      let staffData = [];
+      let activeHODs = [];
       if (activeResponse?.success && activeResponse?.data) {
-        staffData = staffData.concat(activeResponse.data);
+        activeHODs = activeResponse.data;
       } else if (Array.isArray(activeResponse)) {
-        staffData = staffData.concat(activeResponse);
+        activeHODs = activeResponse;
       }
-      
+
+      let trashedHODs = [];
       if (trashedResponse?.success && trashedResponse?.data) {
-        staffData = staffData.concat(trashedResponse.data);
+        trashedHODs = trashedResponse.data;
       } else if (Array.isArray(trashedResponse)) {
-        staffData = staffData.concat(trashedResponse);
+        trashedHODs = trashedResponse;
       }
-      
-      const allHODs = staffData.filter(staff => 
+
+      trashedHODs = trashedHODs.filter(staff => 
         staff.staffRole === 'HOD' ||
         staff.designation?.toLowerCase().includes('head') || 
         staff.designation?.toLowerCase().includes('hod')
       );
       
-      const active = allHODs.filter(staff => !staff.deletedAt);
-      const deleted = allHODs.filter(staff => staff.deletedAt);
-      
-      setHodStaff(active);
-      setDeletedStaff(deleted);
-      setFilteredStaff(active);
+      setHodStaff(activeHODs);
+      setDeletedStaff(trashedHODs);
+      setFilteredStaff(activeHODs);
     } catch (error) {
       console.error('Error fetching HOD staff:', error);
       const errorMsg = error.response?.data?.message || error.message || 'Unknown error';

@@ -113,6 +113,36 @@ export const staffApi = {
     }
   },
 
+  getHODs: async () => {
+    try {
+      const response = await axiosConfig.get('/admin/staff/hods');
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error fetching HODs:', error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  getFaculty: async () => {
+    try {
+      const response = await axiosConfig.get('/admin/staff/faculty');
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error fetching faculty:', error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  getMentors: async () => {
+    try {
+      const response = await axiosConfig.get('/admin/staff/mentors');
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error fetching mentors:', error.response?.data || error.message);
+      throw error;
+    }
+  },
+
   getById: async (id) => {
     try {
       const response = await axiosConfig.get(`/admin/staff/${id}`);
@@ -195,6 +225,16 @@ export const staffApi = {
       return response.data;
     } catch (error) {
       console.error('❌ Error fetching trashed staff:', error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  getStats: async () => {
+    try {
+      const response = await axiosConfig.get('/admin/staff/stats');
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error fetching staff stats:', error.response?.data || error.message);
       throw error;
     }
   },
