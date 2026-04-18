@@ -47,11 +47,19 @@ export const register = async (req, res) => {
       });
     }
 
-    if (userRole === "STAFF" && !department) {
-      return res.status(400).json({
-        success: false,
-        error: "Department is required for staff"
-      });
+    if (userRole === "STAFF") {
+      if (!department) {
+        return res.status(400).json({
+          success: false,
+          error: "Department is required for staff"
+        });
+      }
+      if (!designation) {
+        return res.status(400).json({
+          success: false,
+          error: "Designation is required for staff"
+        });
+      }
     }
 
     // Check if user already exists
@@ -108,13 +116,9 @@ export const register = async (req, res) => {
           employeeId: `EMP${Date.now()}`,
           department: department || "General",
           designation: designation || "Staff",
-          joiningDate: new Date(),
+          appointedDate: new Date(),
           phone: phone || null,
-          qualification: null,
-          address: null,
-          dateOfBirth: null,
-          age: null,
-          gender: null
+          staffRole: "FACULTY"
         }
       });
     }
@@ -161,7 +165,7 @@ export const register = async (req, res) => {
 };
 
 /* ========================================
-   LOGIN USER - UPDATED WITH DEACTIVATED CHECK
+   LOGIN USER
    POST /api/auth/login
 ======================================== */
 export const login = async (req, res) => {
@@ -192,18 +196,15 @@ export const login = async (req, res) => {
       });
     }
 
-    // CHECK IF ACCOUNT IS DEACTIVATED - UPDATED
-    // Check both isActive flag and status field
+    // CHECK IF ACCOUNT IS DEACTIVATED
     const isDeactivated = !user.isActive || user.status === 'deactivated' || user.status === 'inactive';
     
     if (isDeactivated) {
-      console.log(`⚠️ Deactivated login attempt: ${email} (Status: ${user.status}, isActive: ${user.isActive})`);
+      console.log(`⚠️ Deactivated login attempt: ${email}`);
       return res.status(403).json({
         success: false,
         error: "Account is Deactivated",
-        code: "ACCOUNT_DEACTIVATED",
-        deactivatedAt: user.deactivatedAt,
-        deactivatedReason: user.deactivatedReason
+        code: "ACCOUNT_DEACTIVATED"
       });
     }
 
@@ -291,8 +292,11 @@ export const login = async (req, res) => {
 ======================================== */
 export const getMe = async (req, res) => {
   try {
+    // req.user is set by the protect middleware
+    const userId = req.user.id;
+    
     const user = await prisma.user.findUnique({
-      where: { id: req.user.id },
+      where: { id: userId },
       include: {
         student: true,
         staff: true,
@@ -315,27 +319,49 @@ export const getMe = async (req, res) => {
       role: user.role,
       isActive: user.isActive,
       status: user.status,
-      lastLogin: user.lastLogin
+      lastLogin: user.lastLogin,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt
     };
 
+    // Add role-specific data
     if (user.role === "STUDENT" && user.student) {
       userData = { 
         ...userData, 
-        ...user.student
+        rollNo: user.student.rollNo,
+        course: user.student.course,
+        semester: user.student.semester,
+        batch: user.student.batch,
+        phone: user.student.phone,
+        address: user.student.address,
+        dateOfBirth: user.student.dateOfBirth,
+        gender: user.student.gender
       };
     }
 
     if (user.role === "STAFF" && user.staff) {
       userData = { 
         ...userData, 
-        ...user.staff
+        employeeId: user.staff.employeeId,
+        department: user.staff.department,
+        designation: user.staff.designation,
+        phone: user.staff.phone,
+        qualification: user.staff.qualification,
+        joiningDate: user.staff.joiningDate,
+        address: user.staff.address,
+        dateOfBirth: user.staff.dateOfBirth,
+        age: user.staff.age,
+        gender: user.staff.gender
       };
     }
 
     if (user.role === "ADMIN" && user.admin) {
       userData = { 
         ...userData, 
-        ...user.admin
+        employeeId: user.admin.employeeId,
+        department: user.admin.department,
+        phone: user.admin.phone,
+        address: user.admin.address
       };
     }
 
@@ -348,7 +374,7 @@ export const getMe = async (req, res) => {
     console.error("❌ GetMe error:", error);
     res.status(500).json({
       success: false,
-      error: "Server error"
+      error: "Server error while fetching user data"
     });
   }
 };
