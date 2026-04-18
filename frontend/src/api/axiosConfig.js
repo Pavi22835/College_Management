@@ -1,29 +1,28 @@
 import axios from 'axios';
 
-const axiosInstance = axios.create({
+const axiosConfig = axios.create({
   baseURL: 'http://localhost:3003/api',
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true,
 });
 
-// Request interceptor - FIXED: Better token logging
-axiosInstance.interceptors.request.use(
+// Request interceptor - ALWAYS add token
+axiosConfig.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
     
-    // Log token status (without exposing the full token)
+    console.log(`🔐 Request to: ${config.method?.toUpperCase()} ${config.url}`);
+    console.log(`🔑 Token exists: ${!!token}`);
+    
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
-      console.log(`🚀 ${config.method.toUpperCase()} ${config.url} - ✅ Token attached`);
+      console.log(`✅ Token attached to request`);
     } else {
-      console.warn(`⚠️ ${config.method.toUpperCase()} ${config.url} - ❌ No token found!`);
+      console.warn(`⚠️ NO TOKEN found for request to ${config.url}`);
     }
-    
-    // Log full URL for debugging
-    const fullUrl = `${config.baseURL || 'http://localhost:3003/api'}${config.url}`;
-    console.log(`📤 Request: ${fullUrl}`);
     
     return config;
   },
@@ -33,39 +32,36 @@ axiosInstance.interceptors.request.use(
   }
 );
 
-// Response interceptor - FIXED: Better error messages
-axiosInstance.interceptors.response.use(
+// Response interceptor - Handle errors
+axiosConfig.interceptors.response.use(
   (response) => {
     console.log(`✅ Response from ${response.config.url}: ${response.status}`);
     return response;
   },
   (error) => {
     if (error.response) {
-      // The request was made and the server responded with a status code
-      console.error(`❌ Error ${error.response.status} for ${error.config?.url}:`, error.response.data);
+      console.error(`❌ API Error ${error.response.status} for ${error.config?.url}:`);
+      console.error('   Error data:', error.response.data);
       
       if (error.response.status === 401) {
-        console.error('🔒 Unauthorized - Token invalid or expired');
+        console.error('🔒 Unauthorized - No token or invalid token');
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        // Don't redirect immediately, give time to see the error
-        setTimeout(() => {
-          window.location.href = '/login';
-        }, 2000);
-      } else if (error.response.status === 403) {
-        console.error('🚫 Forbidden - You don\'t have permission');
-      } else if (error.response.status === 404) {
-        console.error('🔍 Endpoint not found. Check if URL is correct:', error.config?.url);
-        console.log('Expected URL pattern: /teachers/dashboard/stats');
-      } else if (error.response.status === 500) {
-        console.error('💥 Server error - Check backend logs');
+        
+        if (!window.location.pathname.includes('/login')) {
+          console.log('🔄 Redirecting to login...');
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 1000);
+        }
+      }
+      
+      if (error.response.status === 403) {
+        console.error('🚫 Forbidden - Account deactivated or insufficient permissions');
       }
     } else if (error.request) {
-      // The request was made but no response was received
       console.error('❌ No response from server. Is backend running on port 3003?');
-      console.error('Request URL:', error.request?.responseURL || 'Unknown');
     } else {
-      // Something happened in setting up the request
       console.error('❌ Request setup error:', error.message);
     }
     
@@ -73,4 +69,4 @@ axiosInstance.interceptors.response.use(
   }
 );
 
-export default axiosInstance;
+export default axiosConfig;
