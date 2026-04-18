@@ -6,6 +6,9 @@ import helmet from "helmet";
 import path from "path";
 import { fileURLToPath } from "url";
 
+/* -------------------- Swagger Documentation -------------------- */
+import { swaggerUi, specs } from "./src/config/swagger.js";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -19,7 +22,7 @@ import courseRoutes from "./src/routes/courseRoutes.js";
 import attendanceRoutes from "./src/routes/attendanceRoutes.js";
 import lessonRoutes from "./src/routes/lessonRoutes.js";
 import materialRoutes from "./src/routes/materialRoutes.js";
-import topicRoutes from "./src/routes/topicRoutes.js";  // ← ADD THIS
+import topicRoutes from "./src/routes/topicRoutes.js";
 
 dotenv.config();
 
@@ -33,28 +36,49 @@ app.use(helmet({
 /* -------------------- Logger -------------------- */
 app.use(morgan("dev"));
 
-/* -------------------- CORS -------------------- */
+/* -------------------- CORS (FIXED) -------------------- */
+// Allow all origins in development - FIXES THE CORS ERROR
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "http://localhost:3002",
+  "http://localhost:3003",
+  "http://localhost:3004",
+  "http://localhost:5000",
+  "http://localhost:5173",  // Vite default port
+  "http://localhost:5174",
+  "http://localhost:8080",
+  "http://localhost:5500",
+  process.env.FRONTEND_URL
+].filter(Boolean);
+
 app.use(
   cors({
     origin: function (origin, callback) {
       // Allow requests with no origin (like mobile apps or curl requests)
-      if (!origin) return callback(null, true);
-
-      const allowedOrigins = [
-        "http://localhost:3000",
-        "http://localhost:3001",
-        process.env.FRONTEND_URL
-      ].filter(Boolean);
-
+      if (!origin) {
+        return callback(null, true);
+      }
+      
+      // In development, allow any localhost origin for convenience
+      if (process.env.NODE_ENV !== 'production' && origin.match(/^http:\/\/localhost:\d+$/)) {
+        return callback(null, true);
+      }
+      
+      // Check against allowed origins list
       if (allowedOrigins.includes(origin)) {
         return callback(null, true);
-      } else {
-        return callback(new Error('Not allowed by CORS'));
       }
+      
+      // Log blocked origins for debugging
+      console.log(`❌ CORS blocked origin: ${origin}`);
+      console.log(`✅ Allowed origins: ${allowedOrigins.join(', ')}`);
+      return callback(new Error('Not allowed by CORS'));
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"]
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    exposedHeaders: ["Content-Range", "X-Content-Range"]
   })
 );
 
@@ -134,6 +158,17 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+// Public API root
+app.get("/api", (req, res) => {
+  res.json({
+    success: true,
+    message: "College Portal ERP API",
+    status: "ok",
+    docs: "/api-docs",
+    health: "/api/health"
+  });
+});
+
 // Authentication routes
 app.use("/api/auth", authRoutes);
 
@@ -161,8 +196,36 @@ app.use("/api", lessonRoutes);
 // Material routes
 app.use("/api/materials", materialRoutes);
 
-// Topic routes - ADD THIS LINE
+// Topic routes
 app.use("/api", topicRoutes);
+
+/* -------------------- Swagger Documentation -------------------- */
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(specs, {
+  explorer: true,
+  swaggerOptions: {
+    docExpansion: 'none',
+    filter: true,
+    showRequestDuration: true,
+    persistAuthorization: true,
+    displayRequestDuration: true,
+    tryItOutEnabled: true,
+    requestInterceptor: (req) => {
+      return req;
+    },
+    responseInterceptor: (res) => {
+      return res;
+    },
+    supportedSubmitMethods: ['get', 'post', 'put', 'delete', 'patch'],
+    security: [{ bearerAuth: [] }],
+  },
+  customCss: `
+    .swagger-ui .topbar { display: none }
+    .swagger-ui .info .title { color: #3b4151 }
+    .swagger-ui .auth-wrapper { display: block !important; }
+  `,
+  customSiteTitle: "College Portal ERP API Documentation",
+  customfavIcon: "/favicon.ico"
+}));
 
 /* -------------------- Root Route -------------------- */
 app.get("/", (req, res) => {
@@ -194,6 +257,10 @@ app.get("/api/test", (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
+
+/* -------------------- OPTIONS Pre-flight Handler -------------------- */
+// Handle pre-flight requests for all routes
+app.options('*', cors());
 
 /* -------------------- 404 Handler -------------------- */
 app.use((req, res) => {
@@ -228,6 +295,15 @@ app.use((err, req, res, next) => {
   console.error("Error name:", err.name);
   console.error("Error message:", err.message);
   console.error("Error stack:", err.stack);
+
+  // Handle CORS errors specifically
+  if (err.message === 'Not allowed by CORS') {
+    return res.status(403).json({
+      success: false,
+      message: "CORS error: Origin not allowed",
+      error: err.message
+    });
+  }
 
   if (err.code === 'P2002') {
     return res.status(400).json({
@@ -284,6 +360,10 @@ const server = app.listen(PORT, () => {
   console.log(`📍 Courses API: http://localhost:${PORT}/api/courses`);
   console.log(`📍 Lessons API: http://localhost:${PORT}/api/courses/:courseId/lessons`);
   console.log(`📍 Topics API: http://localhost:${PORT}/api/lessons/:lessonId/topics`);
+  console.log("=================================");
+  console.log("\n✅ CORS Configuration:");
+  console.log(`   Allowed origins: ${allowedOrigins.join(', ')}`);
+  console.log("   Credentials enabled: true");
   console.log("=================================\n");
 });
 
