@@ -9,7 +9,7 @@ const router = express.Router();
  * /api/auth/register:
  *   post:
  *     summary: Register a new user
- *     tags: [Authentication]
+ *     tags: [Login]
  *     security: []
  *     requestBody:
  *       required: true
@@ -95,7 +95,7 @@ router.post('/register', register);
  * /api/auth/login:
  *   post:
  *     summary: Login user
- *     tags: [Authentication]
+ *     tags: [Login]
  *     security: []
  *     requestBody:
  *       required: true
@@ -157,7 +157,7 @@ router.post('/login', login);
  * /api/auth/me:
  *   get:
  *     summary: Get current user profile
- *     tags: [Authentication]
+ *     tags: [Login]
  *     security:
  *       - bearerAuth: []
  *     responses:

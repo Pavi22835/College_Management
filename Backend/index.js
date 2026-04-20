@@ -208,6 +208,7 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(specs, {
     showRequestDuration: true,
     persistAuthorization: true,
     displayRequestDuration: true,
+    tagsSorter: false,
     tryItOutEnabled: true,
     requestInterceptor: (req) => {
       return req;

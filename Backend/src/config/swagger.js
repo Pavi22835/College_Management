@@ -23,6 +23,25 @@ const options = {
         description: 'Production server',
       },
     ],
+    tags: [
+      { name: 'Login', description: 'Login and authentication endpoints' },
+      { name: 'Admin', description: 'Admin actions and operations' },
+      { name: 'Staff', description: 'Staff endpoints' },
+      { name: 'Staff - Dashboard', description: 'Staff dashboard endpoints' },
+      { name: 'Staff - My Courses', description: 'Staff courses endpoints' },
+      { name: 'Staff - My Students', description: 'Staff students endpoints' },
+      { name: 'Staff - Attendance', description: 'Staff attendance endpoints' },
+      { name: 'Staff - Schedule', description: 'Staff schedule endpoints' },
+      { name: 'Staff - Reports', description: 'Staff reports endpoints' },
+      { name: 'Student', description: 'Student endpoints' },
+      { name: 'Attendance', description: 'Attendance endpoints' },
+      { name: 'Courses', description: 'Course endpoints' },
+      { name: 'Dashboard', description: 'Dashboard endpoints' },
+      { name: 'Lessons', description: 'Lesson endpoints' },
+      { name: 'Materials', description: 'Material endpoints' },
+      { name: 'Topics', description: 'Topic endpoints' },
+      { name: 'Schedule', description: 'Schedule endpoints' }
+    ],
     components: {
       securitySchemes: {
         bearerAuth: {

@@ -30,7 +30,7 @@ router.use(protect);
  *   get:
  *     summary: Get all attendance records (Admin)
  *     description: Retrieve paginated attendance records with optional filtering
- *     tags: [Admin - Attendance Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -161,7 +161,7 @@ router.get('/admin', authorize('ADMIN'), getAllAttendance);
  *   get:
  *     summary: Get attendance statistics (Admin)
  *     description: Retrieve comprehensive attendance statistics for admin dashboard
- *     tags: [Admin - Attendance Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -259,7 +259,7 @@ router.get('/admin/stats', authorize('ADMIN'), getAttendanceStats);
  *   get:
  *     summary: Get attendance by date (Admin)
  *     description: Retrieve all attendance records for a specific date
- *     tags: [Admin - Attendance Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -335,7 +335,7 @@ router.get('/admin/date/:date', authorize('ADMIN'), getAttendanceByDate);
  *   get:
  *     summary: Get attendance by course (Admin)
  *     description: Retrieve all attendance records for a specific course
- *     tags: [Admin - Attendance Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -448,7 +448,7 @@ router.get('/admin/course/:courseId', authorize('ADMIN'), getAttendanceByCourse)
  *   get:
  *     summary: Get attendance by student (Admin)
  *     description: Retrieve all attendance records for a specific student
- *     tags: [Admin - Attendance Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -567,7 +567,7 @@ router.get('/admin/student/:studentId', authorize('ADMIN'), getAttendanceByStude
  *   post:
  *     summary: Mark attendance for a course session (Staff)
  *     description: Mark attendance for all students in a course for a specific date
- *     tags: [Staff - Attendance Management]
+ *     tags: [Staff - Attendance]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -658,7 +658,7 @@ router.post('/mark', authorize('STAFF'), markAttendance);
  *   post:
  *     summary: Mark attendance for a single student (Staff)
  *     description: Mark attendance for a specific student in a course
- *     tags: [Staff - Attendance Management]
+ *     tags: [Staff - Attendance]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -745,7 +745,7 @@ router.post('/mark/:courseId/:studentId', authorize('STAFF'), markSingleAttendan
  *   post:
  *     summary: Mark bulk attendance (Staff)
  *     description: Mark attendance for multiple students across different courses
- *     tags: [Staff - Attendance Management]
+ *     tags: [Staff - Attendance]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -842,7 +842,7 @@ router.post('/mark/bulk', authorize('STAFF'), markBulkAttendance);
  *   get:
  *     summary: Get course attendance (Staff)
  *     description: Retrieve attendance records for a course taught by the staff member
- *     tags: [Staff - Attendance Management]
+ *     tags: [Staff - Attendance]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -982,7 +982,7 @@ router.get('/course/:courseId', authorize('STAFF'), getTeacherCourseAttendance);
  *   get:
  *     summary: Get staff attendance statistics (Staff)
  *     description: Retrieve attendance statistics for courses taught by the staff member
- *     tags: [Staff - Attendance Management]
+ *     tags: [Staff - Attendance]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -1072,7 +1072,7 @@ router.get('/staff/stats', authorize('STAFF'), getTeacherAttendanceStats);
  *   get:
  *     summary: Get recent attendance records (Staff)
  *     description: Retrieve recent attendance records marked by the staff member
- *     tags: [Staff - Attendance Management]
+ *     tags: [Staff - Attendance]
  *     security:
  *       - bearerAuth: []
  *     parameters:

@@ -34,10 +34,10 @@ const router = express.Router();
 
 /**
  * @swagger
- * /api/students/dashboard:
+ * /api/Student/dashboard:
  *   get:
  *     summary: Get student dashboard data
- *     tags: [Students]
+ *     tags: [Student]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -84,10 +84,10 @@ router.get("/dashboard", protect, authorize("STUDENT"), getStudentDashboard);
 
 /**
  * @swagger
- * /api/students/courses:
+ * /api/Student/courses:
  *   get:
  *     summary: Get student's enrolled courses
- *     tags: [Students]
+ *     tags: [Student]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -110,10 +110,10 @@ router.get("/courses", protect, authorize("STUDENT"), getStudentCourses);
 
 /**
  * @swagger
- * /api/students/courses/{courseId}:
+ * /api/Student/courses/{courseId}:
  *   get:
  *     summary: Get detailed course information for student
- *     tags: [Students]
+ *     tags: [Student]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -141,10 +141,10 @@ router.get("/courses/:courseId", protect, authorize("STUDENT"), getStudentCourse
 
 /**
  * @swagger
- * /api/students/attendance:
+ * /api/Student/attendance:
  *   get:
  *     summary: Get student's attendance records
- *     tags: [Students, Attendance]
+ *     tags: [Student, Attendance]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -167,10 +167,10 @@ router.get("/attendance", protect, authorize("STUDENT"), getStudentAttendance);
 
 /**
  * @swagger
- * /api/students/attendance/stats:
+ * /api/Student/attendance/stats:
  *   get:
  *     summary: Get student's attendance statistics
- *     tags: [Students, Attendance]
+ *     tags: [Student, Attendance]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -208,10 +208,10 @@ router.get("/attendance/stats", protect, authorize("STUDENT"), getStudentAttenda
 
 /**
  * @swagger
- * /api/students/attendance/course/{courseId}:
+ * /api/Student/attendance/course/{courseId}:
  *   get:
  *     summary: Get student's attendance for specific course
- *     tags: [Students, Attendance]
+ *     tags: [Student, Attendance]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -241,10 +241,10 @@ router.get("/attendance/course/:courseId", protect, authorize("STUDENT"), getStu
 
 /**
  * @swagger
- * /api/students/grades:
+ * /api/Student/grades:
  *   get:
  *     summary: Get student's grades
- *     tags: [Students]
+ *     tags: [Student]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -288,15 +288,15 @@ router.get("/grades", protect, authorize("STUDENT"), getStudentGrades);
 
 /**
  * @swagger
- * /api/students/staff/all:
+ * /api/Student/staff/all:
  *   get:
- *     summary: Get all students for staff/teacher
- *     tags: [Students, Staff]
+ *     summary: Get all Student for staff/teacher
+ *     tags: [Student, Staff]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Students retrieved successfully
+ *         description: Student retrieved successfully
  *         content:
  *           application/json:
  *             schema:
@@ -314,10 +314,10 @@ router.get("/staff/all", protect, authorize("STAFF"), getTeacherAllStudents);
 
 /**
  * @swagger
- * /api/students/staff/batches:
+ * /api/Student/staff/batches:
  *   get:
  *     summary: Get student batches for staff
- *     tags: [Students, Staff]
+ *     tags: [Student, Staff]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -350,10 +350,10 @@ router.get("/staff/batches", protect, authorize("STAFF"), getStaffStudentBatches
 
 /**
  * @swagger
- * /api/students/staff/{teacherId}:
+ * /api/Student/staff/{teacherId}:
  *   get:
- *     summary: Get students assigned to specific teacher
- *     tags: [Students, Staff]
+ *     summary: Get Student assigned to specific teacher
+ *     tags: [Student, Staff]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -365,7 +365,7 @@ router.get("/staff/batches", protect, authorize("STAFF"), getStaffStudentBatches
  *         description: Teacher/Staff ID
  *     responses:
  *       200:
- *         description: Students retrieved successfully
+ *         description: Student retrieved successfully
  *         content:
  *           application/json:
  *             schema:
@@ -383,10 +383,10 @@ router.get("/staff/:teacherId", protect, authorize("ADMIN", "STAFF"), getStudent
 
 /**
  * @swagger
- * /api/students/staff/attendance/{studentId}:
+ * /api/Student/staff/attendance/{studentId}:
  *   get:
  *     summary: Get specific student's attendance for teacher
- *     tags: [Students, Staff, Attendance]
+ *     tags: [Student, Staff, Attendance]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -416,10 +416,10 @@ router.get("/staff/attendance/:studentId", protect, authorize("STAFF"), getStude
 
 /**
  * @swagger
- * /api/students/course/{courseId}:
+ * /api/Student/course/{courseId}:
  *   get:
- *     summary: Get students enrolled in specific course
- *     tags: [Students, Courses]
+ *     summary: Get Student enrolled in specific course
+ *     tags: [Student, Courses]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -431,7 +431,7 @@ router.get("/staff/attendance/:studentId", protect, authorize("STAFF"), getStude
  *         description: Course ID
  *     responses:
  *       200:
- *         description: Course students retrieved successfully
+ *         description: Course Student retrieved successfully
  *         content:
  *           application/json:
  *             schema:
@@ -454,10 +454,10 @@ router.get("/course/:courseId", protect, authorize("STAFF"), getStudentsByCourse
 
 /**
  * @swagger
- * /api/students:
+ * /api/Student:
  *   get:
- *     summary: Get all students (Admin)
- *     tags: [Students, Admin]
+ *     summary: Get all Student (Admin)
+ *     tags: [Student, Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -466,7 +466,7 @@ router.get("/course/:courseId", protect, authorize("STAFF"), getStudentsByCourse
  *         schema:
  *           type: string
  *           enum: [true]
- *         description: Include soft-deleted students
+ *         description: Include soft-deleted Student
  *       - in: query
  *         name: page
  *         schema:
@@ -482,7 +482,7 @@ router.get("/course/:courseId", protect, authorize("STAFF"), getStudentsByCourse
  *         description: Number of records per page
  *     responses:
  *       200:
- *         description: Students retrieved successfully
+ *         description: Student retrieved successfully
  *         content:
  *           application/json:
  *             schema:
@@ -515,15 +515,15 @@ router.get("/", protect, authorize("ADMIN"), getAllStudents);
 
 /**
  * @swagger
- * /api/students/trash:
+ * /api/Student/trash:
  *   get:
- *     summary: Get trashed (soft-deleted) students
- *     tags: [Students, Admin]
+ *     summary: Get trashed (soft-deleted) Student
+ *     tags: [Student, Admin]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Trashed students retrieved successfully
+ *         description: Trashed Student retrieved successfully
  *         content:
  *           application/json:
  *             schema:
@@ -541,10 +541,10 @@ router.get("/trash", protect, authorize("ADMIN"), getTrashedStudents);
 
 /**
  * @swagger
- * /api/students:
+ * /api/Student:
  *   post:
  *     summary: Create new student
- *     tags: [Students, Admin]
+ *     tags: [Student, Admin]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -622,10 +622,10 @@ router.post("/", protect, authorize("ADMIN"), createStudent);
 
 /**
  * @swagger
- * /api/students/{id}:
+ * /api/Student/{id}:
  *   get:
  *     summary: Get student by ID
- *     tags: [Students, Admin]
+ *     tags: [Student, Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -659,10 +659,10 @@ router.get("/:id", protect, authorize("ADMIN"), getStudentById);
 
 /**
  * @swagger
- * /api/students/{id}:
+ * /api/Student/{id}:
  *   put:
  *     summary: Update student
- *     tags: [Students, Admin]
+ *     tags: [Student, Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -725,10 +725,10 @@ router.put("/:id", protect, authorize("ADMIN"), updateStudent);
 
 /**
  * @swagger
- * /api/students/{id}:
+ * /api/Student/{id}:
  *   delete:
  *     summary: Soft delete student (move to trash)
- *     tags: [Students, Admin]
+ *     tags: [Student, Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -757,10 +757,10 @@ router.delete("/:id", protect, authorize("ADMIN"), deleteStudent);
 
 /**
  * @swagger
- * /api/students/{id}/restore:
+ * /api/Student/{id}/restore:
  *   post:
  *     summary: Restore student from trash
- *     tags: [Students, Admin]
+ *     tags: [Student, Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -789,10 +789,10 @@ router.post("/:id/restore", protect, authorize("ADMIN"), restoreStudent);
 
 /**
  * @swagger
- * /api/students/{id}/permanent:
+ * /api/Student/{id}/permanent:
  *   delete:
  *     summary: Permanently delete student
- *     tags: [Students, Admin]
+ *     tags: [Student, Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -821,10 +821,10 @@ router.delete("/:id/permanent", protect, authorize("ADMIN"), permanentDeleteStud
 
 /**
  * @swagger
- * /api/students/{id}/activate:
+ * /api/Student/{id}/activate:
  *   post:
  *     summary: Activate student account
- *     tags: [Students, Admin]
+ *     tags: [Student, Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -853,10 +853,10 @@ router.post("/:id/activate", protect, authorize("ADMIN"), activateStudent);
 
 /**
  * @swagger
- * /api/students/{id}/deactivate:
+ * /api/Student/{id}/deactivate:
  *   post:
  *     summary: Deactivate student account
- *     tags: [Students, Admin]
+ *     tags: [Student, Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:

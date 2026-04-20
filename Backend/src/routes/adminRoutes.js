@@ -15,7 +15,7 @@ router.use(authorize('ADMIN'));
  *   get:
  *     summary: Get user statistics
  *     description: Retrieve statistics about users by role and status
- *     tags: [Admin - User Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -68,7 +68,7 @@ router.get('/users/stats', adminController.getUserStats);
  *   get:
  *     summary: Get all users
  *     description: Retrieve a paginated list of all users with optional filtering
- *     tags: [Admin - User Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -166,7 +166,7 @@ router.get('/users', adminController.getAllUsers);
  *   patch:
  *     summary: Activate a user
  *     description: Activate a deactivated user account
- *     tags: [Admin - User Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -227,7 +227,7 @@ router.patch('/users/:id/activate', adminController.activateUser);
  *   patch:
  *     summary: Deactivate a user
  *     description: Deactivate an active user account
- *     tags: [Admin - User Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -288,7 +288,7 @@ router.patch('/users/:id/deactivate', adminController.deactivateUser);
  *   put:
  *     summary: Reset user password
  *     description: Reset a user's password to a new value
- *     tags: [Admin - User Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -362,7 +362,7 @@ router.put('/users/:id/reset-password', adminController.resetUserPassword);
  *   get:
  *     summary: Get all students
  *     description: Retrieve a list of all active students
- *     tags: [Admin - Student Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -420,7 +420,7 @@ router.get('/students', adminController.getAllStudents);
  *   get:
  *     summary: Get trashed students
  *     description: Retrieve a list of soft-deleted students
- *     tags: [Admin - Student Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -481,7 +481,7 @@ router.get('/students/trash', adminController.getTrashedStudents);
  *   post:
  *     summary: Create a new student
  *     description: Create a new student account with user credentials
- *     tags: [Admin - Student Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -586,7 +586,7 @@ router.post('/students', adminController.createStudent);
  *   get:
  *     summary: Get student by ID
  *     description: Retrieve detailed information about a specific student
- *     tags: [Admin - Student Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -657,7 +657,7 @@ router.get('/students/:id', adminController.getStudentById);
  *   put:
  *     summary: Update student
  *     description: Update student information
- *     tags: [Admin - Student Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -760,7 +760,7 @@ router.put('/students/:id', adminController.updateStudent);
  *   delete:
  *     summary: Delete student
  *     description: Soft delete a student (move to trash)
- *     tags: [Admin - Student Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -801,7 +801,7 @@ router.delete('/students/:id', adminController.deleteStudent);
  *   post:
  *     summary: Restore student
  *     description: Restore a soft-deleted student from trash
- *     tags: [Admin - Student Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -842,7 +842,7 @@ router.post('/students/:id/restore', adminController.restoreStudent);
  *   delete:
  *     summary: Permanently delete student
  *     description: Permanently delete a student from trash
- *     tags: [Admin - Student Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -887,7 +887,7 @@ router.delete('/students/:id/permanent', adminController.permanentDeleteStudent)
  *   get:
  *     summary: Get all HODs
  *     description: Retrieve a list of all Heads of Departments
- *     tags: [Admin - Staff Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -951,7 +951,7 @@ router.get('/staff/hods', staffController.getHODs);
  *   get:
  *     summary: Get all faculty members
  *     description: Retrieve a list of all faculty members (non-HOD staff)
- *     tags: [Admin - Staff Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -1015,7 +1015,7 @@ router.get('/staff/faculty', staffController.getFaculty);
  *   get:
  *     summary: Get all mentors
  *     description: Retrieve a list of all staff members who are assigned as mentors
- *     tags: [Admin - Staff Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -1079,7 +1079,7 @@ router.get('/staff/mentors', staffController.getMentors);
  *   get:
  *     summary: Get staff statistics
  *     description: Retrieve statistics about staff members
- *     tags: [Admin - Staff Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -1131,7 +1131,7 @@ router.get('/staff/stats', staffController.getStaffStats);
  *   get:
  *     summary: Get trashed staff
  *     description: Retrieve a list of soft-deleted staff members
- *     tags: [Admin - Staff Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -1200,7 +1200,7 @@ router.get('/staff/trash', staffController.getTrashedStaff);
  *   get:
  *     summary: Get all staff members
  *     description: Retrieve a list of all active staff members
- *     tags: [Admin - Staff Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -1270,7 +1270,7 @@ router.get('/staff', staffController.getAllStaff);
  *   post:
  *     summary: Create a new staff member
  *     description: Create a new staff member account with user credentials
- *     tags: [Admin - Staff Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -1387,7 +1387,7 @@ router.post('/staff', staffController.createStaff);
  *   get:
  *     summary: Get staff member by ID
  *     description: Retrieve detailed information about a specific staff member
- *     tags: [Admin - Staff Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -1470,7 +1470,7 @@ router.get('/staff/:id', staffController.getStaffById);
  *   put:
  *     summary: Update staff member
  *     description: Update staff member information
- *     tags: [Admin - Staff Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -1583,7 +1583,7 @@ router.put('/staff/:id', staffController.updateStaff);
  *   delete:
  *     summary: Delete staff member
  *     description: Soft delete a staff member (move to trash)
- *     tags: [Admin - Staff Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -1624,7 +1624,7 @@ router.delete('/staff/:id', staffController.deleteStaff);
  *   post:
  *     summary: Restore staff member
  *     description: Restore a soft-deleted staff member from trash
- *     tags: [Admin - Staff Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -1665,7 +1665,7 @@ router.post('/staff/:id/restore', staffController.restoreStaff);
  *   delete:
  *     summary: Permanently delete staff member
  *     description: Permanently delete a staff member from trash
- *     tags: [Admin - Staff Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -1708,7 +1708,7 @@ router.delete('/staff/:id/permanent', staffController.permanentDeleteStaff);
  *   get:
  *     summary: Get all courses
  *     description: Retrieve a list of all active courses
- *     tags: [Admin - Course Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -1767,7 +1767,7 @@ router.get('/courses', adminController.getAllCourses);
  *   get:
  *     summary: Get trashed courses
  *     description: Retrieve a list of soft-deleted courses
- *     tags: [Admin - Course Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -1825,7 +1825,7 @@ router.get('/courses/trash', adminController.getTrashedCourses);
  *   post:
  *     summary: Create a new course
  *     description: Create a new course in the system
- *     tags: [Admin - Course Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -1929,7 +1929,7 @@ router.post('/courses', adminController.createCourse);
  *   get:
  *     summary: Get course by ID
  *     description: Retrieve detailed information about a specific course
- *     tags: [Admin - Course Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -1995,7 +1995,7 @@ router.get('/courses/:id', adminController.getCourseById);
  *   put:
  *     summary: Update course
  *     description: Update course information
- *     tags: [Admin - Course Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -2101,7 +2101,7 @@ router.put('/courses/:id', adminController.updateCourse);
  *   delete:
  *     summary: Delete course
  *     description: Soft delete a course (move to trash)
- *     tags: [Admin - Course Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -2142,7 +2142,7 @@ router.delete('/courses/:id', adminController.deleteCourse);
  *   post:
  *     summary: Restore course
  *     description: Restore a soft-deleted course from trash
- *     tags: [Admin - Course Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -2183,7 +2183,7 @@ router.post('/courses/:id/restore', adminController.restoreCourse);
  *   delete:
  *     summary: Permanently delete course
  *     description: Permanently delete a course from trash
- *     tags: [Admin - Course Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -2226,7 +2226,7 @@ router.delete('/courses/:id/permanent', adminController.permanentDeleteCourse);
  *   get:
  *     summary: Get all departments
  *     description: Retrieve a list of all active departments with statistics
- *     tags: [Admin - Department Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -2293,7 +2293,7 @@ router.get('/departments', adminController.getAllDepartments);
  *   get:
  *     summary: Get trashed departments
  *     description: Retrieve a list of soft-deleted departments
- *     tags: [Admin - Department Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -2342,7 +2342,7 @@ router.get('/departments/trash', adminController.getTrashedDepartments);
  *   post:
  *     summary: Create a new department
  *     description: Create a new department in the system
- *     tags: [Admin - Department Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -2455,7 +2455,7 @@ router.post('/departments', adminController.createDepartment);
  *   get:
  *     summary: Get department by ID
  *     description: Retrieve detailed information about a specific department including HOD, courses, and teachers
- *     tags: [Admin - Department Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -2590,7 +2590,7 @@ router.get('/departments/:id', adminController.getDepartmentById);
  *   put:
  *     summary: Update department
  *     description: Update department information
- *     tags: [Admin - Department Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -2707,7 +2707,7 @@ router.put('/departments/:id', adminController.updateDepartment);
  *   delete:
  *     summary: Delete department
  *     description: Soft delete a department (move to trash) - only if it has no active courses
- *     tags: [Admin - Department Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -2750,7 +2750,7 @@ router.delete('/departments/:id', adminController.deleteDepartment);
  *   post:
  *     summary: Restore department
  *     description: Restore a soft-deleted department from trash
- *     tags: [Admin - Department Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -2791,7 +2791,7 @@ router.post('/departments/:id/restore', adminController.restoreDepartment);
  *   delete:
  *     summary: Permanently delete department
  *     description: Permanently delete a department from trash
- *     tags: [Admin - Department Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -2834,7 +2834,7 @@ router.delete('/departments/:id/permanent', adminController.permanentDeleteDepar
  *   get:
  *     summary: Get admin dashboard statistics
  *     description: Retrieve comprehensive dashboard statistics for admin overview
- *     tags: [Admin - Dashboard]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -2910,7 +2910,7 @@ router.get('/dashboard', adminController.getDashboardStats);
  *   get:
  *     summary: Get admin profile
  *     description: Retrieve the current admin's profile information
- *     tags: [Admin - Profile]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -2973,7 +2973,7 @@ router.get('/profile', adminController.getAdminProfile);
  *   get:
  *     summary: Get trash contents
  *     description: Retrieve all items currently in the trash
- *     tags: [Admin - Trash Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -3026,7 +3026,7 @@ router.get('/trash', adminController.getTrash);
  *   post:
  *     summary: Restore item from trash
  *     description: Restore a soft-deleted item from trash back to active status
- *     tags: [Admin - Trash Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -3069,7 +3069,7 @@ router.post('/trash/:id/restore', adminController.restoreFromTrash);
  *   delete:
  *     summary: Permanently delete item from trash
  *     description: Permanently delete an item from trash (cannot be restored)
- *     tags: [Admin - Trash Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -3110,7 +3110,7 @@ router.delete('/trash/:id/permanent', adminController.permanentDelete);
  *   delete:
  *     summary: Empty trash
  *     description: Delete all items from trash (expired items by default, or all items if force=true)
- *     tags: [Admin - Trash Management]
+ *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:

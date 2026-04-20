@@ -151,7 +151,7 @@ router.put("/password", protect, authorize("STAFF"), updateStaffPassword);
  * /api/staff/dashboard/stats:
  *   get:
  *     summary: Get staff dashboard statistics
- *     tags: [Staff, Dashboard]
+ *     tags: [Staff - Dashboard]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -188,7 +188,7 @@ router.get("/dashboard/stats", protect, authorize("STAFF"), getStaffDashboardSta
  * /api/staff/dashboard/courses:
  *   get:
  *     summary: Get staff's assigned courses
- *     tags: [Staff, Courses]
+ *     tags: [Staff - My Courses]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -214,7 +214,7 @@ router.get("/dashboard/courses", protect, authorize("STAFF"), getStaffCourses);
  * /api/staff/dashboard/students:
  *   get:
  *     summary: Get staff's students
- *     tags: [Staff, Students]
+ *     tags: [Staff - My Students]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -240,7 +240,7 @@ router.get("/dashboard/students", protect, authorize("STAFF"), getStaffStudents)
  * /api/staff/dashboard/schedule/today:
  *   get:
  *     summary: Get today's schedule for staff
- *     tags: [Staff, Schedule]
+ *     tags: [Staff - Schedule]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -283,7 +283,7 @@ router.get("/dashboard/schedule/today", protect, authorize("STAFF"), getStaffTod
  * /api/staff/courses:
  *   post:
  *     summary: Create new course for staff
- *     tags: [Staff, Courses]
+ *     tags: [Staff - My Courses]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -343,7 +343,7 @@ router.post("/courses", protect, authorize("STAFF", "ADMIN"), createStaffCourse)
  * /api/staff/courses/{id}:
  *   get:
  *     summary: Get course by ID for staff
- *     tags: [Staff, Courses]
+ *     tags: [Staff - My Courses]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -374,7 +374,7 @@ router.get("/courses/:id", protect, authorize("STAFF", "ADMIN"), getStaffCourseB
  * /api/staff/courses/{id}:
  *   put:
  *     summary: Update course for staff
- *     tags: [Staff, Courses]
+ *     tags: [Staff - My Courses]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -427,7 +427,7 @@ router.put("/courses/:id", protect, authorize("STAFF", "ADMIN"), updateStaffCour
  * /api/staff/courses/{id}:
  *   delete:
  *     summary: Delete course for staff
- *     tags: [Staff, Courses]
+ *     tags: [Staff - My Courses]
  *     security:
  *       - bearerAuth: []
  *     parameters:
